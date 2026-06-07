@@ -7,6 +7,7 @@
  */
 
 import { signal, type Signal } from "./../signal.js";
+import { html } from "../html.js";
 import {
   compile,
   matchRoute,
@@ -194,15 +195,7 @@ function findAnchor(e: Event, selector: string): HTMLAnchorElement | null {
 
 /** Default 404, if the manifest had no `'*'`. */
 function defaultFallback(): CompiledRoute {
-  return compile("*", () => {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = `<pre>404: ${location.pathname}</pre>`;
-    return {
-      _mado: true,
-      strings: Object.assign([""], { raw: [""] }) as TemplateStringsArray,
-      values: [tpl.content],
-    };
-  });
+  return compile("*", () => html`<pre>404: ${location.pathname}</pre>`);
 }
 
 // ---------- navigate() ----------

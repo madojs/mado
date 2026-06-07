@@ -247,6 +247,28 @@ component("x-child", ({ host }) => {
 });
 ```
 
+### 13. Component registration imports
+
+Custom elements are global after registration, but the browser never imports a
+component file automatically.
+
+```ts
+import "./components/app-shell.js";
+
+render(html`<x-app-shell>${router.view}</x-app-shell>`, app);
+```
+
+The import runs `customElements.define("x-app-shell", ...)`. After that,
+`<x-app-shell>` works anywhere in the current document.
+
+Rules:
+
+- App shell / global providers → import in `main.ts`.
+- Components used only by one page → import in that page.
+- Components shared by a feature → import in the feature entry/page.
+- Tiny leaf components used everywhere → importing in `main.ts` is acceptable.
+- Do **not** bulk-import every component "just in case".
+
 ## SOFT GUIDELINES — recommended, but not critical
 
 - **TypeScript strict.** Use `noUncheckedIndexedAccess`-aware code (with `!` or a type guard).
@@ -263,7 +285,7 @@ src/
 ├── main.ts           ← entry: mount to #app
 ├── pages/            ← one page = one file
 ├── components/       ← reusable x-* components
-├── layouts/          ← layout for nested routes
+├── layouts/          ← optional route layout modules (`page({ child })`)
 └── lib/              ← API client, contexts, pure logic
 ```
 

@@ -11,6 +11,7 @@ Mado is a narrowly-focused frontend framework that deliberately avoids React pat
 - **All templates are tagged template `html\`...\``** (not JSX). Allowed bindings inside: `${value}`, `attr=${v}`, `@evt=${fn}`, `.prop=${v}`, `?attr=${flag}`.
 - **Reactivity via signals.** `signal()`, `computed()`, `effect()`. A signal is a getter function (`count()`), not an object field (`count.value`).
 - **Components are Web Components.** Registered via `component('x-name', setupFn, options)`. Names must include a hyphen (`x-foo`, `my-button`).
+- **Component files register tags as side effects.** The browser does not auto-import files by tag name. If `<x-card>` works, some imported module already ran `customElements.define("x-card", ...)`.
 - **Cleanup via `ctx.onDispose(fn)`** in setup, not via return from effect.
 
 ## Critical template rules
@@ -93,6 +94,20 @@ export default page({
   view: () => html`<x-counter></x-counter>`,
 });
 ```
+
+## Component registration imports
+
+```ts
+// main.ts: global shell/provider components only
+import "./components/app-shell.js";
+
+// pages/tickets.ts: feature/page-owned components
+import "../components/ticket-list.js";
+```
+
+Do not bulk-import every component in `main.ts` "just in case". Import the
+registration near the route/page that owns the tag. This preserves lazy loading
+and makes the code readable to humans and LLMs.
 
 ## Canonical CRUD pattern (for backend developers)
 

@@ -6,6 +6,19 @@ an application.
 
 ## Rule of Thumb
 
+В Mado layout — это тоже component. Если файл описывает видимую переиспользуемую
+часть UI-дерева — app shell, sidebar, modal, table, page section — по умолчанию
+делайте Web Component через `component()`.
+
+Обычные функции оставляйте для маленьких inline helpers:
+
+```ts
+const money = (value: number) => html`<span>${formatMoney(value)}</span>`;
+```
+
+Не стоит делать app shell функцией в публичных примерах. Это работает, но
+прячет browser model вместо того, чтобы ее объяснять.
+
 Use **Shadow DOM** for leaf widgets:
 
 - buttons, badges, cards, metrics;
@@ -21,6 +34,15 @@ global CSS utilities:
 - data-heavy screens with tables and forms;
 - components that intentionally share global layout, form and table utilities;
 - places where children should simply remain normal document DOM.
+
+Use **Shadow DOM** для slot-based layouts:
+
+- app shells с `<slot>`;
+- sidebar/content wrappers;
+- reusable layout frames, которые владеют своим grid/header/sidebar CSS.
+
+`<slot>` — это feature Shadow DOM. В компоненте с `shadow: false` тег `<slot>`
+становится обычным DOM-элементом и не переносит children в это место layout.
 
 ## The Footgun
 
@@ -90,6 +112,18 @@ component("x-toast-stack", setup);
 This gives backend-admin screens predictable CSS while preserving encapsulation
 for reusable widgets and slot-based shells.
 
+Import model специально browser-native:
+
+```ts
+import "./components/app-layout.js";
+
+render(html`<x-app-layout>${router.view}</x-app-layout>`, app);
+```
+
+Import регистрирует custom element через `customElements.define()`. Template
+создает `<x-app-layout>` element. Дальше браузер сам связывает тег с классом
+компонента. Тут нет React-style component value, который передается как функция.
+
 If a layout does not need slot projection and should be styled entirely by
 global CSS, `shadow: false` can still be a good choice. If it contains
 `<slot>`, keep Shadow DOM and put the shell styles in that component.
@@ -106,6 +140,32 @@ component("x-card-link", () => () => html`
 ```
 
 The link can be in Shadow DOM; navigation still stays SPA.
+
+## Где импортировать компоненты
+
+Custom elements становятся глобальными после регистрации, но регистрация все
+равно остается явным JavaScript import.
+
+```ts
+// main.ts: global app frame
+import "./components/app-shell.js";
+
+// pages/tickets.ts: component, которым владеет эта page
+import "../components/ticket-list.js";
+```
+
+Браузер **не** скачивает `ticket-list.js` только потому, что увидел
+`<ticket-list>`. Файл должен быть где-то импортирован. После import он вызывает
+`customElements.define(...)`, и тег становится известен текущему document.
+
+Не стоит bulk-import всех компонентов в `main.ts` "just in case". Для маленьких
+demo это работает, но прячет ownership и ломает lazy route loading. Лучше:
+
+- global app shell/providers импортировать в `main.ts`;
+- components, которыми владеет одна page, импортировать в этой page;
+- shared components feature-а импортировать в feature entry page;
+- truly global leaf components импортировать в `main.ts` только если они реально
+  используются везде.
 
 ## Showcase Lesson
 

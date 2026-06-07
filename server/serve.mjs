@@ -6,7 +6,8 @@
 //   node server/serve.mjs basic                   # mount examples/basic/ at /
 //   EXAMPLE=showcase node server/serve.mjs        # mount examples/showcase/ at /
 //
-// Without EXAMPLE, / serves examples/index.html (example index).
+// Without EXAMPLE, / serves examples/index.html when running inside the Mado
+// repository, or ./index.html when running inside a generated app.
 // With EXAMPLE, all extensionless and /index.html requests fall back to
 // examples/<EXAMPLE>/index.html so the client router works from root, just
 // like a production SPA deploy.
@@ -26,6 +27,9 @@ const EXAMPLE_DIR = EXAMPLE
   ? resolve(join(ROOT, "examples", EXAMPLE))
   : "";
 const EXAMPLE_INDEX = EXAMPLE ? join(EXAMPLE_DIR, "index.html") : "";
+const EXAMPLES_INDEX = join(ROOT, "examples", "index.html");
+const APP_INDEX = join(ROOT, "index.html");
+const DEFAULT_INDEX = existsSync(EXAMPLES_INDEX) ? EXAMPLES_INDEX : APP_INDEX;
 
 if (EXAMPLE) {
   if (!existsSync(EXAMPLE_INDEX)) {
@@ -133,9 +137,7 @@ const server = createServer(async (req, res) => {
 
     // A mounted example owns root and SPA fallback. Otherwise serve the
     // examples index page.
-    const fallbackIndex = EXAMPLE
-      ? EXAMPLE_INDEX
-      : join(ROOT, "examples", "index.html");
+    const fallbackIndex = EXAMPLE ? EXAMPLE_INDEX : DEFAULT_INDEX;
 
     if (pathname === "/") {
       // Resolved through fallback below.
@@ -260,6 +262,10 @@ async function buildPreloadHints() {
         }
       }
     }
+  } else if (!existsSync(EXAMPLES_INDEX)) {
+    if (existsSync(join(ROOT, "dist/main.js"))) {
+      hrefs.push("/dist/main.js");
+    }
   }
   cachedPreloadHints = hrefs
     .map((h) => `  <link rel="modulepreload" href="${h}">`)
@@ -274,16 +280,22 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, () => {
-  const distReady = existsSync(join(ROOT, "dist/src/index.js"));
+  const distReady = existsSync(join(ROOT, "dist/src/index.js"))
+    || existsSync(join(ROOT, "dist/main.js"));
+  const mount = EXAMPLE
+    ? `examples/${EXAMPLE}/ -> /`
+    : existsSync(EXAMPLES_INDEX)
+      ? "examples/index.html landing"
+      : "index.html app";
   console.log("");
   console.log("Mado dev server");
   console.log(`  url:      http://localhost:${PORT}/`);
   console.log(`  root:     ${ROOT}`);
-  console.log(`  example:  ${EXAMPLE ? `examples/${EXAMPLE}/ -> /` : "examples/index.html landing"}`);
+  console.log(`  mount:    ${mount}`);
   console.log(`  hmr:      ${HMR ? "on" : "off"}`);
   console.log(`  preload:  ${PRELOAD}`);
   console.log(`  dist:     ${distReady ? "ready" : "missing (run mado build)"}`);
-  if (!EXAMPLE) {
+  if (!EXAMPLE && existsSync(EXAMPLES_INDEX)) {
     console.log("  try:      mado serve basic");
     console.log("            mado serve showcase");
     console.log("            mado serve tickets");

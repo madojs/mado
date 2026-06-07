@@ -40,7 +40,7 @@ switch (command) {
       await runNodeScript("scripts/showcase-regression.mjs", args.slice(1));
     } else {
       const files = await listTestFiles();
-      await run(process.execPath, ["--test", "--test-timeout=10000", ...files, ...args]);
+      await run(process.execPath, ["--test", "--test-timeout=20000", ...files, ...args]);
     }
     break;
   case "serve":

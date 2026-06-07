@@ -188,7 +188,7 @@ We register the `<x-counter>` tag in the browser — it becomes a "function" tha
 
 ## Forms — like `form.Validate()` on the backend
 
-Mado uses **native HTML5 validation**, plus adds state tracking.
+Mado uses **schema-based validation close to native HTML constraints**, plus adds state tracking.
 
 ```ts
 import { useForm } from "@madojs/mado";

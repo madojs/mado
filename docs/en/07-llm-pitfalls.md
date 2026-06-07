@@ -256,7 +256,7 @@ This means:
 // ❌ No such API
 const f = useForm({ resolver: zodResolver(schema) });
 
-// ✅ Correct: HTML5 validation via attributes
+// ✅ Correct: HTML-like validation through useForm schema
 const f = useForm({
   email: { required: true, type: "email" },
   age:   { required: true, type: "number", min: 18 },

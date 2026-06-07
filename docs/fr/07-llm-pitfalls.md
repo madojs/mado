@@ -256,7 +256,7 @@ Cela signifie :
 // ❌ Pas une telle API
 const f = useForm({ resolver: zodResolver(schema) });
 
-// ✅ Correct : validation HTML5 via attributs
+// ✅ Correct : validation proche du HTML via le schéma useForm
 const f = useForm({
   email: { required: true, type: "email" },
   age:   { required: true, type: "number", min: 18 },

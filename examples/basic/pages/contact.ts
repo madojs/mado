@@ -1,5 +1,5 @@
 /**
- * Contact: form through useForm + Constraint Validation API.
+ * Contact: form through useForm schema validation.
  */
 
 import { page, component, html, css, signal, useForm } from "@madojs/mado";

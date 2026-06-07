@@ -1,5 +1,6 @@
 /**
- * Forms without pain. Built on top of native `<form>` + Constraint Validation API.
+ * Forms without pain. Built on native `<form>` submit/input events plus a
+ * small schema validator whose rules mirror common HTML constraints.
  *
  *   const f = useForm({
  *     email: { required: true, type: 'email' },
@@ -20,7 +21,7 @@
  *   `;
  *
  * What's inside:
- *   - validation is performed via standard browser attributes
+ *   - validation rules mirror common HTML constraints
  *     (required, min, max, pattern, type=email/url/number, etc.);
  *   - custom rules via a validate(values) function returning
  *     { field: 'msg' } or null;
@@ -37,7 +38,7 @@ import { signal, computed, type Signal } from "./signal.js";
 export type FormValues = Record<string, string | number | boolean | undefined>;
 export type FormErrors = Record<string, string | undefined>;
 
-/** Field declaration. Attributes match HTML5. */
+/** Field declaration. Rules intentionally match common HTML constraints. */
 export interface FieldSchema {
   required?: boolean;
   type?: "text" | "email" | "url" | "number" | "tel" | "password";

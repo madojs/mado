@@ -33,7 +33,7 @@ Si votre cas ne tombe pas dans le dernier point — Mado n'est probablement pas 
 | Réactivité | décorateurs `@property` + `requestUpdate` manuel | signals (`signal`/`computed`/`effect`) intégrés |
 | Router | aucun, vous devez en trouver un (`@lit-labs/router`, etc.) | inclus : `routes()` + nested + prefetch + sync-cache |
 | Chargement de données | aucun, vous devez l'assembler | `resource()` + `mutation()` + invalidation glob |
-| Forms | aucun | `useForm()` sur validation HTML5 native |
+| Forms | aucun | `useForm()` avec contraintes proches du HTML |
 | SEO / statique | complexe (`@lit-labs/ssr`) | `bake` (linkedom) + edge-prerender |
 | Build | nécessite esbuild/rollup/webpack | `tsc` suffit |
 | Style de code | classes + décorateurs | fonctions + tagged templates |

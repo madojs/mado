@@ -1,9 +1,8 @@
 /**
  * Login: demonstrates useForm() + mutation + navigate after success.
  *
- * Fields are validated natively through Constraint Validation API
- * (required/type/minlength attributes). Custom validation goes through
- * useForm's validate.
+ * Fields are validated through useForm schema rules that mirror common HTML
+ * constraints. Custom validation goes through useForm's validate.
  */
 
 import { page, html, css, component, useForm, mutation, navigate } from "@madojs/mado";

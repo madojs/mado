@@ -188,7 +188,7 @@ html`<x-counter></x-counter>`
 
 ## Формы — как `form.Validate()` на бекенде
 
-Mado использует **нативную HTML5-валидацию**, plus добавляет state-tracking.
+Mado использует **schema-based validation в духе HTML constraints**, плюс добавляет state-tracking.
 
 ```ts
 import { useForm } from "@madojs/mado";

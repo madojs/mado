@@ -33,7 +33,7 @@ Mado — не «убийца» React/Vue/Svelte. Это узкоспециали
 | Реактивность | декораторы `@property` + ручной `requestUpdate` | сигналы (`signal`/`computed`/`effect`) из коробки |
 | Роутер | нет, нужно искать (`@lit-labs/router`, etc) | в комплекте: `routes()` + nested + prefetch + sync-cache |
 | Data fetching | нет, нужно собирать | `resource()` + `mutation()` + glob-инвалидация |
-| Формы | нет | `useForm()` на нативной HTML5-валидации |
+| Формы | нет | `useForm()` с HTML-like constraints |
 | SEO / static | сложно (`@lit-labs/ssr`) | `bake` (linkedom) + edge-prerender |
 | Билд | нужен esbuild/rollup/webpack | хватает `tsc` |
 | Стиль кода | классы + декораторы | функции + tagged templates |

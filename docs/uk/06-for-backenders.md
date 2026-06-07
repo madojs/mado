@@ -34,8 +34,8 @@ const form = useForm({
 });
 ```
 
-Mado спирається на Constraint Validation API браузера, а не на окрему validation
-екосистему.
+Mado використовує schema-based validation, близьку до HTML constraints, а не
+окрему validation ecosystem.
 
 ## Auth
 

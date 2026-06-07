@@ -195,7 +195,7 @@ Mado ne fait que le coller avec les signals.
 
 ## Forms — comme `form.Validate()` côté backend
 
-Mado utilise la **validation HTML5 native**, plus ajoute le suivi d'état.
+Mado utilise une **validation par schéma proche des contraintes HTML natives**, plus le suivi d'état.
 
 ```ts
 import { useForm } from "@madojs/mado";

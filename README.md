@@ -19,6 +19,11 @@
 
 > A small native-web SPA framework you can read in an evening.
 
+[![npm](https://img.shields.io/npm/v/@madojs/mado.svg)](https://www.npmjs.com/package/@madojs/mado)
+[![CI](https://github.com/madojs/mado/actions/workflows/ci.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/ci.yml)
+[![Browser Regression](https://github.com/madojs/mado/actions/workflows/browser.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/browser.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 Mado is a thin TypeScript framework on top of the browser platform: Web
 Components, signals, tagged-template `html`, a router, resources, forms,
 context, persisted state and static prerender. No runtime dependencies, no
@@ -26,6 +31,12 @@ required bundler, no hidden build pipeline: `tsc → browser`.
 
 Mado (`窓`) means “window” in Japanese: a calm native-web window into an app,
 without dragging a whole frontend factory into the room.
+
+Mado does not try to replace the browser platform. The browser already gives
+us modules, custom elements, attributes, events, forms, CSS, URLs, history,
+fetch and the DOM. Mado's job is to make those primitives comfortable enough
+for small and serious applications, without taking away your understanding of
+what is happening.
 
 ```txt
 Runtime budget after build:
@@ -314,8 +325,18 @@ html`
 `;
 ```
 
-Validation is based on native HTML constraint validation plus optional custom
-`validate(values)`.
+Validation is schema-based and intentionally close to native HTML constraints:
+`required`, `min`, `max`, `pattern`, `type=email/url/number`, plus optional
+custom `validate(values)`.
+
+Only the root import is the stable public API:
+
+```ts
+import { html, component, signal } from "@madojs/mado";
+```
+
+Deep imports may exist in the package for tooling and generated files, but they
+are internal and can change before v1.
 
 ## Static HTML Without Hydration
 

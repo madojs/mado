@@ -14,6 +14,8 @@ readable and reliable under real application pressure.
 
 ## Before v1
 
+- Generated app DX: `mado dev`/`serve`/starter scripts should feel as polished
+  outside the framework repo as they do inside it.
 - Browser compatibility pass across current Chrome, Edge, Firefox and Safari.
 - Accessibility pass for examples and common component patterns.
 - Public API audit: names, warnings, lifecycle rules, docs coverage.
@@ -43,8 +45,9 @@ readable and reliable under real application pressure.
 | 2026-06-03 | v0.3 hardening | Nested template cleanup, stale async route guard, Shadow DOM link/prefetch tests, scroll behavior, `warnOnce`, component reconnect/style tests. |
 | 2026-06-05 | v0.4 showcase max | `examples/showcase` became a SaaS CRM pressure app with accounts, deals, activity, nested routes, context services and browser regression. |
 | 2026-06-06 | v0.5 project shape | Unified `mado` CLI, dev server logs, docs language skeleton, examples cleanup (`basic`, `tickets`, `showcase`, `cloudflare`). |
-| 2026-06-06 | Mado rebrand | Public package/import name `madojs`, CLI `mado`, brand/docs/examples updated, internal legacy markers cleaned. |
+| 2026-06-06 | Mado rebrand | Public package/import name `@madojs/mado`, CLI `mado`, brand/docs/examples updated, internal legacy markers cleaned. |
 | 2026-06-06 | Public polish | English public surface, localized docs, translated code comments/examples/templates/GitHub files. |
+| 2026-06-07 | First npm release | Published `@madojs/mado@0.5.0` with the `mado` CLI, minimal/crud starters, CI and release workflow. |
 
 ## Future Ideas
 

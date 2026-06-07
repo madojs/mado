@@ -41,6 +41,6 @@ Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
 
 ## Community
 
-- [ ] Publish public GitHub repository.
 - [ ] Minimal landing site built with Mado.
 - [ ] Case study: real React page → Mado + bake.
+- [ ] Public live demo: CRUD starter and showcase hosted from Mado itself.

@@ -16,11 +16,18 @@ readable and reliable under real application pressure.
 
 - Generated app DX: `mado dev`/`serve`/starter scripts should feel as polished
   outside the framework repo as they do inside it.
+- Generated app production story: `mado bundle` and `mado preview` should work
+  from a starter app without repository-only assumptions.
 - Browser compatibility pass across current Chrome, Edge, Firefox and Safari.
 - Accessibility pass for examples and common component patterns.
 - Public API audit: names, warnings, lifecycle rules, docs coverage.
-- Release hygiene: npm provenance, GitHub repo metadata, tags and changelog.
+- Public exports audit: root import is stable; deep imports must either become
+  explicit public subpaths or remain clearly unsupported before v1.
+- Release hygiene: npm provenance / Trusted Publishing, GitHub repo metadata,
+  tags and changelog.
 - Size reporting command or CI summary with ESM and bundled/minified budgets.
+- Public demo site built with Mado: docs, CRUD starter and showcase as a live
+  proof instead of another README claim.
 - Real commercial app test: validate auth, forms, tables, resources, route
   transitions and long-lived sessions outside toy examples.
 

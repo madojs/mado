@@ -3,7 +3,7 @@
  * happens automatically when leaving the page.
  */
 
-import { page, html, css, component, resource, each } from "madojs";
+import { page, html, css, component, resource, each } from "@madojs/mado";
 import { api, type BlogPost } from "../lib/api.js";
 
 component(

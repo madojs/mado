@@ -13,7 +13,7 @@ import {
   resource,
   signal,
   useForm,
-} from "madojs";
+} from "@madojs/mado";
 import { api, type Ticket, type TicketInput } from "../lib/api.js";
 import "../components/x-ticket-badge.js";
 import "../components/x-shell.js";

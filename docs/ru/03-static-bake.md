@@ -41,7 +41,7 @@
 
 ```ts
 // src/pages/product.ts
-import { page, component, html } from "madojs";
+import { page, component, html } from "@madojs/mado";
 import { findProduct, products, type Product } from "../lib/products.js";
 
 component("x-product-page", ({ host }) => {
@@ -85,7 +85,7 @@ export default page<{ slug: string }, Product | undefined>({
 
 ```ts
 // src/routes.ts
-import { routes, type RoutesMap } from "madojs";
+import { routes, type RoutesMap } from "@madojs/mado";
 
 // Экспортируем И default (RouterApi для рантайма), И manifest (для bake-скрипта).
 export const manifest: RoutesMap = {
@@ -176,7 +176,7 @@ export const allPosts = () =>
 
 ```ts
 // src/pages/blog-post.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 import { allPosts } from "../lib/posts.js";
 
 export default page<{ slug: string }>({

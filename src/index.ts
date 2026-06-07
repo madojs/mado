@@ -2,7 +2,7 @@
  * Mado — public API.
  *
  * Import everything from one place:
- *   import { signal, computed, effect, component, html, router } from 'madojs';
+ *   import { signal, computed, effect, component, html, router } from '@madojs/mado';
  *
  * In the browser: connected via <script type="importmap">.
  * In Node: via `tsconfig.paths` (resolves to "./src/index.ts").

@@ -49,7 +49,12 @@ test.before(async () => {
 
   const pw = await loadPw();
   if (!pw) return;
-  browser = await pw.chromium.launch();
+  try {
+    browser = await pw.chromium.launch();
+  } catch (err) {
+    console.warn(`[e2e] chromium is not available; tests skipped. ${err.message}`);
+    browser = null;
+  }
 });
 
 test.after(async () => {
@@ -58,7 +63,7 @@ test.after(async () => {
 });
 
 test("counter increments", async (t) => {
-  if (!browser) return t.skip("playwright is not installed");
+  if (!browser) return t.skip("playwright browser is not installed");
   const page = await browser.newPage();
   await page.goto(BASE);
 
@@ -74,7 +79,7 @@ test("counter increments", async (t) => {
 });
 
 test("data-link navigation changes the view", async (t) => {
-  if (!browser) return t.skip("playwright is not installed");
+  if (!browser) return t.skip("playwright browser is not installed");
   const page = await browser.newPage();
   await page.goto(BASE);
 
@@ -87,7 +92,7 @@ test("data-link navigation changes the view", async (t) => {
 });
 
 test("adding a todo shows it in the list", async (t) => {
-  if (!browser) return t.skip("playwright is not installed");
+  if (!browser) return t.skip("playwright browser is not installed");
   const page = await browser.newPage();
   await page.goto(BASE);
 

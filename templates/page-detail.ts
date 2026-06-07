@@ -12,7 +12,7 @@ import {
   css,
   resource,
   jsonFetcher,
-} from "madojs";
+} from "@madojs/mado";
 
 interface Entity {
   id: number;

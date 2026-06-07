@@ -2,7 +2,7 @@
  * Page contract — a uniform format for describing a page.
  *
  *   // pages/user-profile.ts
- *   import { page, html, resource, jsonFetcher } from 'madojs';
+ *   import { page, html, resource, jsonFetcher } from '@madojs/mado';
  *
  *   export default page({
  *     title: ({ id }) => `User #${id}`,
@@ -13,7 +13,7 @@
  *   });
  *
  *   // routes.ts
- *   import { routes } from 'madojs';
+ *   import { routes } from '@madojs/mado';
  *
  *   export default routes({
  *     '/users/:id': () => import('./pages/user-profile.js'),

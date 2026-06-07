@@ -2,7 +2,7 @@
  * Deals pipeline: local UI mode, computed totals and nested keyed lists.
  */
 
-import { component, computed, css, each, html, inject, page, resource, signal } from "madojs";
+import { component, computed, css, each, html, inject, page, resource, signal } from "@madojs/mado";
 import type { Deal, DealStage } from "../lib/api.js";
 import { ApiContext } from "../lib/services.js";
 import { money } from "../lib/format.js";

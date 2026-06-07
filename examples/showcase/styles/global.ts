@@ -3,7 +3,7 @@
  * Contains design tokens and base layout classes.
  */
 
-import { css } from "madojs";
+import { css } from "@madojs/mado";
 
 export const globalStyles = css`
   :root {

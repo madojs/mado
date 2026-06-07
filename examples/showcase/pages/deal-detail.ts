@@ -3,7 +3,7 @@
  * account detail to test repeated component/form/resource patterns.
  */
 
-import { component, css, each, effect, html, inject, mutation, page, resource, useForm } from "madojs";
+import { component, css, each, effect, html, inject, mutation, page, resource, useForm } from "@madojs/mado";
 import type { Deal, DealInput } from "../lib/api.js";
 import { ApiContext, ToastContext } from "../lib/services.js";
 import { money } from "../lib/format.js";

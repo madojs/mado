@@ -12,7 +12,7 @@ import {
   page,
   queryParam,
   resource,
-} from "madojs";
+} from "@madojs/mado";
 import { ApiContext, ToastContext } from "../lib/services.js";
 import { money, percent } from "../lib/format.js";
 import type { AccountStatus } from "../lib/api.js";

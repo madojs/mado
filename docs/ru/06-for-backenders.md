@@ -61,7 +61,7 @@ http.ListenAndServe(":8080", r)
 
 ```ts
 // src/routes.ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export default routes({
   "/": () => import("./pages/home.js"),
@@ -71,7 +71,7 @@ export default routes({
 
 ```ts
 // src/pages/home.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page({
   view: () => html`<h1>Hello</h1>`,
 });
@@ -79,7 +79,7 @@ export default page({
 
 ```ts
 // src/pages/user.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page<{ id: string }>({
   view: ({ params }) => html`<h1>User ${params.id}</h1>`,
 });
@@ -94,7 +94,7 @@ export default page<{ id: string }>({
 Если ты писал на Erlang/Elixir с `Agent`, или на Rust с `Arc<Mutex<T>>`, или просто хранил state в struct и обновлял его — `signal` это то же самое, плюс **авто-перерисовка** компонентов, которые этот state читают.
 
 ```ts
-import { signal, effect } from "madojs";
+import { signal, effect } from "@madojs/mado";
 
 // "переменная" с подпиской
 const count = signal(0);
@@ -124,7 +124,7 @@ count.set(10);
 Это **самая полезная абстракция для бекендера**. Это как Redis с автоматической инвалидацией, только в браузере.
 
 ```ts
-import { resource, mutation, jsonFetcher, invalidate } from "madojs";
+import { resource, mutation, jsonFetcher, invalidate } from "@madojs/mado";
 
 // "репозиторий пользователя"
 const userId = signal(1);
@@ -163,7 +163,7 @@ await save.run(newUser);
 - lifecycle: `connectedCallback` (как Init), `disconnectedCallback` (как Close).
 
 ```ts
-import { component, html, signal } from "madojs";
+import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -191,7 +191,7 @@ html`<x-counter></x-counter>`
 Mado использует **нативную HTML5-валидацию**, plus добавляет state-tracking.
 
 ```ts
-import { useForm } from "madojs";
+import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
@@ -225,7 +225,7 @@ html`
 Как в Go ты передаёшь `context.Context` через стек вызовов — так в Mado контекст пробрасывается через DOM-дерево.
 
 ```ts
-import { createContext, provide, inject } from "madojs";
+import { createContext, provide, inject } from "@madojs/mado";
 
 // объявляем "тип" зависимости
 const ApiCtx = createContext<ApiClient>(defaultApiClient);
@@ -283,7 +283,7 @@ npm run bake   # → out/product/iphone-15/index.html (+ sitemap)
 ### CRUD-страница со списком
 
 ```ts
-import { page, html, resource, each, signal } from "madojs";
+import { page, html, resource, each, signal } from "@madojs/mado";
 
 export default page({
   view: () => {
@@ -305,7 +305,7 @@ export default page({
 ### Форма с POST
 
 ```ts
-import { useForm, mutation } from "madojs";
+import { useForm, mutation } from "@madojs/mado";
 
 const createUser = mutation<NewUser, User>(
   (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
@@ -330,7 +330,7 @@ html`
 
 ```ts
 // src/layouts/auth-layout.ts
-import { page, html, effect } from "madojs";
+import { page, html, effect } from "@madojs/mado";
 import { isAuthed, navigate } from "../lib/auth.js";
 
 export default page({
@@ -345,7 +345,7 @@ export default page({
 
 ```ts
 // src/routes.ts
-import { routes, nested } from "madojs";
+import { routes, nested } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),

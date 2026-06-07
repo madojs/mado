@@ -3,7 +3,7 @@
  * Demonstrates Mado context without adding a global state manager.
  */
 
-import { createContext, signal, type Signal } from "madojs";
+import { createContext, signal, type Signal } from "@madojs/mado";
 import { api } from "./api.js";
 
 export type ApiClient = typeof api;

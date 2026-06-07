@@ -3,7 +3,7 @@
  * Shadow DOM keeps the app frame stable while page components style their content.
  */
 
-import { component, html, css } from "madojs";
+import { component, html, css } from "@madojs/mado";
 
 component(
   "x-ticket-shell",

@@ -4,7 +4,7 @@
  * Mado changes attributes, CSS updates the visual tone.
  */
 
-import { component, css, html } from "madojs";
+import { component, css, html } from "@madojs/mado";
 
 component(
   "x-ticket-badge",

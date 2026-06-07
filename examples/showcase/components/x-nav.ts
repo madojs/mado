@@ -3,7 +3,7 @@
  * Reacts to currentUser (signal), so the label changes after login.
  */
 
-import { component, html, css, navigate } from "madojs";
+import { component, html, css, navigate } from "@madojs/mado";
 import { currentUser, logout } from "../lib/auth.js";
 
 component(

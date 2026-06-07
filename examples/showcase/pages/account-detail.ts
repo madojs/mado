@@ -15,7 +15,7 @@ import {
   resource,
   signal,
   useForm,
-} from "madojs";
+} from "@madojs/mado";
 import type { Account, AccountInput, Deal, DealInput } from "../lib/api.js";
 import { ApiContext, ToastContext } from "../lib/services.js";
 import { money, percent } from "../lib/format.js";

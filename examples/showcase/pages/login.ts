@@ -6,7 +6,7 @@
  * useForm's validate.
  */
 
-import { page, html, css, component, useForm, mutation, navigate } from "madojs";
+import { page, html, css, component, useForm, mutation, navigate } from "@madojs/mado";
 import { login } from "../lib/auth.js";
 
 component(

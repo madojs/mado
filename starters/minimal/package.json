@@ -1,0 +1,17 @@
+{
+  "name": "__PACKAGE_NAME__",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "serve": "mado serve"
+  },
+  "dependencies": {
+    "@madojs/mado": "__MADOJS_VERSION__"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

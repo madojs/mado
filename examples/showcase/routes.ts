@@ -15,7 +15,7 @@
  *   *                  → 404
  */
 
-import { routes, nested, html, type RoutesMap } from "madojs";
+import { routes, nested, html, type RoutesMap } from "@madojs/mado";
 
 export const manifest: RoutesMap = {
   "/": () => import("./pages/home.js"),

@@ -213,7 +213,7 @@ function defaultFallback(): CompiledRoute {
  * via History API and dispatches `popstate`, which all
  * active routers on the page will pick up.
  *
- *   import { navigate } from "madojs";
+ *   import { navigate } from "@madojs/mado";
  *   navigate("/users/42");
  *
  * Used inside form handlers / events when you don't have

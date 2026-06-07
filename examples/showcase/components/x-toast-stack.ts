@@ -1,4 +1,4 @@
-import { component, css, each, html, inject } from "madojs";
+import { component, css, each, html, inject } from "@madojs/mado";
 import { ToastContext } from "../lib/services.js";
 
 component(

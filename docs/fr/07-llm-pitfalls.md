@@ -74,7 +74,7 @@ function Counter() {
 }
 
 // ✅ Correct dans Mado
-import { component, signal, effect, html } from "madojs";
+import { component, signal, effect, html } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -138,7 +138,7 @@ class XCounter extends HTMLElement {
 customElements.define("x-counter", XCounter);
 
 // ✅ Correct : component() fonctionnel
-import { component, html, signal } from "madojs";
+import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -175,7 +175,7 @@ import { Home } from "./pages/home.js";
 html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
 
 // ✅ Correct : each() avec une fonction de clé
-import { each } from "madojs";
+import { each } from "@madojs/mado";
 html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
 ```
 
@@ -312,7 +312,7 @@ component("x-button", () => () => html`<button><slot></slot></button>`, {
 
 ---
 
-## Piège #13 : `import * as Mado from "madojs"`
+## Piège #13 : `import * as Mado from "@madojs/mado"`
 
 **Symptôme :** l'IA veut un import de namespace.
 
@@ -320,10 +320,10 @@ Cela fonctionne, mais duplique les noms et se tree-shake mal. Les imports nommé
 
 ```ts
 // ✅ Canonique
-import { signal, html, component, css, page } from "madojs";
+import { signal, html, component, css, page } from "@madojs/mado";
 
 // ⚠️ Fonctionne, mais excessif
-import * as Mado from "madojs";
+import * as Mado from "@madojs/mado";
 Mado.signal(0);
 ```
 

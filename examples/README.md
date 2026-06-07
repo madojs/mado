@@ -51,7 +51,7 @@ includes `examples/**/*.ts`.
 2. Add `index.html`:
    ```html
    <script type="importmap">
-     {"imports": {"madojs": "/dist/src/index.js", "madojs/": "/dist/src/"}}
+     {"imports": {"@madojs/mado": "/dist/src/index.js", "@madojs/mado/": "/dist/src/"}}
    </script>
    <script type="module" src="/dist/examples/<name>/main.js"></script>
    ```

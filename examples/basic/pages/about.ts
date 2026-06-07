@@ -1,4 +1,4 @@
-import { page, html, css, component } from "madojs";
+import { page, html, css, component } from "@madojs/mado";
 
 component("x-about-card", () => () => html`
   <div class="card">

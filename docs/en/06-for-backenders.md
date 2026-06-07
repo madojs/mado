@@ -61,7 +61,7 @@ http.ListenAndServe(":8080", r)
 
 ```ts
 // src/routes.ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export default routes({
   "/": () => import("./pages/home.js"),
@@ -71,7 +71,7 @@ export default routes({
 
 ```ts
 // src/pages/home.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page({
   view: () => html`<h1>Hello</h1>`,
 });
@@ -79,7 +79,7 @@ export default page({
 
 ```ts
 // src/pages/user.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page<{ id: string }>({
   view: ({ params }) => html`<h1>User ${params.id}</h1>`,
 });
@@ -94,7 +94,7 @@ Path parameters are available in `params` — just like `chi.URLParam`.
 If you've written Erlang/Elixir with `Agent`, or Rust with `Arc<Mutex<T>>`, or simply stored state in a struct and updated it — `signal` is the same thing, plus **automatic re-rendering** of the components that read that state.
 
 ```ts
-import { signal, effect } from "madojs";
+import { signal, effect } from "@madojs/mado";
 
 // "variable" with subscription
 const count = signal(0);
@@ -124,7 +124,7 @@ No rules like "can't use inside a condition". A signal is just a getter function
 This is the **most useful abstraction for a backend developer**. It's like Redis with automatic invalidation, but in the browser.
 
 ```ts
-import { resource, mutation, jsonFetcher, invalidate } from "madojs";
+import { resource, mutation, jsonFetcher, invalidate } from "@madojs/mado";
 
 // "user repository"
 const userId = signal(1);
@@ -163,7 +163,7 @@ A component is a **handler** that renders its piece of UI. It has:
 - lifecycle: `connectedCallback` (like Init), `disconnectedCallback` (like Close).
 
 ```ts
-import { component, html, signal } from "madojs";
+import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -191,7 +191,7 @@ We register the `<x-counter>` tag in the browser — it becomes a "function" tha
 Mado uses **native HTML5 validation**, plus adds state tracking.
 
 ```ts
-import { useForm } from "madojs";
+import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
@@ -225,7 +225,7 @@ Custom validation — `validate: (values) => errors | null`. No Yup schemas or d
 Just as you pass `context.Context` through the call stack in Go — in Mado context is propagated through the DOM tree.
 
 ```ts
-import { createContext, provide, inject } from "madojs";
+import { createContext, provide, inject } from "@madojs/mado";
 
 // declare the "type" of the dependency
 const ApiCtx = createContext<ApiClient>(defaultApiClient);
@@ -283,7 +283,7 @@ More details: [`03-static-bake.md`](./03-static-bake.md).
 ### CRUD page with a list
 
 ```ts
-import { page, html, resource, each, signal } from "madojs";
+import { page, html, resource, each, signal } from "@madojs/mado";
 
 export default page({
   view: () => {
@@ -305,7 +305,7 @@ export default page({
 ### Form with POST
 
 ```ts
-import { useForm, mutation } from "madojs";
+import { useForm, mutation } from "@madojs/mado";
 
 const createUser = mutation<NewUser, User>(
   (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
@@ -330,7 +330,7 @@ html`
 
 ```ts
 // src/layouts/auth-layout.ts
-import { page, html, effect } from "madojs";
+import { page, html, effect } from "@madojs/mado";
 import { isAuthed, navigate } from "../lib/auth.js";
 
 export default page({
@@ -345,7 +345,7 @@ export default page({
 
 ```ts
 // src/routes.ts
-import { routes, nested } from "madojs";
+import { routes, nested } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),

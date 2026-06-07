@@ -163,7 +163,7 @@ function renderShell(opts: {
       <body>
         <div id="app"></div>
         <script type="importmap">
-          { "imports": { "madojs": "/dist/src/index.js", "madojs/": "/dist/src/" } }
+          { "imports": { "@madojs/mado": "/dist/src/index.js", "@madojs/mado/": "/dist/src/" } }
         </script>
         <script type="module" src="/dist/examples/showcase/main.js"></script>
       </body>

@@ -2,7 +2,7 @@
  * Ticket creation form using useForm() and mutation().
  */
 
-import { component, css, html, mutation, navigate, page, useForm } from "madojs";
+import { component, css, html, mutation, navigate, page, useForm } from "@madojs/mado";
 import { api, type TicketInput } from "../lib/api.js";
 import "../components/x-shell.js";
 

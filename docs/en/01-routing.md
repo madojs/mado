@@ -20,7 +20,7 @@ One file — `src/routes.ts`. One object. Read top to bottom.
 
 ```ts
 // src/routes.ts
-import { routes } from 'madojs';
+import { routes } from '@madojs/mado';
 
 export default routes({
   '/':              () => import('./pages/home.js'),
@@ -60,7 +60,7 @@ In the bundle immediately, no delay. Use for critical pages (home, login).
 ### 3. Nested with layout
 
 ```ts
-import { routes, nested } from 'madojs';
+import { routes, nested } from '@madojs/mado';
 
 export default routes({
   '/': () => import('./pages/home.js'),
@@ -80,7 +80,7 @@ A layout is just a regular `page({...})` that renders `ctx.child` wherever it wa
 
 ```ts
 // src/layouts/admin.ts
-import { page, html, css, component } from 'madojs';
+import { page, html, css, component } from '@madojs/mado';
 
 export default page({
   view: ({ child }) => html`
@@ -95,7 +95,7 @@ export default page({
 ## Page contract
 
 ```ts
-import { page, html, resource, jsonFetcher } from 'madojs';
+import { page, html, resource, jsonFetcher } from '@madojs/mado';
 
 export default page({
   title: ({ id }) => `User #${id}`,        // string | (params) => string
@@ -156,7 +156,7 @@ attribute — the browser does a full reload, as expected for external links).
 ## Query parameters
 
 ```ts
-import { queryParam } from 'madojs';
+import { queryParam } from '@madojs/mado';
 
 const page = queryParam('page', '1');
 page();              // '1'
@@ -184,7 +184,7 @@ files in `pages/` with magic names. In practice even large projects (1000+ pages
 can split into feature manifests:
 
 ```ts
-import { routes } from 'madojs';
+import { routes } from '@madojs/mado';
 import adminRoutes from './features/admin/routes.js';
 import billingRoutes from './features/billing/routes.js';
 

@@ -5,7 +5,7 @@ Chaque nouveau projet Mado a la même structure. C'est une convention **obligato
 ```
 my-app/
 ├── package.json              # exactement 1 dép : typescript (esbuild optionnel)
-├── tsconfig.json             # avec paths "madojs" → import sans chemins relatifs
+├── tsconfig.json             # avec paths "@madojs/mado" → import sans chemins relatifs
 ├── Dockerfile + nginx.conf   # copiés depuis Mado/ lors du scaffold
 ├── .gitlab-ci.yml | .github/workflows/ci.yml
 ├── server/serve.mjs          # dev-server de Mado, sans dépendances

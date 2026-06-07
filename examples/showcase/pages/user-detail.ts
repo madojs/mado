@@ -15,7 +15,7 @@ import {
   mutation,
   useForm,
   signal,
-} from "madojs";
+} from "@madojs/mado";
 import { api, type User } from "../lib/api.js";
 
 component(

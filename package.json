@@ -1,6 +1,6 @@
 {
-  "name": "madojs",
-  "version": "0.2.0",
+  "name": "@madojs/mado",
+  "version": "0.5.0",
   "description": "Mado — a small native-web SPA framework with Web Components, signals, tagged-template html, router, resources, and forms. TypeScript-only build, zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
@@ -17,13 +17,13 @@
     "lit-alternative",
     "solid-alternative"
   ],
-  "homepage": "https://github.com/madojs/madojs#readme",
+  "homepage": "https://github.com/madojs/mado#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/madojs/madojs.git"
+    "url": "git+https://github.com/madojs/mado.git"
   },
   "bugs": {
-    "url": "https://github.com/madojs/madojs/issues"
+    "url": "https://github.com/madojs/mado/issues"
   },
   "bin": {
     "mado": "./scripts/cli.mjs"
@@ -44,10 +44,14 @@
     "scripts",
     "server",
     "templates",
+    "starters",
     "README.md",
     "LICENSE",
+    "CHANGELOG.md",
     "ROADMAP.md",
-    "docs"
+    "AGENTS.md",
+    "llms.txt",
+    "docs/**/*.md"
   ],
   "scripts": {
     "build": "node scripts/cli.mjs build",
@@ -66,12 +70,10 @@
     "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
-  },
-  "optionalDevDependencies": {
     "esbuild": "^0.28.0",
     "linkedom": "^0.18.12",
-    "playwright-core": "^1.47.0"
+    "playwright-core": "^1.47.0",
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=20"

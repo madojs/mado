@@ -3,7 +3,7 @@
  * Resource is created inside component setup, so cleanup follows the component.
  */
 
-import { component, css, each, html, page, resource } from "madojs";
+import { component, css, each, html, page, resource } from "@madojs/mado";
 import { api } from "../lib/api.js";
 import "../components/x-ticket-badge.js";
 import "../components/x-ticket-metric.js";

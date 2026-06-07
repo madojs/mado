@@ -61,7 +61,7 @@ http.ListenAndServe(":8080", r)
 
 ```ts
 // src/routes.ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export default routes({
   "/": () => import("./pages/home.js"),
@@ -71,7 +71,7 @@ export default routes({
 
 ```ts
 // src/pages/home.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page({
   view: () => html`<h1>Bonjour</h1>`,
 });
@@ -79,7 +79,7 @@ export default page({
 
 ```ts
 // src/pages/user.ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page<{ id: string }>({
   view: ({ params }) => html`<h1>Utilisateur ${params.id}</h1>`,
 });
@@ -96,7 +96,7 @@ stocké de l'état dans une struct et l'avez mis à jour — `signal` est la mê
 le **re-rendu automatique** des composants qui lisent cet état.
 
 ```ts
-import { signal, effect } from "madojs";
+import { signal, effect } from "@madojs/mado";
 
 // "variable" avec abonnement
 const count = signal(0);
@@ -128,7 +128,7 @@ C'est l'**abstraction la plus utile pour un développeur backend**. C'est comme 
 invalidation automatique, mais dans le navigateur.
 
 ```ts
-import { resource, mutation, jsonFetcher, invalidate } from "madojs";
+import { resource, mutation, jsonFetcher, invalidate } from "@madojs/mado";
 
 // "référentiel d'utilisateurs"
 const userId = signal(1);
@@ -168,7 +168,7 @@ Un composant est un **handler** qui rend son bout d'UI. Il possède :
 - un lifecycle : `connectedCallback` (comme Init), `disconnectedCallback` (comme Close).
 
 ```ts
-import { component, html, signal } from "madojs";
+import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -198,7 +198,7 @@ Mado ne fait que le coller avec les signals.
 Mado utilise la **validation HTML5 native**, plus ajoute le suivi d'état.
 
 ```ts
-import { useForm } from "madojs";
+import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
@@ -233,7 +233,7 @@ Tout comme vous passez `context.Context` à travers la pile d'appels en Go — d
 context est propagé à travers l'arbre DOM.
 
 ```ts
-import { createContext, provide, inject } from "madojs";
+import { createContext, provide, inject } from "@madojs/mado";
 
 // déclarer le "type" de la dépendance
 const ApiCtx = createContext<ApiClient>(defaultApiClient);
@@ -293,7 +293,7 @@ Plus de détails : [`03-static-bake.md`](./03-static-bake.md).
 ### Page CRUD avec une liste
 
 ```ts
-import { page, html, resource, each, signal } from "madojs";
+import { page, html, resource, each, signal } from "@madojs/mado";
 
 export default page({
   view: () => {
@@ -315,7 +315,7 @@ export default page({
 ### Formulaire avec POST
 
 ```ts
-import { useForm, mutation } from "madojs";
+import { useForm, mutation } from "@madojs/mado";
 
 const createUser = mutation<NewUser, User>(
   (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
@@ -340,7 +340,7 @@ html`
 
 ```ts
 // src/layouts/auth-layout.ts
-import { page, html, effect } from "madojs";
+import { page, html, effect } from "@madojs/mado";
 import { isAuthed, navigate } from "../lib/auth.js";
 
 export default page({
@@ -355,7 +355,7 @@ export default page({
 
 ```ts
 // src/routes.ts
-import { routes, nested } from "madojs";
+import { routes, nested } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),

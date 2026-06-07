@@ -14,7 +14,7 @@ import {
   queryParam,
   resource,
   signal,
-} from "madojs";
+} from "@madojs/mado";
 import { api, type TicketStatus } from "../lib/api.js";
 import "../components/x-ticket-badge.js";
 import "../components/x-shell.js";

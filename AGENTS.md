@@ -7,7 +7,7 @@
 
 - **Mado** — SPA framework built on Web Components + signals + tagged-template `html`.
 - No build system (only `tsc`), no runtime dependencies.
-- ~3500 lines of TypeScript in `src/`, ~16 KB gzip.
+- Small TypeScript core in `src/`; bundled/minified full API is roughly 11 KB gzip.
 
 ## HARD RULES — violation = bug
 
@@ -128,7 +128,7 @@ Common mistake: `disabled=${loading()}` — this attempts to set a **string** at
 ### 7. Lists — via `each()`
 
 ```ts
-import { each } from "madojs";
+import { each } from "@madojs/mado";
 
 // ❌ Works, but no keyed reconciliation → loses focus on reorder
 html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
@@ -141,7 +141,7 @@ html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
 
 ```ts
 // routes.ts — manifest
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 export default routes({
   "/": () => import("./pages/home.js"),
   "/users/:id": () => import("./pages/user.js"),
@@ -149,7 +149,7 @@ export default routes({
 });
 
 // page file
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 export default page<{ id: string }>({
   title: ({ id }) => `User ${id}`,
   view: ({ params }) => html`<x-user data-id=${params.id}></x-user>`,
@@ -158,7 +158,7 @@ export default page<{ id: string }>({
 
 - Each page is a **separate file** in `pages/` with `export default page({...})`.
 - Import via `() => import("./pages/foo.js")` — this enables code-splitting via ESM.
-- Programmatic navigation: `import { navigate } from "madojs"; navigate("/users/42")`.
+- Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
 
 ### 9. Data fetching — `resource()` / `mutation()`
 
@@ -167,7 +167,7 @@ export default page<{ id: string }>({
 const { data } = useQuery(['user', id], () => fetch(...));
 
 // ✅ YES
-import { resource, jsonFetcher, mutation, invalidate } from "madojs";
+import { resource, jsonFetcher, mutation, invalidate } from "@madojs/mado";
 
 const user = resource(
   () => `/api/users/${userId()}`,   // key (reactive — will recreate on change)
@@ -190,7 +190,7 @@ await save.run(newUser);
 const { register, handleSubmit } = useForm({ resolver: yupResolver(schema) });
 
 // ✅ YES
-import { useForm } from "madojs";
+import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
@@ -212,7 +212,7 @@ Custom validation — `validate: (values) => ({ field: 'error message' } | null)
 ### 11. Styles — `css\`\`` + Shadow DOM by default
 
 ```ts
-import { component, css, html } from "madojs";
+import { component, css, html } from "@madojs/mado";
 
 component("x-card", () => () => html`<div><slot></slot></div>`, {
   styles: css`
@@ -232,7 +232,7 @@ component("x-shell", () => () => html`...`, {
 ### 12. Context (DI) — `createContext` / `provide` / `inject`
 
 ```ts
-import { createContext, provide, inject } from "madojs";
+import { createContext, provide, inject } from "@madojs/mado";
 
 const ApiCtx = createContext<ApiClient>(defaultApi);
 

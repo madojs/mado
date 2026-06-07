@@ -2,7 +2,7 @@
  * Dashboard metric tile with named slots.
  */
 
-import { component, css, html } from "madojs";
+import { component, css, html } from "@madojs/mado";
 
 component(
   "x-ticket-metric",

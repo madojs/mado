@@ -2,7 +2,7 @@
  * Contact: form through useForm + Constraint Validation API.
  */
 
-import { page, component, html, css, signal, useForm } from "madojs";
+import { page, component, html, css, signal, useForm } from "@madojs/mado";
 
 interface ContactValues {
   name: string;

@@ -3,7 +3,7 @@
  * Uses inject() to read the theme signal from context.
  */
 
-import { component, html, css, inject } from "madojs";
+import { component, html, css, inject } from "@madojs/mado";
 import { ThemeCtx, applyTheme, type Theme } from "../lib/theme.js";
 
 component(

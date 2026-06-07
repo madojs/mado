@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { copyFile, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import http from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROJECT_ROOT = resolve(process.cwd());
+const PACKAGE_JSON = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
 const [, , rawCommand, ...args] = process.argv;
 
 const EXAMPLES = [
@@ -16,10 +18,14 @@ const EXAMPLES = [
   ["showcase", "flagship SaaS CRM pressure app"],
   ["cloudflare", "Cloudflare Workers edge example"],
 ];
+const STARTERS = ["minimal", "crud"];
 
 const command = rawCommand ?? "help";
 
 switch (command) {
+  case "init":
+    await runInit(args);
+    break;
   case "build":
     await runNodeBin("typescript/bin/tsc", args);
     break;
@@ -70,10 +76,83 @@ switch (command) {
 }
 
 async function runServe(example) {
+  if (!example && PROJECT_ROOT !== PACKAGE_ROOT) {
+    await serveStaticProject(PROJECT_ROOT);
+    return;
+  }
   if (example) assertExample(example, { serveable: true });
   await run(process.execPath, [join(PACKAGE_ROOT, "server/serve.mjs"), example].filter(Boolean), {
     env: { ...process.env, EXAMPLE: example || process.env.EXAMPLE || "" },
   });
+}
+
+async function runInit(rawArgs) {
+  const { flags, positional } = parseFlags(rawArgs);
+  const targetArg = positional[0];
+  if (!targetArg) {
+    console.error("[mado] usage: mado init <name> [--starter minimal|crud] [--force]");
+    process.exit(1);
+  }
+
+  const starter = String(flags.starter ?? "minimal");
+  if (!STARTERS.includes(starter)) {
+    console.error(`[mado] unknown starter: ${starter}`);
+    console.error(`[mado] available starters: ${STARTERS.join(", ")}`);
+    process.exit(1);
+  }
+
+  const target = resolve(PROJECT_ROOT, targetArg);
+  const source = join(PACKAGE_ROOT, "starters", starter);
+  if (!existsSync(source)) {
+    console.error(`[mado] missing starter template: ${starter}`);
+    process.exit(1);
+  }
+  if (existsSync(target) && statSync(target).isFile()) {
+    console.error(`[mado] target exists and is a file: ${target}`);
+    process.exit(1);
+  }
+  if (existsSync(target) && readdirSync(target).length > 0 && !flags.force) {
+    console.error(`[mado] target directory is not empty: ${target}`);
+    console.error("[mado] use --force to write into it");
+    process.exit(1);
+  }
+
+  await mkdir(target, { recursive: true });
+  await cp(source, target, { recursive: true, force: true });
+  await copyCanonicalAgentFiles(target);
+
+  const packageName = packageNameFromDir(target);
+  if (!isValidPackageName(packageName)) {
+    console.error(`[mado] invalid package name derived from target: ${packageName}`);
+    process.exit(1);
+  }
+
+  const replacements = {
+    __APP_NAME__: packageName,
+    __PACKAGE_NAME__: packageName,
+    __MADOJS_VERSION__: process.env.MADO_PACKAGE_SPEC || process.env.MADOJS_PACKAGE_SPEC || `^${PACKAGE_JSON.version}`,
+    __MADO_VERSION__: PACKAGE_JSON.version,
+  };
+
+  for (const file of await walkFiles(target)) {
+    const text = await readFile(file, "utf8").catch(() => null);
+    if (text === null) continue;
+    let next = text;
+    for (const [key, value] of Object.entries(replacements)) {
+      next = next.split(key).join(value);
+    }
+    if (next !== text) await writeFile(file, next);
+  }
+
+  console.log("");
+  console.log(`Created ${packageName} with the ${starter} starter.`);
+  console.log("");
+  console.log("Next steps:");
+  console.log(`  cd ${relativePath(PROJECT_ROOT, target)}`);
+  console.log("  npm install");
+  console.log("  npm run build");
+  console.log("  npm run serve");
+  console.log("");
 }
 
 async function runDev(example) {
@@ -116,6 +195,13 @@ async function runDev(example) {
     if (signal) shutdown(1);
     else shutdown(code ?? 0);
   });
+}
+
+async function copyCanonicalAgentFiles(target) {
+  for (const file of ["AGENTS.md", "llms.txt"]) {
+    const source = join(PACKAGE_ROOT, file);
+    if (existsSync(source)) await copyFile(source, join(target, file));
+  }
 }
 
 async function runNodeBin(bin, args) {
@@ -182,6 +268,7 @@ async function listTestFiles() {
 
 function printHelp() {
   console.log(`mado commands:
+  mado init <name> [--starter minimal|crud] [--force]
   mado build
   mado watch
   mado typecheck
@@ -193,4 +280,103 @@ function printHelp() {
   mado preview
   mado new <list|form|detail> <name>
   mado examples`);
+}
+
+function parseFlags(raw) {
+  const flags = {};
+  const positional = [];
+  for (let i = 0; i < raw.length; i++) {
+    const arg = raw[i];
+    if (arg === "--") continue;
+    if (arg.startsWith("--")) {
+      const [name, inline] = arg.slice(2).split("=");
+      if (inline !== undefined) flags[name] = inline;
+      else if (raw[i + 1] && !raw[i + 1].startsWith("-")) flags[name] = raw[++i];
+      else flags[name] = true;
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { flags, positional };
+}
+
+function packageNameFromDir(target) {
+  return target
+    .split(/[\\/]/)
+    .filter(Boolean)
+    .at(-1)
+    ?.toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "mado-app";
+}
+
+function isValidPackageName(name) {
+  return /^(?:@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(name)
+    && !name.includes("..")
+    && !name.startsWith(".")
+    && name.length <= 214;
+}
+
+async function walkFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    if (["node_modules", "dist", ".git"].includes(entry)) continue;
+    if (entry === "package-lock.json") continue;
+    const file = join(dir, entry);
+    const stat = statSync(file);
+    if (stat.isDirectory()) out.push(...await walkFiles(file));
+    else out.push(file);
+  }
+  return out;
+}
+
+function relativePath(from, to) {
+  const rel = to.startsWith(from) ? to.slice(from.length).replace(/^[/\\]/, "") : to;
+  return rel || ".";
+}
+
+function contentType(file) {
+  const ext = file.slice(file.lastIndexOf("."));
+  return {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+  }[ext] ?? "application/octet-stream";
+}
+
+async function serveStaticProject(rootDir) {
+  const port = Number(process.env.PORT || 5173);
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url || "/", `http://localhost:${port}`);
+    const pathname = decodeURIComponent(url.pathname);
+    const normalized = pathname.replace(/^\/+/, "");
+    let file = resolve(rootDir, normalized);
+    if (pathname === "/" || !normalized.includes(".")) file = join(rootDir, "index.html");
+    if (!file.startsWith(rootDir) || !existsSync(file) || statSync(file).isDirectory()) {
+      file = join(rootDir, "index.html");
+    }
+
+    if (!existsSync(file)) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Not found");
+      return;
+    }
+
+    res.writeHead(200, { "content-type": contentType(file) });
+    res.end(readFileSync(file));
+  });
+
+  await new Promise((resolveListen) => {
+    server.listen(port, resolveListen);
+  });
+  console.log(`[mado] serving ${rootDir}`);
+  console.log(`[mado] http://localhost:${port}`);
 }

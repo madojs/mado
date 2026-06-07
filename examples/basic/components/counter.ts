@@ -5,7 +5,7 @@
  * Convention: one file = one component = one registration.
  */
 
-import { component, html, css, signal, computed, batch } from "madojs";
+import { component, html, css, signal, computed, batch } from "@madojs/mado";
 
 component(
   "x-counter",

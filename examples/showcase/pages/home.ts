@@ -2,7 +2,7 @@
  * Home: landing page with hero, features and CTA. Static, ideal for bake.
  */
 
-import { page, html, css, component } from "madojs";
+import { page, html, css, component } from "@madojs/mado";
 
 component(
   "x-hero",
@@ -121,14 +121,14 @@ export default page({
       "A small frontend framework with Web Components, signals and native fetch. Zero runtime dependencies.",
     canonical: "/",
     og: {
-      title: "madojs",
+      title: "Mado",
       description: "The platform already does a lot. Thin glue instead of framework sprawl.",
       type: "website",
     },
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: "madojs",
+      name: "Mado",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "Web",
     },

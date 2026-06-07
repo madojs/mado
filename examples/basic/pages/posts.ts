@@ -20,7 +20,7 @@ import {
   resource,
   mutation,
   queryParam,
-} from "madojs";
+} from "@madojs/mado";
 
 import { api, type Post } from "../lib/api.js";
 

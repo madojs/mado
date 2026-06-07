@@ -20,7 +20,7 @@ prerender у статичний HTML із meta-тегами, JSON-LD і baked da
 ## Сторінка з bake
 
 ```ts
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 
 export default page<{ slug: string }, Product>({
   title: ({ slug }) => `Product ${slug}`,

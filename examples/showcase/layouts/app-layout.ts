@@ -4,7 +4,7 @@
  * hosts themselves stay Light DOM, so global table/form utilities still apply.
  */
 
-import { component, css, effect, html, navigate, page } from "madojs";
+import { component, css, effect, html, navigate, page } from "@madojs/mado";
 import { currentUser, logout } from "../lib/auth.js";
 
 component(

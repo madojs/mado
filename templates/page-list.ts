@@ -12,7 +12,7 @@ import {
   resource,
   queryParam,
   jsonFetcher,
-} from "madojs";
+} from "@madojs/mado";
 
 interface Item {
   id: number;

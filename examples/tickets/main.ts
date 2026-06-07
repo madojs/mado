@@ -3,7 +3,7 @@
  * The app runs from / and relies only on browser ESM + the Mado importmap.
  */
 
-import { html, render } from "madojs";
+import { html, render } from "@madojs/mado";
 import routesApi from "./routes.js";
 
 const root = document.getElementById("app");

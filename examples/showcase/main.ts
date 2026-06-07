@@ -6,7 +6,7 @@
  *   3) mount <x-app> into #app, rendering <x-nav> + router.view.
  */
 
-import { component, html, provide, render } from "madojs";
+import { component, html, provide, render } from "@madojs/mado";
 import route from "./routes.js";
 import { globalStyles } from "./styles/global.js";
 import { bootAuth } from "./lib/auth.js";

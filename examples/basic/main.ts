@@ -7,7 +7,7 @@
  * Everything else lives in routes.ts and pages/.
  */
 
-import { component, html, render, css, provide } from "madojs";
+import { component, html, render, css, provide } from "@madojs/mado";
 import route from "./routes.js";
 import { ThemeCtx, applyTheme, type Theme } from "./lib/theme.js";
 import { tokens } from "./styles/tokens.js";

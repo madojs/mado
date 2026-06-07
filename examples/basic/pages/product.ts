@@ -18,7 +18,7 @@
  * an SPA. No extra data request is needed because the data is already in DOM.
  */
 
-import { page, component, html, css } from "madojs";
+import { page, component, html, css } from "@madojs/mado";
 import { products, findProduct, type Product } from "../lib/products.js";
 
 component(

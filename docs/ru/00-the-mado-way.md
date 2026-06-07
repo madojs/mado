@@ -32,7 +32,7 @@ src/
 
 ```ts
 // src/components/user-card.ts
-import { component, html, css } from 'madojs';
+import { component, html, css } from '@madojs/mado';
 
 component('x-user-card', () => {
   return () => html`<div class="card"><slot/></div>`;
@@ -61,7 +61,7 @@ const save = mutation(api.save, { invalidates: ['/api/users*'] });
 
 ```ts
 // src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from 'madojs';
+import { page, html, resource, jsonFetcher } from '@madojs/mado';
 
 export default page({
   title: ({ id }) => `User #${id}`,

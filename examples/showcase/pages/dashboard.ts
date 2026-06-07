@@ -2,7 +2,7 @@
  * CRM dashboard: resources, derived metrics and nested reusable components.
  */
 
-import { component, computed, css, each, html, inject, page, resource } from "madojs";
+import { component, computed, css, each, html, inject, page, resource } from "@madojs/mado";
 import { ApiContext } from "../lib/services.js";
 import { money } from "../lib/format.js";
 import "../components/x-stat-card.js";

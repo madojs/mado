@@ -74,7 +74,7 @@ function Counter() {
 }
 
 // ✅ Правильно в Mado
-import { component, signal, effect, html } from "madojs";
+import { component, signal, effect, html } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -138,7 +138,7 @@ class XCounter extends HTMLElement {
 customElements.define("x-counter", XCounter);
 
 // ✅ Правильно: функциональный component()
-import { component, html, signal } from "madojs";
+import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -175,7 +175,7 @@ import { Home } from "./pages/home.js";
 html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
 
 // ✅ Правильно: each() с key-функцией
-import { each } from "madojs";
+import { each } from "@madojs/mado";
 html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
 ```
 
@@ -311,7 +311,7 @@ component("x-button", () => () => html`<button><slot></slot></button>`, {
 
 ---
 
-## Pitfall #13: `import * as Mado from "madojs"`
+## Pitfall #13: `import * as Mado from "@madojs/mado"`
 
 **Симптом:** AI хочет namespace-import.
 
@@ -319,10 +319,10 @@ component("x-button", () => () => html`<button><slot></slot></button>`, {
 
 ```ts
 // ✅ Канонично
-import { signal, html, component, css, page } from "madojs";
+import { signal, html, component, css, page } from "@madojs/mado";
 
 // ⚠️ Работает, но избыточно
-import * as Mado from "madojs";
+import * as Mado from "@madojs/mado";
 Mado.signal(0);
 ```
 

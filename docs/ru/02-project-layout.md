@@ -5,7 +5,7 @@
 ```
 my-app/
 ├── package.json              # ровно 1 dep: typescript (esbuild опц.)
-├── tsconfig.json             # с paths "madojs" → импорт без относительных путей
+├── tsconfig.json             # с paths "@madojs/mado" → импорт без относительных путей
 ├── Dockerfile + nginx.conf   # копируем из Mado/ при scaffold
 ├── .gitlab-ci.yml | .github/workflows/ci.yml
 ├── server/serve.mjs          # dev-сервер из Mado, без deps

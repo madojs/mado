@@ -1,4 +1,4 @@
-import { component, css, html } from "madojs";
+import { component, css, html } from "@madojs/mado";
 
 component(
   "x-empty-state",

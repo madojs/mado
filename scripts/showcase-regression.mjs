@@ -52,10 +52,21 @@ try {
   await waitForServer();
   const pw = await loadPlaywright();
   if (pw) {
-    browser = await pw.chromium.launch();
-    const page = await browser.newPage();
-    await runWithPage(page);
-    await page.close();
+    try {
+      browser = await pw.chromium.launch();
+      const page = await browser.newPage();
+      await runWithPage(page);
+      await page.close();
+    } catch (error) {
+      console.warn(
+        `[showcase-regression] Playwright Chromium could not start; falling back to system Chrome. ${error.message}`,
+      );
+      if (browser) await browser.close();
+      browser = undefined;
+      const result = await runWithChromeCdp();
+      chrome = result.chrome;
+      tmpProfile = result.tmpProfile;
+    }
   } else {
     const result = await runWithChromeCdp();
     chrome = result.chrome;

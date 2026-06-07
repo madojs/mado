@@ -103,9 +103,9 @@ await esbuild.build({
   outfile: tmpFile,
   // tsconfig paths are not read by esbuild here, so aliases are explicit.
   tsconfig: "tsconfig.json",
-  // resolve 'madojs' → ./src/index.ts
+  // resolve '@madojs/mado' -> ./src/index.ts
   alias: {
-    madojs: resolve("src/index.ts"),
+    "@madojs/mado": resolve("src/index.ts"),
   },
   logLevel: "error",
 });

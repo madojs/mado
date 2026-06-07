@@ -1,6 +1,6 @@
 # Mado
 
-> SPA framework ~16 KB gzip on the platform (Web Components + signals + tagged-template `html`).  
+> Small native-web SPA framework on the platform (Web Components + signals + tagged-template `html`).  
 > No build step (only `tsc`), no runtime dependencies, readable in an evening.
 
 Mado is a narrowly-focused frontend framework that deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and senior frontend engineers who are tired of the infrastructure complexity of React/Next.
@@ -39,7 +39,7 @@ Mado is a narrowly-focused frontend framework that deliberately avoids React pat
 
 3. **Lists — must use `each(items, keyFn, renderFn)`**, not `.map()` without a key:
    ```ts
-   import { each } from "madojs";
+   import { each } from "@madojs/mado";
    html`<ul>${() => each(users(), u => u.id, u => html`<li>${u.name}</li>`)}</ul>`
    ```
 
@@ -60,26 +60,26 @@ import {
   createContext, provide, inject,
   persisted,
   lazy,
-} from "madojs";
+} from "@madojs/mado";
 ```
 
 ## Canonical "Hello world"
 
 ```ts
 // src/main.ts
-import { html, render } from "madojs";
+import { html, render } from "@madojs/mado";
 import routesApi from "./routes.js";
 render(html`${routesApi.view}`, document.getElementById("app")!);
 
 // src/routes.ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 export default routes({
   "/": () => import("./pages/home.js"),
   "*": () => import("./pages/not-found.js"),
 });
 
 // src/pages/home.ts
-import { page, component, html, css, signal } from "madojs";
+import { page, component, html, css, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
@@ -97,7 +97,7 @@ export default page({
 ## Canonical CRUD pattern (for backend developers)
 
 ```ts
-import { page, html, resource, mutation, each, useForm, navigate } from "madojs";
+import { page, html, resource, mutation, each, useForm, navigate } from "@madojs/mado";
 import { api } from "../lib/api.js";
 
 const users = resource(() => "/api/users", () => api.list(), { staleTime: 30_000 });
@@ -119,7 +119,7 @@ export default page({
 
 ## Documentation
 
-- README: https://github.com/madojs/madojs#readme — full description + cookbook
+- README: https://github.com/madojs/mado#readme — full description + cookbook
 - docs/en/00-the-mado-way.md — philosophy and applicability boundaries
 - docs/en/01-routing.md — detailed router documentation
 - docs/en/02-project-layout.md — recommended project structure
@@ -148,7 +148,7 @@ export default page({
 
 ## Version
 
-`0.2.0` — early, API may change before 1.0. Semver is not guaranteed on minor versions before 1.0.
+`0.5.0` — early, API may change before 1.0. Semver is not guaranteed on minor versions before 1.0.
 
 ## License
 

@@ -3,7 +3,7 @@
  * Imports components for side-effect registration.
  */
 
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 import { products } from "../lib/products.js";
 import "../components/counter.js";
 import "../components/todos.js";

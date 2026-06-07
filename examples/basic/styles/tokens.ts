@@ -10,7 +10,7 @@
  * Theme switching uses data-theme on :root (see lib/theme.ts).
  */
 
-import { css } from "madojs";
+import { css } from "@madojs/mado";
 
 export const tokens = css`
   :root {

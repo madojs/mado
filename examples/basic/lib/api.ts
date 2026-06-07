@@ -7,7 +7,7 @@
  * This gives cache, cancellation, and one place for logging/retries.
  */
 
-import { jsonFetcher } from "madojs";
+import { jsonFetcher } from "@madojs/mado";
 
 const BASE = "https://jsonplaceholder.typicode.com";
 

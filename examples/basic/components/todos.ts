@@ -10,7 +10,7 @@ import {
   computed,
   batch,
   each,
-} from "madojs";
+} from "@madojs/mado";
 
 interface Todo {
   id: number;

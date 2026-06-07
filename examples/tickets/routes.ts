@@ -2,7 +2,7 @@
  * Route manifest for the tickets zero-history validation example.
  */
 
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export default routes(
   {

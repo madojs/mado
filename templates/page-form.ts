@@ -10,7 +10,7 @@ import {
   signal,
   useForm,
   mutation,
-} from "madojs";
+} from "@madojs/mado";
 
 interface Values {
   name: string;

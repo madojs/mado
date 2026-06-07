@@ -7,7 +7,7 @@
  *   - head() with dynamic JSON-LD from post data.
  */
 
-import { page, html, css, component, each, resource } from "madojs";
+import { page, html, css, component, each, resource } from "@madojs/mado";
 import { api, type BlogPost } from "../lib/api.js";
 
 component(

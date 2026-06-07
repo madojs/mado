@@ -3,7 +3,7 @@
  * signal storing whether a user is logged in and who they are.
  */
 
-import { signal } from "madojs";
+import { signal } from "@madojs/mado";
 import { api, type User } from "./api.js";
 
 export const currentUser = signal<User | null>(null);

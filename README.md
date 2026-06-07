@@ -74,9 +74,38 @@ enough for serious admin apps while remaining small and readable.
 
 ## Quick Start
 
+### Start a new app
+
+```bash
+npm exec --package @madojs/mado@latest -- mado init my-app
+cd my-app
+npm install
+npm run build
+npm run serve
+```
+
+Use the CRUD starter when you want a compact admin-style example with
+`resource()`, `mutation()`, `useForm()`, `each()` and `queryParam()`:
+
+```bash
+npm exec --package @madojs/mado@latest -- mado init my-app --starter crud
+```
+
+### Try the repository examples
+
+```bash
+git clone https://github.com/madojs/mado.git
+cd mado
+npm install
+npm run build
+npm run serve -- basic
+```
+
+### Small component example
+
 ```ts
 // src/pages/counter.ts
-import { component, css, html, page, signal } from "madojs";
+import { component, css, html, page, signal } from "@madojs/mado";
 
 component(
   "x-counter",
@@ -97,7 +126,7 @@ export default page({
 
 ```ts
 // src/routes.ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export const manifest = {
   "/": () => import("./pages/counter.js"),
@@ -107,15 +136,11 @@ export const manifest = {
 export default routes(manifest);
 ```
 
-```bash
-npm install
-npm run build
-npm run serve -- basic
-```
-
 The developer convenience CLI is available as `mado`:
 
 ```bash
+mado init my-app
+mado init my-app --starter crud
 mado build
 mado typecheck
 mado test
@@ -163,7 +188,7 @@ AI-agent entrypoints:
 ### Signals
 
 ```ts
-import { batch, computed, effect, flushSync, signal } from "madojs";
+import { batch, computed, effect, flushSync, signal } from "@madojs/mado";
 
 const count = signal(0);
 const doubled = computed(() => count() * 2);
@@ -198,7 +223,7 @@ html`<button @click=${fn} ?disabled=${loading} class=${className}>${label}</butt
 ### Components
 
 ```ts
-import { component, css, html } from "madojs";
+import { component, css, html } from "@madojs/mado";
 
 component(
   "x-card",
@@ -219,7 +244,7 @@ utility classes.
 ### Lists
 
 ```ts
-import { each } from "madojs";
+import { each } from "@madojs/mado";
 
 html`
   <ul>
@@ -234,7 +259,7 @@ insert and delete operations.
 ### Routing
 
 ```ts
-import { routes } from "madojs";
+import { routes } from "@madojs/mado";
 
 export const manifest = {
   "/": () => import("./pages/home.js"),
@@ -252,7 +277,7 @@ prefetch, async stale guards, loading delay, View Transitions support and
 ### Data
 
 ```ts
-import { invalidate, jsonFetcher, mutation, resource } from "madojs";
+import { invalidate, jsonFetcher, mutation, resource } from "@madojs/mado";
 
 const user = resource(
   () => `/api/users/${userId()}`,
@@ -274,7 +299,7 @@ local `mutate()`. Inside `component()` setup it is lifecycle-aware.
 ### Forms
 
 ```ts
-import { html, useForm } from "madojs";
+import { html, useForm } from "@madojs/mado";
 
 const form = useForm({
   email: { required: true, type: "email" },

@@ -26,7 +26,7 @@ VS Code → Extensions → найти **"lit-plugin"** (от runem) → Install.
 `lit-plugin` ищет идентификаторы `html` и `css` в импортах. Если вы не переименовываете их при импорте — настройка нулевая, всё работает:
 
 ```ts
-import { html, css } from "madojs";
+import { html, css } from "@madojs/mado";
 
 const tpl = html`<button @click=${fn}>${label}</button>`;
 ```

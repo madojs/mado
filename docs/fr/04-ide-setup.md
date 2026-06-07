@@ -30,7 +30,7 @@ Ce que vous obtenez :
 renommez pas à l'import — la configuration est nulle, tout fonctionne :
 
 ```ts
-import { html, css } from "madojs";
+import { html, css } from "@madojs/mado";
 
 const tpl = html`<button @click=${fn}>${label}</button>`;
 ```

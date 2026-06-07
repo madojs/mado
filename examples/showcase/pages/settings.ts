@@ -2,7 +2,7 @@
  * Settings page: local signals, context toast service and plain form controls.
  */
 
-import { component, computed, css, html, inject, page, signal } from "madojs";
+import { component, computed, css, html, inject, page, signal } from "@madojs/mado";
 import { ToastContext } from "../lib/services.js";
 
 component(

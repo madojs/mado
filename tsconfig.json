@@ -18,8 +18,8 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "paths": {
-      "madojs": ["./src/index.ts"],
-      "madojs/*": ["./src/*"]
+      "@madojs/mado": ["./src/index.ts"],
+      "@madojs/mado/*": ["./src/*"]
     }
   },
   "include": ["src/**/*.ts", "examples/**/*.ts"],

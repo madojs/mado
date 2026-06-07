@@ -42,7 +42,7 @@ tous écrire de la même manière.
 
 ```ts
 // src/components/user-card.ts
-import { component, html, css } from 'madojs';
+import { component, html, css } from '@madojs/mado';
 
 component('x-user-card', () => {
   return () => html`<div class="card"><slot/></div>`;
@@ -72,7 +72,7 @@ Cela fournit la mise en cache, l'annulation, la gestion des erreurs et l'invalid
 
 ```ts
 // src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from 'madojs';
+import { page, html, resource, jsonFetcher } from '@madojs/mado';
 
 export default page({
   title: ({ id }) => `Utilisateur #${id}`,

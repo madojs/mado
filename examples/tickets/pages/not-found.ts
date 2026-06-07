@@ -1,4 +1,4 @@
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 import "../components/x-shell.js";
 
 export default page({

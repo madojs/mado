@@ -2,7 +2,7 @@
  * Theme context: the single source of truth.
  */
 
-import { createContext, type Signal } from "madojs";
+import { createContext, type Signal } from "@madojs/mado";
 
 export type Theme = "light" | "dark";
 

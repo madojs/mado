@@ -3,7 +3,7 @@
  * Used on the dashboard. Shadow DOM is fine here because it is a leaf visual.
  */
 
-import { component, html, css } from "madojs";
+import { component, html, css } from "@madojs/mado";
 
 component(
   "x-stat-card",

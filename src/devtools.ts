@@ -10,7 +10,7 @@
  *   - groups effects via console.group / console.groupEnd
  *
  * Setup:
- *   import 'madojs/devtools.js';  // at the very top of app.ts
+ *   import '@madojs/mado/devtools.js';  // at the very top of app.ts
  *
  * In production — just don't import this file, and all dev code will be
  * tree-shaken (or simply absent from the module graph).

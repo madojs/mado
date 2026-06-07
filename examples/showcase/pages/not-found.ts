@@ -1,4 +1,4 @@
-import { page, html } from "madojs";
+import { page, html } from "@madojs/mado";
 
 export default page({
   title: "404",

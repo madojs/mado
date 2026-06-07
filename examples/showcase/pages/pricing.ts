@@ -5,7 +5,7 @@
  *   - conditional rendering through a signal function in html``.
  */
 
-import { page, html, css, component, signal, computed, each } from "madojs";
+import { page, html, css, component, signal, computed, each } from "@madojs/mado";
 
 component(
   "x-pricing",

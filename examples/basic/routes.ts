@@ -12,7 +12,7 @@
  * Export both default (RouterApi for runtime) and manifest (for bake).
  */
 
-import { routes, html, type RoutesMap } from "madojs";
+import { routes, html, type RoutesMap } from "@madojs/mado";
 
 export const manifest: RoutesMap = {
   "/": () => import("./pages/home.js"),

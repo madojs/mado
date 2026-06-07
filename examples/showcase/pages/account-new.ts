@@ -2,7 +2,7 @@
  * Account creation flow: useForm + mutation + invalidates + navigate.
  */
 
-import { component, css, html, inject, mutation, navigate, page, useForm } from "madojs";
+import { component, css, html, inject, mutation, navigate, page, useForm } from "@madojs/mado";
 import { ApiContext, ToastContext } from "../lib/services.js";
 import type { Account, AccountInput } from "../lib/api.js";
 

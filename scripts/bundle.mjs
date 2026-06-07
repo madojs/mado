@@ -2,7 +2,7 @@
 //
 // Usage:
 //   node scripts/bundle.mjs              # → out/<hash>.js + chunks + out/index.html
-//   ENTRY=examples/main.ts node scripts/bundle.mjs
+//   ENTRY=src/index.ts HTML=examples/index.html node scripts/bundle.mjs
 //
 // What it does:
 //   1. Bundles entry with code splitting (each dynamic import → a chunk).
@@ -26,9 +26,9 @@ import { gzipSync, brotliCompressSync, constants as zlibConst } from "node:zlib"
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 
-const ENTRY = process.env.ENTRY ?? "examples/main.ts";
+const ENTRY = process.env.ENTRY ?? "examples/showcase/main.ts";
 const OUT_DIR = process.env.OUT_DIR ?? "out";
-const HTML = process.env.HTML ?? "examples/index.html";
+const HTML = process.env.HTML ?? "examples/showcase/index.html";
 
 await mkdir(OUT_DIR, { recursive: true });
 

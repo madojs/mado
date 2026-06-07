@@ -1,0 +1,7 @@
+node_modules/
+dist/
+out/
+deploy/
+*.log
+.DS_Store
+.wrangler/

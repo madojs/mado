@@ -1,0 +1,79 @@
+{
+  "name": "madojs",
+  "version": "0.2.0",
+  "description": "Mado — a small native-web SPA framework with Web Components, signals, tagged-template html, router, resources, and forms. TypeScript-only build, zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "framework",
+    "spa",
+    "web-components",
+    "signals",
+    "tagged-templates",
+    "router",
+    "no-build",
+    "tsc",
+    "minimal",
+    "lit-alternative",
+    "solid-alternative"
+  ],
+  "homepage": "https://github.com/madojs/madojs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/madojs/madojs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/madojs/madojs/issues"
+  },
+  "bin": {
+    "mado": "./scripts/cli.mjs"
+  },
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./devtools.js": "./dist/src/devtools.js",
+    "./*": "./dist/src/*"
+  },
+  "files": [
+    "dist/src",
+    "scripts",
+    "server",
+    "templates",
+    "README.md",
+    "LICENSE",
+    "ROADMAP.md",
+    "docs"
+  ],
+  "scripts": {
+    "build": "node scripts/cli.mjs build",
+    "watch": "node scripts/cli.mjs watch",
+    "serve": "node scripts/cli.mjs serve",
+    "dev": "node scripts/cli.mjs dev",
+    "bundle": "node scripts/cli.mjs bundle",
+    "bake": "node scripts/cli.mjs bake",
+    "preview": "node scripts/cli.mjs preview",
+    "test:browser": "node scripts/cli.mjs test browser",
+    "new": "node scripts/cli.mjs new",
+    "examples": "node scripts/cli.mjs examples",
+    "test": "node scripts/cli.mjs test",
+    "typecheck": "node scripts/cli.mjs typecheck",
+    "clean": "rm -rf dist out",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "optionalDevDependencies": {
+    "esbuild": "^0.28.0",
+    "linkedom": "^0.18.12",
+    "playwright-core": "^1.47.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

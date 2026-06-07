@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/extensions.json",
+  "recommendations": [
+    "Tobermory.es6-string-html",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"
+  ]
+}

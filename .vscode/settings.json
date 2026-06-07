@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": false,
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // associate .ts files with html``/css``  highlighting using es6-string-html
+  "files.associations": {
+    "*.css.ts": "typescript"
+  },
+
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

@@ -1,0 +1,24 @@
+# Cloudflare Workers config for the edge-prerender PoC.
+#
+# Before deploy:
+#   1. wrangler login
+#   2. wrangler kv namespace create PRERENDER
+#   3. paste the returned ID into kv_namespaces[0].id
+#   4. wrangler deploy
+
+name = "mado-edge-prerender"
+main = "src/worker.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "PRERENDER"
+id = "REPLACE_ME_AFTER_KV_CREATE"
+
+[vars]
+# URL of your real API. The Worker fetches prerender data from here.
+# In local wrangler dev, override with --var API_BASE=http://localhost:3000.
+API_BASE = "https://api.example.com"
+
+# Cache TTL in seconds. One hour is a reasonable catalog default.
+CACHE_TTL = "3600"

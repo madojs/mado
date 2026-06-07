@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mado demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 760px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+        color: var(--fg, #111);
+        background: var(--bg, #fff);
+      }
+      :root[data-theme='dark'] { --fg: #eee; --bg: #181818; }
+      nav a { margin-right: .5rem; }
+      h1 { margin-top: 0; }
+      hr { margin: 2rem 0; opacity: .25; }
+    </style>
+
+    <!--
+      Flat import: user code writes `import { signal } from 'madojs'`,
+      and importmap resolves it to the built module. No build-step patterns.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "madojs": "/dist/src/index.js",
+          "madojs/": "/dist/src/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!--
+      No bundler. The browser fetches the ESM graph from /dist.
+      After `npm run build` (or `tsc`) the .js files appear.
+      Entry point: main.ts → routes.ts → pages/*.
+    -->
+    <script type="module" src="/dist/examples/basic/main.js"></script>
+  </body>
+</html>

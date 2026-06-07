@@ -1,0 +1,155 @@
+# Mado
+
+> SPA framework ~16 KB gzip on the platform (Web Components + signals + tagged-template `html`).  
+> No build step (only `tsc`), no runtime dependencies, readable in an evening.
+
+Mado is a narrowly-focused frontend framework that deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and senior frontend engineers who are tired of the infrastructure complexity of React/Next.
+
+## Key things an AI assistant needs to know
+
+- **This is NOT React, NOT Lit, NOT Solid.** When generating code for Mado, **do not use JSX, `useState`, `useEffect`, classes, decorators, `requestUpdate`**. That will be an error.
+- **All templates are tagged template `html\`...\``** (not JSX). Allowed bindings inside: `${value}`, `attr=${v}`, `@evt=${fn}`, `.prop=${v}`, `?attr=${flag}`.
+- **Reactivity via signals.** `signal()`, `computed()`, `effect()`. A signal is a getter function (`count()`), not an object field (`count.value`).
+- **Components are Web Components.** Registered via `component('x-name', setupFn, options)`. Names must include a hyphen (`x-foo`, `my-button`).
+- **Cleanup via `ctx.onDispose(fn)`** in setup, not via return from effect.
+
+## Critical template rules
+
+1. **A reactive value in a template = getter function.**
+   ```ts
+   // ❌ NOT REACTIVE: read once at render time
+   html`<div>${count() * 2}</div>`
+   // ✅ REACTIVE: subscription
+   html`<div>${() => count() * 2}</div>`
+   ```
+   The signal itself can also be inserted directly — Mado will recognise it as a function:
+   ```ts
+   html`<div>${count}</div>`  // ✅ ok, count is a function
+   ```
+
+2. **DOM properties vs HTML attributes:**
+   - `attr=${v}` → setAttribute (strings/numbers only);
+   - `.prop=${v}` → DOM property (objects, arrays, numbers without serialisation);
+   - `?attr=${flag}` → boolean attribute (toggle attribute);
+   - `@evt=${fn}` → addEventListener.
+
+   ```ts
+   html`<input ?disabled=${isLoading} .value=${user.name} @input=${onInput}>`
+   ```
+
+3. **Lists — must use `each(items, keyFn, renderFn)`**, not `.map()` without a key:
+   ```ts
+   import { each } from "madojs";
+   html`<ul>${() => each(users(), u => u.id, u => html`<li>${u.name}</li>`)}</ul>`
+   ```
+
+## Canonical imports
+
+```ts
+// Everything you normally need — from one place:
+import {
+  signal, computed, effect, batch,
+  html, render,
+  each,
+  component,
+  css, cssVars,
+  routes, router, navigate, queryParam, prefetchPath,
+  page, nested,
+  resource, mutation, invalidate, jsonFetcher,
+  useForm,
+  createContext, provide, inject,
+  persisted,
+  lazy,
+} from "madojs";
+```
+
+## Canonical "Hello world"
+
+```ts
+// src/main.ts
+import { html, render } from "madojs";
+import routesApi from "./routes.js";
+render(html`${routesApi.view}`, document.getElementById("app")!);
+
+// src/routes.ts
+import { routes } from "madojs";
+export default routes({
+  "/": () => import("./pages/home.js"),
+  "*": () => import("./pages/not-found.js"),
+});
+
+// src/pages/home.ts
+import { page, component, html, css, signal } from "madojs";
+
+component("x-counter", () => {
+  const count = signal(0);
+  return () => html`
+    <button @click=${() => count.update(n => n + 1)}>${count}</button>
+  `;
+}, { styles: css`button { padding: .5rem 1rem; }` });
+
+export default page({
+  title: "Home",
+  view: () => html`<x-counter></x-counter>`,
+});
+```
+
+## Canonical CRUD pattern (for backend developers)
+
+```ts
+import { page, html, resource, mutation, each, useForm, navigate } from "madojs";
+import { api } from "../lib/api.js";
+
+const users = resource(() => "/api/users", () => api.list(), { staleTime: 30_000 });
+const create = mutation((u) => api.create(u), { invalidates: ["/api/users*"] });
+
+export default page({
+  view: () => {
+    const f = useForm({ name: { required: true } });
+    return html`
+      <form @submit=${f.onSubmit(async v => { await create.run(v); navigate("/"); })}>
+        <input name="name" @input=${f.onInput}>
+        <button ?disabled=${() => !f.isValid()}>Create</button>
+      </form>
+      ${() => each(users.data() ?? [], u => u.id, u => html`<li>${u.name}</li>`)}
+    `;
+  },
+});
+```
+
+## Documentation
+
+- README: https://github.com/madojs/madojs#readme — full description + cookbook
+- docs/en/00-the-mado-way.md — philosophy and applicability boundaries
+- docs/en/01-routing.md — detailed router documentation
+- docs/en/02-project-layout.md — recommended project structure
+- docs/en/03-static-bake.md — SEO without SSR (static build / edge prerender)
+- docs/en/04-ide-setup.md — VS Code / WebStorm configuration
+- docs/en/05-why-mado.md — honest comparison with Lit / Solid / Svelte / htmx / Alpine / React
+- docs/en/06-for-backenders.md — mental model in 10 minutes for Go/Rust/.NET/Java developers
+- docs/en/07-llm-pitfalls.md — common mistakes when generating Mado code
+- examples/basic/ — minimal API tour
+- examples/tickets/ — LLM zero-history CRUD validation
+- examples/showcase/ — flagship CRM pressure app (auth, nested routes, forms, mutations)
+- examples/cloudflare/ — Edge prerender PoC on Cloudflare Workers
+
+## What Mado does NOT do (intentionally)
+
+- ❌ JSX → tagged templates instead
+- ❌ Virtual DOM → fine-grained signal updates
+- ❌ SSR with hydration → `bake` (static build) or edge-prerender for SEO
+- ❌ Hooks and rules of hooks → signals
+- ❌ Mandatory Webpack/Vite → only `tsc`
+- ❌ React-Router / TanStack → built-in 500-line `routes()`
+- ❌ React-Query / SWR → built-in `resource()`
+- ❌ Formik / RHF → built-in `useForm()` (HTML5 validation)
+- ❌ Redux / Zustand → `signal()` + `createContext`
+- ❌ Decorators → plain functions
+
+## Version
+
+`0.2.0` — early, API may change before 1.0. Semver is not guaranteed on minor versions before 1.0.
+
+## License
+
+MIT.

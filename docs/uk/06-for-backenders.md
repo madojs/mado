@@ -1,0 +1,50 @@
+# Mado для бекендерів
+
+Якщо ти пишеш Go, Rust, .NET, Java, Python або Node backend, Mado можна уявляти
+як маленький HTTP-сервер у браузері.
+
+| Backend mental model | Mado |
+|---|---|
+| router | `routes()` |
+| handler | `page().view` |
+| middleware/layout | `nested()` + layout |
+| cache get-or-set | `resource()` |
+| POST/PUT/DELETE | `mutation()` |
+| cache invalidation | `invalidates` / `invalidate()` |
+| dependency injection | `createContext/provide/inject` |
+
+## CRUD
+
+```ts
+const users = resource(
+  () => "/api/users",
+  jsonFetcher<User[]>(),
+);
+
+const save = mutation(api.saveUser, {
+  invalidates: ["/api/users*"],
+});
+```
+
+## Форми
+
+```ts
+const form = useForm({
+  email: { required: true, type: "email" },
+});
+```
+
+Mado спирається на Constraint Validation API браузера, а не на окрему validation
+екосистему.
+
+## Auth
+
+Auth зазвичай живе в `lib/auth.ts` як signal/context. Protected area зручно
+робити через nested layout, який перевіряє session і показує dashboard або
+redirect/login.
+
+## Правило
+
+Не тягни backend-архітектуру в frontend дослівно. Тримай UI state локальним,
+data fetching через `resource()`, mutation через `mutation()`, а shared services
+через context.

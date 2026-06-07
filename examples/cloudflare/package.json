@@ -1,0 +1,15 @@
+{
+  "name": "mado-edge-prerender",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0",
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "linkedom": "^0.18.12"
+  }
+}

@@ -1,7 +1,7 @@
 import { component, css, html, signal } from "@madojs/mado";
 
 component(
-  "app-counter",
+  "x-app-counter",
   () => {
     const count = signal(0);
     return () => html`

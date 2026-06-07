@@ -4,11 +4,13 @@ Generated with Mado __MADO_VERSION__.
 
 ```bash
 npm install
-npm run build
-npm run serve
+npm run dev
 ```
 
 Open http://localhost:5173.
+
+Use `npm run build` for a production TypeScript build and `npm run serve` to
+serve an already-built app.
 
 ## Files
 

@@ -1,4 +1,5 @@
 import { html, page } from "@madojs/mado";
+import "../components/ticket-form.js";
 
 export default page({
   title: "New ticket",

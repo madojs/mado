@@ -1,4 +1,5 @@
 import { html, page } from "@madojs/mado";
+import "../components/ticket-detail.js";
 
 export default page<{ id: string }>({
   title: ({ id }) => `Ticket ${id}`,

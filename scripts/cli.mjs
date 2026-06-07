@@ -120,6 +120,7 @@ async function runInit(rawArgs) {
   await mkdir(target, { recursive: true });
   await cp(source, target, { recursive: true, force: true });
   await copyCanonicalAgentFiles(target);
+  await ensureStarterGitignore(target);
 
   const packageName = packageNameFromDir(target);
   if (!isValidPackageName(packageName)) {
@@ -202,6 +203,12 @@ async function copyCanonicalAgentFiles(target) {
     const source = join(PACKAGE_ROOT, file);
     if (existsSync(source)) await copyFile(source, join(target, file));
   }
+}
+
+async function ensureStarterGitignore(target) {
+  const file = join(target, ".gitignore");
+  if (existsSync(file)) return;
+  await writeFile(file, "node_modules\ndist\nout\n.DS_Store\n*.log\n");
 }
 
 async function runNodeBin(bin, args) {

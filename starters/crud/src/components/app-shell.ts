@@ -1,7 +1,7 @@
 import { component, css, html } from "@madojs/mado";
 
 component(
-  "app-shell",
+  "x-app-shell",
   () => () => html`
     <header>
       <a class="brand" href="/" data-link>__APP_NAME__</a>
@@ -11,17 +11,18 @@ component(
         <a href="/tickets/new" data-link>New ticket</a>
       </nav>
     </header>
-    <slot></slot>
+    <main>
+      <slot></slot>
+    </main>
   `,
   {
-    shadow: false,
     styles: css`
-      app-shell {
+      :host {
         min-height: 100vh;
         display: block;
       }
 
-      app-shell header {
+      header {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -31,18 +32,22 @@ component(
         padding: 0.9rem 1.25rem;
       }
 
-      app-shell nav {
+      main {
+        display: block;
+      }
+
+      nav {
         display: flex;
         gap: 0.75rem;
         flex-wrap: wrap;
       }
 
-      app-shell a {
+      a {
         color: #334155;
         text-decoration: none;
       }
 
-      app-shell .brand {
+      .brand {
         color: #111827;
         font-weight: 800;
       }

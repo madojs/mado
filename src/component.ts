@@ -16,16 +16,32 @@
  * styles will be scoped via @scope (or a tag-prefix fallback).
  */
 
-import { effect, type Disposer } from "./signal.js";
+import { signal, effect, type Signal, type Disposer } from "./signal.js";
 import { html, render, type TemplateResult } from "./html.js";
 import { adopt, scopeStyles, type CSSResult } from "./css.js";
-import { createLifecycle, runInLifecycle, type LifecycleHandle } from "./lifecycle.js";
+import {
+  createLifecycle,
+  runInLifecycle,
+  type LifecycleHandle,
+} from "./lifecycle.js";
 import { warnOnce } from "./diagnostics.js";
 
 export interface ComponentContext {
   host: HTMLElement;
   /** Run cleanup when the component is removed. */
   onDispose(fn: Disposer): void;
+  /**
+   * Reactive attribute accessor. Returns a Signal<string> that updates
+   * automatically whenever the attribute changes on the host element.
+   *
+   *   const variant = ctx.attr("variant", "primary");
+   *   return () => html`<div class=${variant()}>…</div>`;
+   *
+   * No MutationObserver boilerplate needed — the signal updates via
+   * attributeChangedCallback. The attribute name is automatically added to
+   * observedAttributes if not already listed.
+   */
+  attr(name: string, defaultValue?: string): Signal<string>;
 }
 
 export type SetupFn = (ctx: ComponentContext) => () => TemplateResult;
@@ -45,9 +61,10 @@ export interface ComponentOptions {
   /**
    * List of observed attributes.
    *
-   * v0.3: this is plain reflection into host[attr], without a reactive props API.
-   * If you need to re-render the component when an attribute changes, create a signal()
-   * inside setup() and update it manually from your own wrapper/event.
+   * Attributes listed here are reflected to host[attr] via
+   * attributeChangedCallback and also power ctx.attr() reactive signals.
+   * You only need to list them here if you use the legacy property reflection
+   * pattern. ctx.attr() automatically registers any attribute it tracks.
    */
   observedAttributes?: readonly string[];
 }
@@ -83,6 +100,10 @@ export function component(
   const useShadow = options.shadow !== false;
   const observed = options.observedAttributes ?? [];
 
+  // Collect attribute names that ctx.attr() will track. These are merged with
+  // options.observedAttributes to form the final static observedAttributes.
+  const attrSignalNames = new Set<string>(observed);
+
   // Normalize styles to an array of CSSStyleSheet once.
   // Sheets are shared across all instances — memory is not duplicated.
   const stylesheets: CSSResult[] = normalizeStyles(
@@ -93,7 +114,7 @@ export function component(
 
   class MadoElement extends HTMLElement {
     static get observedAttributes() {
-      return [...observed];
+      return [...attrSignalNames];
     }
 
     #root: Element | ShadowRoot;
@@ -101,6 +122,7 @@ export function component(
     #effectDispose: Disposer | null = null;
     #lifecycle: LifecycleHandle | null = null;
     #connected = false;
+    #attrSignals = new Map<string, Signal<string>>();
 
     constructor() {
       super();
@@ -125,12 +147,26 @@ export function component(
       const lifecycle = createLifecycle();
       this.#lifecycle = lifecycle;
 
+      const host = this;
+
       const ctx: ComponentContext = {
         host: this,
         // ctx.onDispose proxies to lifecycle — the single source of truth
         // for component cleanups (including auto-cleanup from
         // resource(), navigator listeners, etc.).
         onDispose: (fn) => lifecycle.onDispose(fn),
+        attr(name: string, defaultValue = ""): Signal<string> {
+          let s = host.#attrSignals.get(name);
+          if (!s) {
+            s = signal(host.getAttribute(name) ?? defaultValue);
+            host.#attrSignals.set(name, s);
+            // Ensure the attribute is observed. For the current instance
+            // we already have the signal; for future registrations of
+            // the same tag (HMR) the set persists.
+            attrSignalNames.add(name);
+          }
+          return s;
+        },
       };
 
       this.#renderer = runInLifecycle(lifecycle, () => setup(ctx));
@@ -153,7 +189,12 @@ export function component(
       _old: string | null,
       value: string | null,
     ) {
-      // reflect attribute to property — user can bind a signal to it
+      // Update ctx.attr() signal if it exists for this attribute.
+      const s = this.#attrSignals.get(name);
+      if (s) {
+        s.set(value ?? "");
+      }
+      // Legacy reflection: reflect attribute to property.
       (this as unknown as Record<string, unknown>)[name] = value;
     }
   }

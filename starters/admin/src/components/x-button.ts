@@ -1,25 +1,45 @@
 // <x-button variant="primary|ghost|danger" ?disabled>
 //
 // Wraps a native <button> so it can be slotted with text/icon and styled
-// consistently across the app. Click events bubble naturally because Shadow
-// DOM is `mode: open` and composed: true is the default for `click`.
+// consistently across the app.
+//
+// Handles two Shadow DOM gotchas out of the box:
+//   1. Reactive attributes via ctx.attr() — external ?disabled changes
+//      re-render the inner button automatically.
+//   2. Form submit — a <button type="submit"> inside Shadow DOM cannot
+//      trigger <form> submit in Light DOM (spec limitation). We call
+//      form.requestSubmit() from a click handler to bridge this gap.
 
 import { component, css, html } from "@madojs/mado";
 
 component(
   "x-button",
-  ({ host }) => () => {
-    const variant = host.getAttribute("variant") ?? "primary";
-    const disabled = host.hasAttribute("disabled");
-    return html`
-      <button data-variant=${variant} ?disabled=${disabled}>
+  ({ host, attr }) => {
+    const variant = attr("variant", "primary");
+    const disabled = attr("disabled");
+
+    const handleClick = () => {
+      const typeAttr = host.getAttribute("type");
+      if (typeAttr === "button" || typeAttr === "reset") return;
+      const form = host.closest("form");
+      if (form && !host.hasAttribute("disabled")) form.requestSubmit();
+    };
+
+    return () => html`
+      <button
+        data-variant=${variant()}
+        ?disabled=${() => disabled() !== ""}
+        @click=${handleClick}
+      >
         <slot></slot>
       </button>
     `;
   },
   {
     styles: css`
-      :host { display: inline-flex; }
+      :host {
+        display: inline-flex;
+      }
       button {
         display: inline-flex;
         align-items: center;
@@ -31,11 +51,18 @@ component(
         cursor: pointer;
         background: var(--accent);
         color: var(--accent-fg);
-        transition: filter .12s ease;
+        transition: filter 0.12s ease;
       }
-      button:hover:not(:disabled) { filter: brightness(1.07); }
-      button:active:not(:disabled) { filter: brightness(.95); }
-      button:disabled { opacity: .55; cursor: not-allowed; }
+      button:hover:not(:disabled) {
+        filter: brightness(1.07);
+      }
+      button:active:not(:disabled) {
+        filter: brightness(0.95);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
 
       button[data-variant="ghost"] {
         background: transparent;

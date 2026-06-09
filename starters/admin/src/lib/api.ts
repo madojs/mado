@@ -71,9 +71,9 @@ export function createApiClient(baseUrl: string) {
           credentials: "include",
         });
         if (!res.ok) return false;
-        const data = (await res.json().catch(() => null)) as
-          | { accessToken?: string }
-          | null;
+        const data = (await res.json().catch(() => null)) as {
+          accessToken?: string;
+        } | null;
         if (!data?.accessToken) return false;
         accessToken.set(data.accessToken);
         return true;
@@ -118,7 +118,11 @@ export function createApiClient(baseUrl: string) {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new ApiError(res.status, body, `HTTP ${res.status} ${res.statusText}`);
+      throw new ApiError(
+        res.status,
+        body,
+        `HTTP ${res.status} ${res.statusText}`,
+      );
     }
     if (res.status === 204) return null as unknown as T;
     return (await res.json()) as T;
@@ -131,3 +135,50 @@ export function createApiClient(baseUrl: string) {
 
 /** Default app-wide client. Change the base URL via mado.config.json dev.proxy. */
 export const api = createApiClient("/api");
+
+/**
+ * Fetcher for resource() that attaches the Bearer token automatically.
+ * Use this instead of jsonFetcher() for protected endpoints:
+ *
+ *   const stats = resource(() => "/api/admin/stats", apiFetcher<Stats>());
+ *
+ * Unlike jsonFetcher(), this:
+ *   - Sends the access token from memory (no cookie-based auth needed).
+ *   - Does NOT prepend a base URL — the key is the full URL (matches
+ *     resource key semantics).
+ *   - Throws ApiError on non-2xx (consistent with api()).
+ */
+export function apiFetcher<T>(): (
+  url: string,
+  signal: AbortSignal,
+) => Promise<T> {
+  return async (url, abortSignal) => {
+    const token = accessToken();
+    const headers = new Headers();
+    headers.set("accept", "application/json");
+    if (token) headers.set("authorization", `Bearer ${token}`);
+
+    const res = await fetch(url, {
+      signal: abortSignal,
+      headers,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      let body: unknown = null;
+      try {
+        const ct = res.headers.get("content-type") ?? "";
+        body = ct.includes("json") ? await res.json() : await res.text();
+      } catch {
+        body = null;
+      }
+      throw new ApiError(
+        res.status,
+        body,
+        `HTTP ${res.status} ${res.statusText}`,
+      );
+    }
+    if (res.status === 204) return null as unknown as T;
+    return (await res.json()) as T;
+  };
+}

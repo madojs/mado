@@ -397,7 +397,10 @@ export function useForm<V extends FormValues>(
       name: keyof V & string,
     ): FieldArrayApi<T> {
       const read = (): T[] => {
-        const value = getPath(values.peek(), name);
+        // Use values() (tracked) — not values.peek() — so that effects and
+        // computed() that call items() re-run when the array changes via
+        // append/remove/replace/etc.
+        const value = getPath(values(), name);
         return Array.isArray(value) ? (value as T[]) : [];
       };
       const write = (items: readonly T[]): void => {

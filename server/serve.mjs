@@ -35,10 +35,49 @@ const CONFIG = (() => {
 })();
 const PROXY_RULES = Object.entries(CONFIG.dev?.proxy ?? {}); // [["/api", "http://localhost:3000"], ...]
 
-const PORT = Number(process.env.PORT ?? CONFIG.dev?.port ?? 5173);
-const HMR = process.env.NO_HMR !== "1";
+// Tiny argv parser. Supports --flag, --flag=value, --flag value. The first
+// non-flag positional is the EXAMPLE name (legacy behavior). Anything that
+// looks like a flag is consumed before we pick the positional, so calls like
+// `mado dev -- --host 127.0.0.1` work as documented.
+function parseArgs(argv) {
+  const flags = {};
+  const positional = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--") continue;
+    if (a.startsWith("--")) {
+      const eq = a.indexOf("=");
+      if (eq >= 0) {
+        flags[a.slice(2, eq)] = a.slice(eq + 1);
+      } else {
+        const name = a.slice(2);
+        const next = argv[i + 1];
+        if (next !== undefined && !next.startsWith("-")) {
+          flags[name] = next;
+          i++;
+        } else {
+          flags[name] = true;
+        }
+      }
+    } else {
+      positional.push(a);
+    }
+  }
+  return { flags, positional };
+}
 
-const EXAMPLE = process.argv[2] ?? process.env.MADO_EXAMPLE ?? process.env.EXAMPLE ?? "";
+const { flags: CLI_FLAGS, positional: CLI_POSITIONAL } = parseArgs(
+  process.argv.slice(2),
+);
+
+const PORT = Number(CLI_FLAGS.port ?? process.env.PORT ?? CONFIG.dev?.port ?? 5173);
+// HOST is opt-in. Default to "localhost" (loopback) which is friendlier in
+// sandboxes that disallow binding 0.0.0.0 (EPERM on listen). Users can opt
+// into LAN exposure with `mado dev --host 0.0.0.0` or HOST=0.0.0.0.
+const HOST = String(CLI_FLAGS.host ?? process.env.HOST ?? CONFIG.dev?.host ?? "localhost");
+const HMR = CLI_FLAGS.hmr !== false && process.env.NO_HMR !== "1";
+
+const EXAMPLE = CLI_POSITIONAL[0] ?? process.env.MADO_EXAMPLE ?? process.env.EXAMPLE ?? "";
 const EXAMPLE_DIR = EXAMPLE
   ? resolve(join(ROOT, "examples", EXAMPLE))
   : "";
@@ -185,7 +224,30 @@ const server = createServer(async (req, res) => {
       const s = await stat(target);
       if (s.isDirectory()) target = join(target, "index.html");
     } catch {
-      if (!extname(pathname)) {
+      // Public assets: in production `mado release` copies public/* into out/.
+      // In dev we surface them from public/ directly so favicon.svg, robots.txt,
+      // og-image.png, etc. don't 404 (and so dev/prod behavior matches).
+      const publicCandidate = resolve(join(ROOT, "public", pathname));
+      if (
+        publicCandidate.startsWith(resolve(join(ROOT, "public")) + sep) &&
+        existsSync(publicCandidate)
+      ) {
+        try {
+          const ps = await stat(publicCandidate);
+          if (!ps.isDirectory()) {
+            target = publicCandidate;
+            reason = "public/";
+          } else if (!extname(pathname)) {
+            target = fallbackIndex;
+          } else {
+            reason = "file not found";
+            res.writeHead(404).end("not found");
+            return;
+          }
+        } catch {
+          target = fallbackIndex;
+        }
+      } else if (!extname(pathname)) {
         target = fallbackIndex;
       } else {
         reason = "file not found";
@@ -301,7 +363,15 @@ async function buildPreloadHints() {
 }
 
 server.on("error", (err) => {
-  console.error(`[serve] failed to listen on port ${PORT}: ${err.message}`);
+  if (err.code === "EPERM" || err.code === "EACCES") {
+    console.error(
+      `[serve] failed to bind ${HOST}:${PORT}: ${err.message}\n` +
+        `[serve] tip: this sandbox may disallow binding "${HOST}".\n` +
+        `[serve] try:  mado dev --host 127.0.0.1   (or HOST=127.0.0.1)`,
+    );
+  } else {
+    console.error(`[serve] failed to listen on ${HOST}:${PORT}: ${err.message}`);
+  }
   process.exit(1);
 });
 
@@ -351,7 +421,7 @@ async function proxyForward({ req, res, prefix, upstream, pathname, search }) {
   void prefix;
 }
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   const distReady = existsSync(join(ROOT, "dist/src/index.js"))
     || existsSync(join(ROOT, "dist/main.js"));
   const mount = EXAMPLE
@@ -359,9 +429,12 @@ server.listen(PORT, () => {
     : existsSync(EXAMPLES_INDEX)
       ? "examples/index.html landing"
       : "index.html app";
+  // Show "localhost" in the URL when bound to 0.0.0.0 — easier to click.
+  const urlHost = HOST === "0.0.0.0" || HOST === "::" ? "localhost" : HOST;
   console.log("");
   console.log("Mado dev server");
-  console.log(`  url:      http://localhost:${PORT}/`);
+  console.log(`  url:      http://${urlHost}:${PORT}/`);
+  console.log(`  host:     ${HOST}`);
   console.log(`  root:     ${ROOT}`);
   console.log(`  mount:    ${mount}`);
   console.log(`  hmr:      ${HMR ? "on" : "off"}`);

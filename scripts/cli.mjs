@@ -53,10 +53,10 @@ switch (command) {
     }
     break;
   case "serve":
-    await runServe(args[0] ?? "");
+    await runServe(args);
     break;
   case "dev":
-    await runDev(args[0] ?? "");
+    await runDev(args);
     break;
   case "bake":
     await runNodeScript("scripts/bake.mjs", args);
@@ -87,15 +87,25 @@ switch (command) {
     process.exit(1);
 }
 
-async function runServe(example) {
+async function runServe(rawArgs) {
+  // Split args into [example?, ...flags]. The first non-flag positional is the
+  // example name; everything else (including `--host`, `--port`, etc.) is
+  // forwarded verbatim to server/serve.mjs.
+  const { example, forwarded } = splitDevArgs(rawArgs);
   if (!example && PROJECT_ROOT !== PACKAGE_ROOT) {
     await serveStaticProject(PROJECT_ROOT);
     return;
   }
   if (example) assertExample(example, { serveable: true });
-  await run(process.execPath, [join(PACKAGE_ROOT, "server/serve.mjs"), example].filter(Boolean), {
-    env: { ...process.env, EXAMPLE: example || process.env.EXAMPLE || "" },
-  });
+  await run(
+    process.execPath,
+    [join(PACKAGE_ROOT, "server/serve.mjs"), example, ...forwarded].filter(
+      Boolean,
+    ),
+    {
+      env: { ...process.env, EXAMPLE: example || process.env.EXAMPLE || "" },
+    },
+  );
 }
 
 async function runInit(rawArgs) {
@@ -168,15 +178,25 @@ async function runInit(rawArgs) {
   console.log("");
 }
 
-async function runDev(example) {
+async function runDev(rawArgs) {
+  // Forward unknown flags (e.g. --host, --port) to server/serve.mjs so callers
+  // can write `mado dev --host 127.0.0.1` without the CLI mistaking `--host`
+  // for an example name.
+  const { example, forwarded } = splitDevArgs(rawArgs);
   if (example) assertExample(example, { serveable: true });
 
   const env = { ...process.env, EXAMPLE: example || process.env.EXAMPLE || "" };
-  const server = spawn(process.execPath, [join(PACKAGE_ROOT, "server/serve.mjs"), example].filter(Boolean), {
-    cwd: PROJECT_ROOT,
-    env,
-    stdio: "inherit",
-  });
+  const server = spawn(
+    process.execPath,
+    [join(PACKAGE_ROOT, "server/serve.mjs"), example, ...forwarded].filter(
+      Boolean,
+    ),
+    {
+      cwd: PROJECT_ROOT,
+      env,
+      stdio: "inherit",
+    },
+  );
   const tsc = spawn(process.execPath, [resolveBin("typescript/bin/tsc"), "-w"], {
     cwd: PROJECT_ROOT,
     stdio: "inherit",
@@ -409,6 +429,50 @@ function parseFlags(raw) {
     }
   }
   return { flags, positional };
+}
+
+/**
+ * Split args for `mado dev` / `mado serve` into:
+ *   - example: the first non-flag positional (or undefined)
+ *   - forwarded: every remaining token (flags, their values, leftover
+ *     positionals), preserved in order so server/serve.mjs sees them
+ *     unchanged.
+ *
+ * This is what lets `mado dev -- --host 127.0.0.1` and
+ * `mado dev showcase --port 6000` both work without the CLI confusing
+ * `--host` for an example name.
+ */
+function splitDevArgs(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { example: "", forwarded: [] };
+  }
+  let example = "";
+  const forwarded = [];
+  let pickedExample = false;
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i];
+    if (a === "--") {
+      forwarded.push(...raw.slice(i + 1));
+      break;
+    }
+    if (a.startsWith("-")) {
+      forwarded.push(a);
+      // Lookahead: if the next token is the flag's VALUE (does not start with
+      // "-"), forward it too — but only when the flag is in inline form
+      // (--flag value), not --flag=value.
+      if (!a.includes("=") && raw[i + 1] !== undefined && !raw[i + 1].startsWith("-")) {
+        forwarded.push(raw[++i]);
+      }
+      continue;
+    }
+    if (!pickedExample) {
+      example = a;
+      pickedExample = true;
+    } else {
+      forwarded.push(a);
+    }
+  }
+  return { example, forwarded };
 }
 
 function packageNameFromDir(target) {

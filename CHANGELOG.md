@@ -4,6 +4,88 @@
 
 Nothing yet.
 
+## 0.7.0
+
+Reactive component props, Shadow DOM + Forms fixes, deterministic releases,
+and `mado serve` unification. Motivated by stress-test findings in a real-world
+admin panel (see `MADO_TEST_REPORT.md`).
+
+### Breaking Changes
+
+- **`mado serve` in app-mode** no longer uses the legacy `serveStaticProject()`
+  fallback. It now always goes through `server/serve.mjs`, which means
+  `--host`, `--port`, `mado.config.json` dev.proxy, and HMR all work for
+  generated apps. If you relied on the old no-HMR behaviour, pass
+  `NO_HMR=1 mado serve`.
+
+### Added — Framework
+
+- **`ctx.attr(name, defaultValue?)`** — reactive attribute accessor for
+  components. Returns a `Signal<string>` that auto-updates when the attribute
+  changes on the host element via `attributeChangedCallback`. No more
+  `MutationObserver` boilerplate in every component.
+
+  ```ts
+  component("x-badge", ({ attr }) => {
+    const variant = attr("variant", "default");
+    return () =>
+      html`<span class=${() => `badge-${variant()}`}><slot></slot></span>`;
+  });
+  ```
+
+  Attributes used with `ctx.attr()` are automatically added to
+  `observedAttributes`.
+
+### Added — Starters
+
+- **`apiFetcher<T>()`** in `starters/admin/src/lib/api.ts` — a fetcher for
+  `resource()` that attaches the Bearer token from memory. Use for protected
+  endpoints instead of the plain `jsonFetcher()`.
+- **`x-button`**: now bridges Shadow DOM → Light DOM form submit via
+  `form.requestSubmit()`. Buttons inside Shadow DOM cannot natively trigger
+  `<form>` submit in Light DOM — this is now handled automatically.
+- **`x-button`**: uses `ctx.attr("disabled")` for reactive disabled state.
+  External `?disabled=${() => !form.isValid()}` now correctly enables/disables
+  the inner button.
+- **`x-input`**: proxies `.name` and `.value` DOM properties on the host
+  element so that `useForm().onInput` works after Shadow DOM event retargeting.
+
+### Added — CLI / Build
+
+- **`mado release --no-clean`**: release now cleans the entire `out/` directory
+  before building (deterministic artifacts). Pass `--no-clean` to opt out.
+  Previously stale assets, removed bake routes, and deleted public files could
+  linger in the deploy artifact.
+- **`scripts/bake.mjs`**: `<title>` now falls back to `page.title` if
+  `head().title` is not explicitly set. Previously baked HTML kept the template
+  `<title>` from `index.html` — a critical SEO gap.
+
+### Added — Documentation
+
+- **`docs/en/17-shadow-dom-forms.md`** — full recipe for using `useForm()` with
+  Shadow DOM components (proxy properties, form submit bridge, ctx.attr()).
+- **`llms.txt`**: added `ctx.attr()` section, `apiFetcher` recipe, and Shadow
+  DOM + Forms guidance.
+
+### Fixed
+
+- **`x-button` in starters**: the disabled state was read once from
+  `host.hasAttribute("disabled")` in the render function — never updating when
+  the attribute changed externally. Every form using `?disabled` on `x-button`
+  was broken from the start.
+- **`x-input` in starters**: `useForm().onInput` received `undefined` for
+  `name` and `value` because Shadow DOM retargets `e.target` from the inner
+  `<input>` to `<x-input>`, which had no DOM properties.
+- **`jsonFetcher()`**: the admin starter relied on `jsonFetcher()` for protected
+  endpoints but it sends no Authorization header. Documented the pattern and
+  added `apiFetcher()`.
+- **`mado serve`**: app-mode did not respect `--host`, `--port`, or config
+  settings. All flag pass-through now goes through `server/serve.mjs`.
+- **`mado release`**: stale files from deleted bake routes or removed public
+  assets could remain in `out/`. Now cleans `out/` fully before building.
+- **`mado bake`**: `<title>` was not set in baked HTML if only `page.title`
+  was defined (without `head().title`).
+
 ## 0.6.1
 
 Starter & release-pipeline hardening pass. No public API breaks.
@@ -12,6 +94,7 @@ starter / bundle / bake / dev-server contour. All fixes verified by
 regression tests added in this release.
 
 ### Fixed
+
 - **Starters**: every `index.html` in `starters/{admin,crud,minimal}/` now
   uses root-absolute paths in the importmap and entry `<script>` tag
   (`/node_modules/@madojs/mado/...`, `/dist/main.js`). Relative paths
@@ -20,7 +103,7 @@ regression tests added in this release.
   `/admin/orders/dist/main.js` → 404 → blank page). Inline comments in each
   file explain the trap so it does not get reverted.
 - **Starters/admin**: `pages/admin/order-detail.ts` now uses `each(items,
-  key, render)` instead of `o.items.map(...)`, matching `llms.txt` rule #3
+key, render)` instead of `o.items.map(...)`, matching `llms.txt` rule #3
   and the framework's own pitfalls documentation.
 - **`scripts/bundle.mjs`**: cleans stale hashed assets before every build.
   Previously each `mado bundle` / `mado release` left old `main-<hash>.js`
@@ -57,6 +140,7 @@ regression tests added in this release.
   had succeeded.
 
 ### Added
+
 - **`mado dev` / `mado serve` flag pass-through**: `cli.mjs` now splits
   positional arguments from flags via `splitDevArgs()`, so calls like
   `mado dev --host 127.0.0.1`, `mado dev showcase --port 6000` and
@@ -71,7 +155,7 @@ regression tests added in this release.
 - **`scripts/bake.mjs`**: fails loudly when the manifest exists but no
   page declares `bake: { paths, data }`. The previous behaviour produced
   `0 pages + sitemap.xml` silently with exit code 0, making `mado
-  release` look successful while shipping only the SPA shell with no
+release` look successful while shipping only the SPA shell with no
   SEO-friendly HTML. The new warning prints the skipped routes, a
   worked example bake snippet, and exits non-zero. Override with
   `MADO_BAKE_ALLOW_EMPTY=1` for intentional SPA-only deploys.
@@ -99,12 +183,14 @@ regression tests added in this release.
     response.
 
 ### Changed
+
 - **`server/serve.mjs`** default host is now `localhost` (was implicitly
   `0.0.0.0`). LAN exposure is opt-in via `mado dev --host 0.0.0.0` or
   `HOST=0.0.0.0`. The startup banner shows both the bound host and a
   click-friendly URL (`localhost` substituted when bound to `0.0.0.0`).
 
 ### Notes
+
 - No public API changes; no migrations required. Apps that previously
   worked on a fresh-out-of-the-box `mado init` did so only because
   someone manually fixed the starter's relative paths and dev deps —
@@ -124,12 +210,13 @@ pipeline, core hardening and v1 recipe docs.
 Phase 1 — Repo-vs-app split:
 
 ### Added
+
 - `MADO_V1_PLAN.md` — executable tracker for the v1 push.
 - `scripts/_config.mjs` — single configuration loader (defaults < `mado.config.json`
   < CLI flags). Exports `loadConfig`, `detectContext`, `parseFlags`,
   `resolveProjectPath`. [v1 F1.1]
 - `mado release` command: one-shot `typecheck + build + bundle + bake + copy
-  public/ → out/` pipeline so apps have exactly one command to ship. [v1 F1.3]
+public/ → out/` pipeline so apps have exactly one command to ship. [v1 F1.3]
 - `mado.config.json` shipped in the `minimal` and `crud` starters with the
   default app-mode layout (`src/routes.ts`, `index.html`, `out/`). [v1 F1.4]
 - Tests: `test/config-loader.test.mjs`, `test/bake-cli.test.mjs` (11 + 3
@@ -137,6 +224,7 @@ Phase 1 — Repo-vs-app split:
   flags, and the no-more-silent-`[object Object]` contract). [v1 F1.6]
 
 ### Changed
+
 - `scripts/bake.mjs` now reads configuration from `mado.config.json` and
   accepts `--entry`, `--template`, `--out`, `--base-url` flags. In app-mode
   defaults are `src/routes.ts` + `index.html` + `out/baked/`; the
@@ -158,6 +246,7 @@ Phase 1 — Repo-vs-app split:
 Phase 2 — One blessed way:
 
 ### Added
+
 - `layout()` factory in `src/page.ts` (alias of `nested()`) plus `Guard` and
   `GuardResult` types. Exported from the public API. [v1 F2.1 / F2.3]
 - Route guards: nested groups and individual pages accept `guard: Guard | Guard[]`.
@@ -182,6 +271,7 @@ Phase 2 — One blessed way:
 Phase 3 — Bake first-class + Release pipeline:
 
 ### Added
+
 - `mado release` writes `_redirects` (`/* /index.html 200`) and `_headers`
   (immutable for `/assets/*`, no-cache for HTML) into `out/` when they do not
   exist, so Cloudflare Pages / Netlify deploys "just work". [v1 F3.7]
@@ -195,6 +285,7 @@ Phase 3 — Bake first-class + Release pipeline:
   and copied `public/` assets are all present. [v1 F3.10]
 
 ### Changed
+
 - `scripts/preview.mjs` now reads `mado.config.json` (`build.out`, `dev.port`),
   refuses to auto-build by default in app-mode, and asks the user to run
   `mado release` first. Legacy auto-build is opt-in via `PREVIEW_AUTOBUILD=1`
@@ -209,6 +300,7 @@ Phase 3 — Bake first-class + Release pipeline:
   dependencies. The startup banner prints the active proxy table. [v1 F3.6]
 
 ### Deferred to v0.7
+
 - `mado dev` does not yet serve baked routes inline. Workaround: run
   `mado release && mado preview`. [v1 F3.2]
 - `mado check` (bake-safety scan over `bake:` routes) is not exposed yet.
@@ -218,6 +310,7 @@ Phase 3 — Bake first-class + Release pipeline:
 Phase 4 — Core hardening:
 
 ### Added
+
 - `computed(fn, { equals })` option to suppress subscriber reruns when an
   observed computed recomputes to an equal value. [v1 F4.3]
 - HTML directives: `unsafeHTML()`, `ref()`, `classMap()` and `styleMap()` are
@@ -239,6 +332,7 @@ Phase 4 — Core hardening:
   its regression tests. [v1 F4.9]
 
 ### Changed
+
 - `computed()` now releases dependency subscriptions after unobserved reads and
   after the last subscriber is disposed, avoiding long-lived stale subscriptions
   in the signal graph. [v1 F4.1]
@@ -257,6 +351,7 @@ Phase 4 — Core hardening:
 Phase 5 — Documentation:
 
 ### Added
+
 - `docs/en/10-app-architecture.md`, `14-testing.md`, `15-error-handling.md`
   and `16-bake-cookbook.md` complete the v1 English recipe set. [v1 F5.1-F5.4]
 - `AGENTS.md` now includes an "App architecture for LLM" section and `llms.txt`

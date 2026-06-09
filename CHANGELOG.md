@@ -4,6 +4,58 @@
 
 Nothing yet.
 
+## 0.8.0
+
+Core reliability fixes from "Pulse" stress-test (Round 2): Kanban 210 cards,
+Gantt 500-task computed chain, rapid navigation, field arrays with server
+populate. Three critical issues found and resolved.
+
+### Fixed
+
+- **`ctx.attr()` — MutationObserver fallback.** `observedAttributes` is read
+  once at `customElements.define()` time. Attributes registered via `ctx.attr()`
+  inside `setup()` were too late for the browser's `attributeChangedCallback`.
+  Now a single `MutationObserver` per instance covers all `ctx.attr()` attributes
+  and auto-disconnects on component removal. This was a silent failure — the
+  signal read the initial value correctly but never updated on external changes
+  like `?disabled=${() => !form.isValid()}`.
+
+- **`useForm().array().items()` — reactive reads.** The internal `read()`
+  function used `values.peek()` (untracked) instead of `values()`. Effects and
+  templates calling `items()` never re-ran when the array changed via
+  `append()` / `replace()` / `remove()`. Field arrays populated from server
+  data showed empty lists. One-line fix: `values.peek()` → `values()`.
+
+### Added
+
+- **`onDispose` in `PageContext`.** `page()` view now receives `onDispose(fn)` —
+  tied to the same lifecycle as `resource()` / `effect()` but for manual
+  subscriptions (`setInterval`, WebSocket, EventSource) that aren't auto-managed.
+  Cleaned up automatically on navigation.
+
+  ```ts
+  export default page({
+    view: ({ onDispose }) => {
+      const id = setInterval(pollInbox, 3000);
+      onDispose(() => clearInterval(id));
+      return html`...`;
+    },
+  });
+  ```
+
+- **`ctx.attr()` regression test** confirming that external `setAttribute()`
+  after `connectedCallback` correctly updates the reactive signal via the
+  MutationObserver fallback path.
+
+### Notes
+
+- Core reactivity engine passes all stress checks: diamond dependency (500
+  tasks, 1 recompute per batch), rapid navigation (20× board↔issue, 0 broken
+  states), `persisted()` cross-tab sync via BroadcastChannel.
+- Bundle size for a full Pulse app (8 pages, kanban, gantt, inbox, settings):
+  **36.7 KB gzip** / 31.8 KB brotli.
+- 141 tests, 138 pass, 0 fail, 3 skipped (browser-only).
+
 ## 0.7.0
 
 Reactive component props, Shadow DOM + Forms fixes, deterministic releases,

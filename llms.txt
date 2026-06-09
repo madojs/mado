@@ -219,7 +219,7 @@ export default page({
 
 ## Version
 
-`0.7.0` — pre-1.0 product-surface release. API may still change before 1.0.
+`0.8.0` — pre-1.0 product-surface release. API may still change before 1.0.
 Semver is not guaranteed on minor versions before 1.0.
 
 ## License

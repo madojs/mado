@@ -85,14 +85,26 @@ let parseHTML;
 try {
   ({ parseHTML } = await import("linkedom"));
 } catch {
-  fatal("[bake] package 'linkedom' is required:  npm i -D linkedom");
+  fatal(
+    "[bake] package 'linkedom' is required.",
+    "[bake] Install it as a dev dependency in this project:",
+    "[bake]   npm i -D linkedom esbuild",
+    "[bake] (esbuild is also required, see next check).",
+    "[bake] These are not bundled into @madojs/mado on purpose: bake is an",
+    "[bake] optional build step and we don't want to add transitive deps to",
+    "[bake] every Mado install.",
+  );
 }
 
 let esbuild;
 try {
   esbuild = await import("esbuild");
 } catch {
-  fatal("[bake] package 'esbuild' is required:  npm i -D esbuild");
+  fatal(
+    "[bake] package 'esbuild' is required.",
+    "[bake] Install it as a dev dependency in this project:",
+    "[bake]   npm i -D esbuild linkedom",
+  );
 }
 
 // ---------- DOM polyfills for Node ----------
@@ -183,13 +195,19 @@ const TEMPLATE_HTML = baseHtml;
 const sitemapEntries = [];
 let total = 0;
 let bakedErrors = 0;
+let bakeablePages = 0;
+const skippedNoBake = [];
 
 for (const [pattern, entry] of Object.entries(manifest)) {
   if (pattern === "*") continue;
 
   const pg = await resolvePage(entry);
   if (!pg) continue;
-  if (!pg.bake) continue;
+  if (!pg.bake) {
+    skippedNoBake.push(pattern);
+    continue;
+  }
+  bakeablePages++;
 
   console.log(`[bake] ${pattern}`);
 
@@ -267,6 +285,36 @@ await writeFile(join(OUT_DIR, "sitemap.xml"), sitemap);
 console.log(`[bake] done: ${total} pages + sitemap.xml → ${OUT_DIR}`);
 if (bakedErrors > 0) {
   fatal(`[bake] ${bakedErrors} route(s) failed; see errors above.`);
+}
+// Loud diagnostic when the manifest exists but no page declares `bake`.
+// Previously bake silently produced 0 pages + an empty sitemap and exited
+// 0, which made `mado release` look successful while shipping no static
+// HTML for crawlers. Fail loudly so the user notices.
+if (bakeablePages === 0) {
+  error("");
+  error(
+    `[bake] WARNING: no page in ${ENTRY} declares \`bake: { paths, data }\`.`,
+  );
+  error(
+    `[bake] ${skippedNoBake.length} route(s) skipped: ${skippedNoBake
+      .slice(0, 6)
+      .join(", ")}${skippedNoBake.length > 6 ? ", …" : ""}`,
+  );
+  error("[bake] Add `bake` to at least one page (e.g. your landing route):");
+  error("[bake]   export default page({");
+  error("[bake]     view: …,");
+  error("[bake]     bake: { paths: () => [{}], data: () => ({}) },");
+  error("[bake]   });");
+  error(
+    "[bake] Without bake the build ships only the SPA shell — search engines",
+  );
+  error("[bake] and link previews see an empty <body>.");
+  // Exit non-zero so `mado release` halts and the user is forced to address
+  // it. If you intentionally have an SPA-only deploy, drop `mado bake` from
+  // the release pipeline (or set MADO_BAKE_ALLOW_EMPTY=1).
+  if (process.env.MADO_BAKE_ALLOW_EMPTY !== "1") {
+    process.exit(1);
+  }
 }
 
 // ---------- Helpers ----------

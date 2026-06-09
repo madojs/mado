@@ -92,11 +92,12 @@ async function runServe(rawArgs) {
   // example name; everything else (including `--host`, `--port`, etc.) is
   // forwarded verbatim to server/serve.mjs.
   const { example, forwarded } = splitDevArgs(rawArgs);
-  if (!example && PROJECT_ROOT !== PACKAGE_ROOT) {
-    await serveStaticProject(PROJECT_ROOT);
-    return;
-  }
   if (example) assertExample(example, { serveable: true });
+
+  // In app-mode (generated project, no example argument) we also go through
+  // server/serve.mjs to get config support (--host, --port, mado.config.json
+  // dev.proxy, HMR, etc.) — previously this fell back to serveStaticProject()
+  // which only read PORT from env and had no proxy/config/HMR.
   await run(
     process.execPath,
     [join(PACKAGE_ROOT, "server/serve.mjs"), example, ...forwarded].filter(
@@ -235,7 +236,8 @@ async function runRelease(rawArgs) {
   // have to remember the order, and so the deploy artifact (out/) is always
   // assembled the same way.
   //
-  //   mado release
+  //   mado release [--no-clean]
+  //     → rm -rf out/        (unless --no-clean)
   //     → mado typecheck
   //     → mado build       (tsc → dist/)
   //     → mado bundle      (esbuild → out/assets/, also copies index.html)
@@ -243,6 +245,7 @@ async function runRelease(rawArgs) {
   //     → copy public/* → out/
   //
   // Flags are forwarded to bake/bundle.
+  const { flags: releaseFlags } = parseFlags(rawArgs);
   const cfg = loadConfig({ projectRoot: PROJECT_ROOT });
   const outDir = resolve(cfg.projectRoot, cfg.build.out ?? "out");
   const publicDir = resolve(cfg.projectRoot, cfg.build.publicDir ?? "public");
@@ -250,6 +253,18 @@ async function runRelease(rawArgs) {
   console.log(`[release] context: ${cfg.context}`);
   console.log(`[release] artifact: ${outDir}`);
   console.log("");
+
+  // Deterministic builds: remove the entire output directory so stale assets,
+  // removed bake routes, and deleted public files don't linger in the deploy
+  // artifact. Use --no-clean to opt out (e.g. incremental CI workflows).
+  if (!releaseFlags["no-clean"]) {
+    if (existsSync(outDir)) {
+      await rm(outDir, { recursive: true, force: true });
+      console.log(`[release] cleaned ${outDir}`);
+    }
+  } else {
+    console.log("[release] --no-clean: keeping existing out/");
+  }
 
   console.log("[release] step 1/5  typecheck");
   await runNodeBin("typescript/bin/tsc", ["--noEmit"]);
@@ -527,31 +542,5 @@ function contentType(file) {
   }[ext] ?? "application/octet-stream";
 }
 
-async function serveStaticProject(rootDir) {
-  const port = Number(process.env.PORT || 5173);
-  const server = http.createServer((req, res) => {
-    const url = new URL(req.url || "/", `http://localhost:${port}`);
-    const pathname = decodeURIComponent(url.pathname);
-    const normalized = pathname.replace(/^\/+/, "");
-    let file = resolve(rootDir, normalized);
-    if (pathname === "/" || !normalized.includes(".")) file = join(rootDir, "index.html");
-    if (!file.startsWith(rootDir) || !existsSync(file) || statSync(file).isDirectory()) {
-      file = join(rootDir, "index.html");
-    }
-
-    if (!existsSync(file)) {
-      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-      res.end("Not found");
-      return;
-    }
-
-    res.writeHead(200, { "content-type": contentType(file) });
-    res.end(readFileSync(file));
-  });
-
-  await new Promise((resolveListen) => {
-    server.listen(port, resolveListen);
-  });
-  console.log(`[mado] serving ${rootDir}`);
-  console.log(`[mado] http://localhost:${port}`);
-}
+// serveStaticProject removed in v0.7 — mado serve now always goes through
+// server/serve.mjs to get --host, --port, dev.proxy, and HMR support.

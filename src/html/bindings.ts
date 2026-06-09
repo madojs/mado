@@ -22,6 +22,87 @@ import {
   type InstantiatedTemplate,
 } from "./template-types.js";
 
+// ---------- Directives ----------
+
+type DirectiveKind = "unsafeHTML" | "ref" | "classMap" | "styleMap";
+
+interface DirectiveBase {
+  readonly _madoDirective: DirectiveKind;
+}
+
+export interface UnsafeHTMLDirective extends DirectiveBase {
+  readonly _madoDirective: "unsafeHTML";
+  readonly value: string;
+}
+
+export type RefCallback<T extends Element = Element> = (
+  el: T | null,
+) => void | Disposer;
+
+export interface RefDirective<T extends Element = Element>
+  extends DirectiveBase {
+  readonly _madoDirective: "ref";
+  readonly callback: RefCallback<T>;
+}
+
+export type ClassMap = Record<string, unknown>;
+
+export interface ClassMapDirective extends DirectiveBase {
+  readonly _madoDirective: "classMap";
+  readonly value: ClassMap;
+}
+
+export type StyleMap = Record<string, string | number | null | undefined | false>;
+
+export interface StyleMapDirective extends DirectiveBase {
+  readonly _madoDirective: "styleMap";
+  readonly value: StyleMap;
+}
+
+export type HtmlDirective =
+  | UnsafeHTMLDirective
+  | RefDirective
+  | ClassMapDirective
+  | StyleMapDirective;
+
+/**
+ * Render a trusted HTML string as DOM nodes in child position.
+ *
+ * This intentionally does not sanitize. Only pass strings you own or have
+ * sanitized elsewhere.
+ */
+export function unsafeHTML(value: string): UnsafeHTMLDirective {
+  return { _madoDirective: "unsafeHTML", value };
+}
+
+/**
+ * Call `callback(element)` when the element is bound, and clean it up on
+ * disposal. Use as `ref=${ref((el) => { ... })}`.
+ */
+export function ref<T extends Element = Element>(
+  callback: RefCallback<T>,
+): RefDirective<T> {
+  return { _madoDirective: "ref", callback };
+}
+
+/** Toggle CSS classes by object keys. Truthy values add, falsy values remove. */
+export function classMap(value: ClassMap): ClassMapDirective {
+  return { _madoDirective: "classMap", value };
+}
+
+/** Apply inline styles from an object and remove stale keys on updates. */
+export function styleMap(value: StyleMap): StyleMapDirective {
+  return { _madoDirective: "styleMap", value };
+}
+
+export function isHtmlDirective(v: unknown): v is HtmlDirective {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    typeof (v as { _madoDirective?: unknown })._madoDirective === "string"
+  );
+}
+
 // ---------- Child binding ----------
 
 /**
@@ -149,6 +230,15 @@ function renderChild(
       append(v);
       return;
     }
+    if (isHtmlDirective(v)) {
+      if (v._madoDirective !== "unsafeHTML") {
+        throw new Error(
+          `[mado] ${v._madoDirective} directive cannot be used in child position.`,
+        );
+      }
+      appendUnsafeHTML(st, v.value);
+      return;
+    }
     if (isTemplateResult(v)) {
       const inst = instantiateFn(v);
       const inserted = [...inst.fragment.childNodes];
@@ -165,6 +255,17 @@ function renderChild(
   };
 
   handle(value);
+}
+
+function appendUnsafeHTML(st: ChildState, value: string): void {
+  const parent = st.anchor.parentNode;
+  if (!parent) return;
+
+  const tpl = document.createElement("template");
+  tpl.innerHTML = value;
+  const nodes = [...tpl.content.childNodes];
+  parent.insertBefore(tpl.content, st.anchor);
+  st.current.push(...nodes);
 }
 
 function clearCurrent(st: ChildState): void {
@@ -342,10 +443,7 @@ export function bindAttr(
   if (!isMulti) {
     warnBooleanAttrIfNeeded(name);
     const v = values[spec.slots[0]!];
-    applyReactive(v, disposers, (vv) => {
-      if (vv == null || vv === false) el.removeAttribute(name);
-      else el.setAttribute(name, vv === true ? "" : String(vv));
-    });
+    bindSingleAttr(el, name, v, disposers);
     return;
   }
 
@@ -357,6 +455,11 @@ export function bindAttr(
     for (let i = 0; i < spec.slots.length; i++) {
       const v = values[spec.slots[i]!];
       const resolved = typeof v === "function" ? (v as () => unknown)() : v;
+      if (isHtmlDirective(resolved)) {
+        throw new Error(
+          `[mado] ${resolved._madoDirective} directive cannot be used in a multi-part attribute.`,
+        );
+      }
       out += resolved == null ? "" : String(resolved);
       out += spec.strings[i + 1] ?? "";
     }
@@ -368,6 +471,146 @@ export function bindAttr(
   } else {
     el.setAttribute(name, compute());
   }
+}
+
+function bindSingleAttr(
+  el: Element,
+  name: string,
+  value: unknown,
+  disposers: Disposer[],
+): void {
+  let cleanup: Disposer | undefined;
+  let lastPlainAttr = false;
+  const apply = (vv: unknown) => {
+    cleanup?.();
+    if (lastPlainAttr && isHtmlDirective(vv)) {
+      clearPlainAttr(el, name);
+    }
+    cleanup = applySingleAttrValue(el, name, vv);
+    lastPlainAttr = !isHtmlDirective(vv);
+  };
+
+  if (typeof value === "function") {
+    const d = effect(() => apply((value as () => unknown)()));
+    disposers.push(() => {
+      d();
+      cleanup?.();
+      cleanup = undefined;
+    });
+    return;
+  }
+
+  apply(value);
+  if (cleanup) {
+    disposers.push(() => {
+      cleanup?.();
+      cleanup = undefined;
+    });
+  }
+}
+
+function clearPlainAttr(el: Element, name: string): void {
+  if (name === "class") {
+    el.classList.remove(...Array.from(el.classList));
+    el.removeAttribute(name);
+    return;
+  }
+  el.removeAttribute(name);
+}
+
+function applySingleAttrValue(
+  el: Element,
+  name: string,
+  value: unknown,
+): Disposer | undefined {
+  if (isHtmlDirective(value)) {
+    return applyAttrDirective(el, name, value);
+  }
+
+  if (value == null || value === false) el.removeAttribute(name);
+  else el.setAttribute(name, value === true ? "" : String(value));
+  return undefined;
+}
+
+function applyAttrDirective(
+  el: Element,
+  name: string,
+  directive: HtmlDirective,
+): Disposer | undefined {
+  if (directive._madoDirective === "ref") {
+    if (name !== "ref") {
+      throw new Error("[mado] ref() directive must be used as ref=${ref(...)}.");
+    }
+    el.removeAttribute(name);
+    const dispose = directive.callback(el);
+    return () => {
+      if (typeof dispose === "function") dispose();
+      directive.callback(null);
+    };
+  }
+
+  if (directive._madoDirective === "classMap") {
+    if (name !== "class") {
+      throw new Error(
+        "[mado] classMap() directive must be used as class=${classMap(...)}.",
+      );
+    }
+    return applyClassMap(el, directive.value);
+  }
+
+  if (directive._madoDirective === "styleMap") {
+    if (name !== "style") {
+      throw new Error(
+        "[mado] styleMap() directive must be used as style=${styleMap(...)}.",
+      );
+    }
+    return applyStyleMap(el, directive.value);
+  }
+
+  throw new Error(
+    "[mado] unsafeHTML() directive can only be used in child position.",
+  );
+}
+
+function applyClassMap(el: Element, value: ClassMap): Disposer {
+  const applied: string[] = [];
+  for (const [className, enabled] of Object.entries(value)) {
+    if (!className || !enabled) continue;
+    el.classList.add(...className.trim().split(/\s+/).filter(Boolean));
+    applied.push(className);
+  }
+
+  return () => {
+    for (const className of applied) {
+      el.classList.remove(...className.trim().split(/\s+/).filter(Boolean));
+    }
+  };
+}
+
+function applyStyleMap(el: Element, value: StyleMap): Disposer {
+  const style = (el as Element & { style?: CSSStyleDeclaration }).style;
+  const applied: string[] = [];
+  if (!style) return () => {};
+
+  for (const [rawName, rawValue] of Object.entries(value)) {
+    const prop = toCssPropertyName(rawName);
+    if (!prop) continue;
+    if (rawValue == null || rawValue === false) {
+      style.removeProperty(prop);
+      continue;
+    }
+    style.setProperty(prop, String(rawValue));
+    applied.push(prop);
+  }
+
+  return () => {
+    for (const prop of applied) style.removeProperty(prop);
+  };
+}
+
+function toCssPropertyName(name: string): string {
+  if (name.startsWith("--")) return name;
+  return name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 }
 
 function warnBooleanAttrIfNeeded(name: string): void {

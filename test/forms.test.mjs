@@ -134,3 +134,99 @@ test("useForm: reset returns to defaults", () => {
   flushSync();
   assert.equal(f.values().name, "X");
 });
+
+test("useForm: async field validator updates errors and ignores stale results", async () => {
+  const f = useForm({
+    username: {
+      default: "",
+      validateAsync: async (value) => {
+        await new Promise((r) =>
+          setTimeout(r, value === "taken" ? 20 : 1),
+        );
+        return value === "taken" ? "already taken" : null;
+      },
+    },
+  });
+
+  f.setField("username", "taken");
+  const slow = f.validateField("username");
+  f.setField("username", "free");
+  const fast = f.validateField("username");
+
+  assert.equal(f.validating(), true);
+  assert.equal(await fast, true);
+  assert.equal(await slow, true);
+  flushSync();
+
+  assert.equal(f.errors().username, undefined);
+  assert.equal(f.validating(), false);
+});
+
+test("useForm: onSubmit waits for validateAsync and blocks invalid submit", async () => {
+  let called = 0;
+  const f = useForm(
+    { email: { required: true, default: "a@b.c" } },
+    {
+      validateAsync: async (values) => {
+        await new Promise((r) => setTimeout(r, 1));
+        return values.email === "blocked@b.c"
+          ? { email: "blocked" }
+          : null;
+      },
+    },
+  );
+  const submit = f.onSubmit(async () => {
+    called++;
+  });
+
+  f.setField("email", "blocked@b.c");
+  flushSync();
+  submit(event("submit", null));
+  assert.equal(f.validating(), true);
+  await new Promise((r) => setTimeout(r, 5));
+  flushSync();
+
+  assert.equal(called, 0);
+  assert.equal(f.errors().email, "blocked");
+  assert.equal(f.validating(), false);
+
+  f.setField("email", "ok@b.c");
+  flushSync();
+  submit(event("submit", null));
+  await new Promise((r) => setTimeout(r, 5));
+  flushSync();
+
+  assert.equal(called, 1);
+  assert.equal(f.errors().email, undefined);
+});
+
+test("useForm: field arrays use path names and wildcard validation", () => {
+  const f = useForm({
+    items: { default: [] },
+    "items.*.title": { required: true },
+  });
+  const items = f.array("items");
+
+  items.append({ title: "First" });
+  items.append({ title: "" });
+  flushSync();
+
+  assert.equal(items.path(1, "title"), "items.1.title");
+  assert.equal(f.values().items[0].title, "First");
+  assert.equal(f.errors()["items.1.title"], "required field");
+
+  f.onInput(inputEvent(items.path(1, "title"), "Second"));
+  flushSync();
+  assert.equal(f.values().items[1].title, "Second");
+  assert.equal(f.errors()["items.1.title"], undefined);
+
+  items.move(1, 0);
+  flushSync();
+  assert.equal(f.values().items[0].title, "Second");
+  assert.equal(f.values().items[1].title, "First");
+
+  items.remove(1);
+  flushSync();
+  assert.equal(f.values().items.length, 1);
+  assert.equal(f.values().items[0].title, "Second");
+});

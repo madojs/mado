@@ -106,6 +106,36 @@ export interface BakeConfig<P extends RouteParams, D> {
   revalidate?: number;
 }
 
+/**
+ * Guard verdict.
+ *
+ *   undefined / void   → pass: continue to the next guard or render the page.
+ *   { halt: true }     → stop: the guard already navigated/handled it, render nothing.
+ *   { redirect: url }  → navigate to `url` (preserves a `?return=` if missing).
+ */
+export type GuardResult =
+  | void
+  | undefined
+  | { halt: true }
+  | { redirect: string; replace?: boolean };
+
+/**
+ * Guard function. Runs before a page (or any page in a nested group) is rendered.
+ *
+ *   const requireAuth: Guard = ({ path }) => {
+ *     if (isLoggedIn()) return;
+ *     return { redirect: `/login?return=${encodeURIComponent(path)}` };
+ *   };
+ *
+ * Guards can be async. They are evaluated in order: each parent group's guards
+ * first (outer → inner), then the page's own guards. The first non-pass verdict
+ * wins.
+ */
+export type Guard = (ctx: {
+  params: RouteParams;
+  path: string;
+}) => GuardResult | Promise<GuardResult>;
+
 export interface Page<P extends RouteParams = RouteParams, D = unknown> {
   readonly _page: true;
   title?: string | ((params: P) => string);
@@ -126,6 +156,11 @@ export interface Page<P extends RouteParams = RouteParams, D = unknown> {
    * If not set — the global `error` from routes() is used.
    */
   errorView?: (err: Error, params: P) => TemplateResult;
+  /**
+   * Route guards for this page. Evaluated after any guards from the
+   * enclosing nested groups. See `Guard` for the verdict contract.
+   */
+  guard?: Guard | Guard[];
 }
 
 /**
@@ -167,11 +202,34 @@ export interface NestedRoutes {
   layout?: AnyPage | (() => Promise<{ default: AnyPage }>);
   /** Sub-routes. Keys are relative ("" , "users", "users/:id"). */
   routes: Record<string, RouteEntry>;
+  /**
+   * Guards applied to every page below this group, before the page's own
+   * guards. Single guard or ordered array. Async OK.
+   */
+  guard?: Guard | Guard[];
 }
 
 export function nested(spec: Omit<NestedRoutes, "_nested">): NestedRoutes {
   return { _nested: true, ...spec };
 }
+
+/**
+ * `layout()` is the recommended factory for a nested route group with a
+ * shared shell. It is the same shape as `nested()` — kept under a clearer
+ * name so that app code reads as:
+ *
+ *   "/admin": layout({
+ *     layout: () => import("./layouts/admin.js"),
+ *     guard:  () => import("./lib/auth.js").then(m => m.requireAuth),
+ *     routes: {
+ *       "/":        () => import("./pages/admin/dashboard.js"),
+ *       "/orders":  () => import("./pages/admin/orders.js"),
+ *     },
+ *   })
+ *
+ * Prefer `layout()` over `nested()` in new code.
+ */
+export const layout = nested;
 
 export const isNested = (v: unknown): v is NestedRoutes =>
   typeof v === "object" && v !== null && (v as NestedRoutes)._nested === true;

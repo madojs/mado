@@ -7,7 +7,13 @@
  *   - reusing the same compile/regex in bake / prefetch without duplication.
  */
 
-import { isNested, isPage, type Page, type RouteEntry } from "../page.js";
+import {
+  isNested,
+  isPage,
+  type Guard,
+  type Page,
+  type RouteEntry,
+} from "../page.js";
 import type { TemplateResult } from "../html/template-types.js";
 
 export type RouteParams = Record<string, string>;
@@ -81,6 +87,11 @@ export type RoutesMap = Record<string, RouteEntry>;
 export interface FlatEntry {
   loader: () => Promise<Page> | Page;
   layouts: Array<() => Promise<Page> | Page>;
+  /**
+   * Guards inherited from enclosing nested groups, outer → inner.
+   * The page may add its own via `Page.guard` — those run last.
+   */
+  guards: Guard[];
 }
 
 /**
@@ -92,6 +103,7 @@ export function flatten(
   map: RoutesMap,
   prefix = "",
   layouts: FlatEntry["layouts"] = [],
+  guards: Guard[] = [],
 ): Array<[string, FlatEntry]> {
   const out: Array<[string, FlatEntry]> = [];
   for (const [k, v] of Object.entries(map)) {
@@ -100,12 +112,24 @@ export function flatten(
       const nextLayouts = v.layout
         ? [...layouts, normalize(v.layout)]
         : layouts;
-      for (const sub of flatten(v.routes, full, nextLayouts)) out.push(sub);
+      const nextGuards = v.guard
+        ? [...guards, ...toGuardArray(v.guard)]
+        : guards;
+      for (const sub of flatten(v.routes, full, nextLayouts, nextGuards)) {
+        out.push(sub);
+      }
     } else {
-      out.push([full || "/", { loader: normalize(v), layouts }]);
+      out.push([
+        full || "/",
+        { loader: normalize(v), layouts, guards: [...guards] },
+      ]);
     }
   }
   return out;
+}
+
+function toGuardArray(g: Guard | Guard[]): Guard[] {
+  return Array.isArray(g) ? g : [g];
 }
 
 /** Careful path segment joining without duplicate slashes. */

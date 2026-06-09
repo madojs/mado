@@ -14,10 +14,29 @@ readable and reliable under real application pressure.
 
 ## Before v1
 
-- Generated app DX: `mado dev`/`serve`/starter scripts should feel as polished
-  outside the framework repo as they do inside it.
-- Generated app production story: `mado bundle` and `mado preview` should work
-  from a starter app without repository-only assumptions.
+> The detailed, executable v1 plan lives in [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).
+> The summary below tracks the high-level milestones; the tracker in that file
+> holds the per-task acceptance criteria.
+
+- **Phase 1 — Repo-vs-app split.** Kill `examples/`-leakage from CLI and bake;
+  introduce `mado.config.json`; app-mode becomes the default for `mado bake`,
+  `mado bundle`, `mado preview`.
+- **Phase 2 — One blessed way.** First-class `layout()` + nested manifest;
+  `Guard` API with `redirect`/`halt`; blessed `--starter admin` starter with
+  blessed `api`/`auth` recipes; docs for layouts and auth-and-api.
+- **Phase 3 — Bake first-class + Release pipeline.** `mado release` as the
+  single deploy command (`dist` internal, `out` deployed); `mado dev` serves
+  baked routes inline; bake stops silently rendering `[object Object]`;
+  deployment doc with VPS / Cloudflare Pages / static-CDN recipes.
+- **Phase 4 — Core hardening.** Computed GC + cycle-detection in `effect`;
+  template directives (`unsafeHTML`, `ref`, `classMap`, `styleMap`); async
+  validators and field-arrays in `useForm`; scroll restoration, focus
+  management and error boundary in the router; head cleanup on navigation.
+- **Phase 5 — Documentation (parallel).** `10-app-architecture.md`,
+  `11-layouts.md`, `12-auth-and-api.md`, `13-deployment.md`, `14-testing.md`,
+  `15-error-handling.md`, `16-bake-cookbook.md`; AGENTS.md app-architecture
+  section; ru/fr/uk translations.
+
 - Browser compatibility pass across current Chrome, Edge, Firefox and Safari.
 - Accessibility pass for examples and common component patterns.
 - Public API audit: names, warnings, lifecycle rules, docs coverage.

@@ -14,3 +14,10 @@ Documentation française.
 | LLM pitfalls | [07-llm-pitfalls.md](./07-llm-pitfalls.md) |
 | LLM zero-history test | [08-llm-zero-history-test.md](./08-llm-zero-history-test.md) |
 | Shadow DOM vs Light DOM | [09-shadow-vs-light-dom.md](./09-shadow-vs-light-dom.md) |
+| Architecture d'application | [10-app-architecture.md](./10-app-architecture.md) |
+| Layouts | [11-layouts.md](./11-layouts.md) |
+| Auth et API | [12-auth-and-api.md](./12-auth-and-api.md) |
+| Déploiement | [13-deployment.md](./13-deployment.md) |
+| Tests | [14-testing.md](./14-testing.md) |
+| Gestion des erreurs | [15-error-handling.md](./15-error-handling.md) |
+| Bake cookbook | [16-bake-cookbook.md](./16-bake-cookbook.md) |

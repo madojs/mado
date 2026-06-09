@@ -17,11 +17,28 @@ export {
   batch,
   flushSync,
 } from "./signal.js";
-export type { Signal, Computed, Disposer } from "./signal.js";
+export type { Signal, Computed, ComputedOptions, Disposer } from "./signal.js";
 
 // --- rendering ---
-export { html, render } from "./html.js";
-export type { TemplateResult } from "./html.js";
+export {
+  html,
+  render,
+  unsafeHTML,
+  ref,
+  classMap,
+  styleMap,
+} from "./html.js";
+export type {
+  TemplateResult,
+  HtmlDirective,
+  UnsafeHTMLDirective,
+  RefCallback,
+  RefDirective,
+  ClassMap,
+  ClassMapDirective,
+  StyleMap,
+  StyleMapDirective,
+} from "./html.js";
 
 export { each, list } from "./each.js";
 
@@ -57,7 +74,7 @@ export type {
   QuerySignal,
 } from "./router.js";
 
-export { page, nested, isPage, isNested } from "./page.js";
+export { page, nested, layout, isPage, isNested } from "./page.js";
 export type {
   Page,
   PageContext,
@@ -66,6 +83,8 @@ export type {
   NestedRoutes,
   HeadMeta,
   BakeConfig,
+  Guard,
+  GuardResult,
 } from "./page.js";
 
 export { applyHead } from "./head.js";
@@ -89,9 +108,13 @@ export type {
 export { useForm } from "./forms.js";
 export type {
   FormApi,
+  FormValue,
   FormValues,
   FormErrors,
+  FieldValidator,
+  AsyncFieldValidator,
   FieldSchema,
+  FieldArrayApi,
   Schema,
   UseFormOptions,
 } from "./forms.js";

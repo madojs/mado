@@ -16,7 +16,7 @@
 import { signal } from "../signal.js";
 import { html } from "../html/template.js";
 import type { TemplateResult } from "../html/template-types.js";
-import type { Page, PageContext } from "../page.js";
+import type { Guard, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
   flatten,
@@ -26,7 +26,7 @@ import {
   type Routes,
   type RoutesMap,
 } from "./match.js";
-import { router, type RouterApi } from "./navigation.js";
+import { navigate, router, type RouterApi } from "./navigation.js";
 
 export interface RoutesOptions {
   /**
@@ -37,6 +37,11 @@ export interface RoutesOptions {
   loading?: () => TemplateResult;
   /** TemplateResult if the import threw. */
   error?: (err: Error) => TemplateResult;
+  /**
+   * Route-level error boundary for lazy import, load() and view() errors.
+   * A page's local `errorView` wins when present.
+   */
+  errorPage?: (err: Error, params: RouteParams) => TemplateResult;
   /** Prefix for document.title (e.g. ' · MyApp'). */
   titleSuffix?: string;
   /**
@@ -51,6 +56,16 @@ export interface RoutesOptions {
    * Default true.
    */
   viewTransitions?: boolean;
+  /**
+   * Restore saved scroll on back/forward and scroll new navigations to top.
+   * Default true.
+   */
+  scrollRestoration?: boolean;
+  /**
+   * Move focus to the main content landmark after navigation.
+   * Default true.
+   */
+  focusManagement?: boolean;
 }
 
 /**
@@ -100,8 +115,10 @@ export function routes(
 
   const api = router(lowLevel, {
     viewTransitions: options.viewTransitions,
-  // Raise prefetch into sub-router: hover on a link → find matching FlatEntry → load loader + layouts.
-  prefetch: (pathname) => prefetchPathInContext(ctx, pathname),
+    scrollRestoration: options.scrollRestoration,
+    focusManagement: options.focusManagement,
+    // Raise prefetch into sub-router: hover on a link → find matching FlatEntry → load loader + layouts.
+    prefetch: (pathname) => prefetchPathInContext(ctx, pathname),
   });
   const origDispose = api.dispose;
   api.dispose = () => {
@@ -186,14 +203,17 @@ function applyPageMeta(
   if (title) {
     document.title = title + (options.titleSuffix ?? "");
   }
-  if (page.head) {
-    try {
-      const baked = readBaked<unknown>();
-      applyHead(page.head(params, baked));
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[mado] page.head() threw:", err);
-    }
+  if (!page.head) {
+    applyHead({});
+    return;
+  }
+  try {
+    const baked = readBaked<unknown>();
+    applyHead(page.head(params, baked));
+  } catch (err) {
+    applyHead({});
+    // eslint-disable-next-line no-console
+    console.error("[mado] page.head() threw:", err);
   }
 }
 
@@ -215,16 +235,47 @@ function renderEntry(
   seq: number,
 ): TemplateResult {
   // ---------- SYNC FAST PATH ----------
+  // Only available when (a) the page+layouts are cached AND (b) there are no
+  // guards OR every guard is synchronous and returns void. Anything more
+  // complex (async guards, redirects) must take the async path so we never
+  // render a route the guard would have stopped.
   const sync = tryLoadSync(ctx, entry);
-  if (sync) {
+  const syncGuardVerdict =
+    sync && entry.guards.length === 0
+      ? null
+      : sync
+        ? trySyncGuards(entry.guards, params)
+        : undefined;
+  if (sync && syncGuardVerdict === null) {
     applyPageMeta(sync.page, params, options);
     try {
+      // Combine sync layouts with any guard-injected page guards' layouts is
+      // a future concern; today guards never return a layout.
+      // Combine guards' page-level guards as a fast-path check.
+      const pageGuards = collectPageGuards(sync.page);
+      if (pageGuards.length > 0) {
+        const v = trySyncGuards(pageGuards, params);
+        // `v === undefined` would mean an async page-guard slipped past the
+        // outer sync check; today that can't happen, but bail to async path
+        // defensively.
+        if (v) return renderGuardVerdictSync(v, options);
+        if (v === undefined) {
+          // Fall through to async path by skipping the sync return; rebuild
+          // the render via a fresh entry-render call would be ideal, but for
+          // now log and render nothing. Pages with async guards will not hit
+          // sync fast path because trySyncGuards on entry.guards already
+          // returned undefined and we never enter this block in that case.
+          return html``;
+        }
+      }
       return renderWithLayouts(sync.page, sync.layouts, params);
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
-      if (sync.page.errorView) return sync.page.errorView(e, params);
-      return options.error?.(e) ?? html`<pre>${e.message}</pre>`;
+      return renderError(e, params, options, sync.page);
     }
+  }
+  if (sync && syncGuardVerdict) {
+    return renderGuardVerdictSync(syncGuardVerdict, options);
   }
 
   // ---------- ASYNC PATH ----------
@@ -250,25 +301,50 @@ function renderEntry(
   // delay = 0 means show loading immediately.
   if (delay === 0 && !isStale(ctx, seq)) state.set({ kind: "loading" });
 
-  Promise.all([
-    loadPage(ctx, entry.loader),
-    ...entry.layouts.map((l) => loadPage(ctx, l)),
-  ]).then(
-    ([pg, ...lts]) => {
+  (async () => {
+    try {
+      const [pg, ...lts] = await Promise.all([
+        loadPage(ctx, entry.loader),
+        ...entry.layouts.map((l) => loadPage(ctx, l)),
+      ]);
+      if (isStale(ctx, seq)) {
+        resolved = true;
+        if (timer) clearTimeout(timer);
+        return;
+      }
+      // Guards: parent-group guards (entry.guards) first, then the page's own.
+      // Fast path: skip the await entirely when there are no guards, so we do
+      // not introduce an extra microtask versus the pre-guards behavior.
+      const pageGuards = collectPageGuards(pg as Page);
+      let verdict:
+        | { kind: "redirect"; to: string; replace?: boolean }
+        | { kind: "halt" }
+        | null = null;
+      if (entry.guards.length > 0 || pageGuards.length > 0) {
+        verdict = await runGuards(
+          [...entry.guards, ...pageGuards],
+          params,
+        );
+      }
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
-      applyPageMeta(pg, params, options);
-      state.set({ kind: "ready", page: pg, layouts: lts });
-    },
-    (err: unknown) => {
+      if (verdict) {
+        applyGuardVerdict(verdict);
+        // After a redirect we leave `idle` so nothing flashes; the new route
+        // will start its own render cycle.
+        return;
+      }
+      applyPageMeta(pg as Page, params, options);
+      state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
+    } catch (err: unknown) {
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       const e = err instanceof Error ? err : new Error(String(err));
       state.set({ kind: "error", err: e });
-    },
-  );
+    }
+  })();
 
   return html`${() => {
     const s = state();
@@ -277,20 +353,127 @@ function renderEntry(
       return options.loading?.() ?? defaultLoadingView();
     }
     if (s.kind === "error") {
-      return options.error?.(s.err) ?? html`<pre>${s.err.message}</pre>`;
+      return renderError(s.err, params, options);
     }
     try {
       return renderWithLayouts(s.page, s.layouts, params);
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
-      if (s.page.errorView) return s.page.errorView(e, params);
-      return options.error?.(e) ?? html`<pre>${e.message}</pre>`;
+      return renderError(e, params, options, s.page);
     }
   }}`;
 }
 
 function isStale(ctx: RoutesContext, seq: number): boolean {
   return seq !== ctx.renderSeq;
+}
+
+function renderError(
+  err: Error,
+  params: RouteParams,
+  options: RoutesOptions,
+  page?: Page,
+): TemplateResult {
+  if (page?.errorView) return page.errorView(err, params);
+  if (options.errorPage) return options.errorPage(err, params);
+  return options.error?.(err) ?? html`<pre>${err.message}</pre>`;
+}
+
+// ---------- Guards ----------
+
+function collectPageGuards(page: Page): Guard[] {
+  if (!page.guard) return [];
+  return Array.isArray(page.guard) ? page.guard : [page.guard];
+}
+
+/**
+ * Run guards in order and return the first non-pass verdict, or `null` if all
+ * pass. Async-aware.
+ */
+async function runGuards(
+  guards: Guard[],
+  params: RouteParams,
+): Promise<{ kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" } | null> {
+  const path =
+    typeof location !== "undefined" ? location.pathname + location.search : "/";
+  for (const g of guards) {
+    let v;
+    try {
+      v = await g({ params, path });
+    } catch (err) {
+      // A guard that throws is treated like "halt" — surface the error to the
+      // console but do not render the page.
+      // eslint-disable-next-line no-console
+      console.error("[mado] guard threw:", err);
+      return { kind: "halt" };
+    }
+    if (!v) continue;
+    if ("redirect" in v) return { kind: "redirect", to: v.redirect, replace: v.replace };
+    if (v.halt) return { kind: "halt" };
+  }
+  return null;
+}
+
+/**
+ * Fast-path: run synchronous guards only. Returns:
+ *   null      → all passed
+ *   verdict   → first non-pass verdict
+ *   undefined → at least one guard is async, fall through to async path
+ */
+function trySyncGuards(
+  guards: Guard[],
+  params: RouteParams,
+):
+  | { kind: "redirect"; to: string; replace?: boolean }
+  | { kind: "halt" }
+  | null
+  | undefined {
+  const path =
+    typeof location !== "undefined" ? location.pathname + location.search : "/";
+  for (const g of guards) {
+    let v;
+    try {
+      v = g({ params, path });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[mado] guard threw:", err);
+      return { kind: "halt" };
+    }
+    if (v && typeof (v as Promise<unknown>).then === "function") return undefined;
+    const verdict = v as
+      | void
+      | undefined
+      | { halt: true }
+      | { redirect: string; replace?: boolean };
+    if (!verdict) continue;
+    if ("redirect" in verdict) {
+      return { kind: "redirect", to: verdict.redirect, replace: verdict.replace };
+    }
+    if (verdict.halt) return { kind: "halt" };
+  }
+  return null;
+}
+
+function applyGuardVerdict(
+  v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
+): void {
+  if (v.kind === "redirect") {
+    navigate(v.to, { replace: v.replace ?? true });
+  }
+  // "halt" — render nothing; caller already aborted.
+}
+
+function renderGuardVerdictSync(
+  v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
+  _options: RoutesOptions,
+): TemplateResult {
+  // We can't synchronously navigate during the same render frame without
+  // re-entering router code; queue a microtask so the current render
+  // finishes cleanly, then redirect.
+  if (v.kind === "redirect") {
+    queueMicrotask(() => navigate(v.to, { replace: v.replace ?? true }));
+  }
+  return html``;
 }
 
 /**

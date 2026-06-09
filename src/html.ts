@@ -14,4 +14,21 @@
  */
 
 export { html, render, instantiate } from "./html/template.js";
+export {
+  unsafeHTML,
+  ref,
+  classMap,
+  styleMap,
+  isHtmlDirective,
+} from "./html/bindings.js";
 export type { TemplateResult } from "./html/template-types.js";
+export type {
+  HtmlDirective,
+  UnsafeHTMLDirective,
+  RefCallback,
+  RefDirective,
+  ClassMap,
+  ClassMapDirective,
+  StyleMap,
+  StyleMapDirective,
+} from "./html/bindings.js";

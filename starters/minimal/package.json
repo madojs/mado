@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "mado build",
+    "typecheck": "mado typecheck",
+    "dev": "mado dev",
     "serve": "mado serve",
-    "dev": "mado dev"
+    "bundle": "mado bundle",
+    "bake": "mado bake",
+    "release": "mado release",
+    "preview": "mado preview"
   },
   "dependencies": {
     "@madojs/mado": "__MADOJS_VERSION__"

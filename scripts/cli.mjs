@@ -2,15 +2,22 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { copyFile, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import http from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { detectContext, loadConfig } from "./_config.mjs";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROJECT_ROOT = resolve(process.cwd());
 const PACKAGE_JSON = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
 const [, , rawCommand, ...args] = process.argv;
+
+// Context detection lives in _config.mjs so every script agrees on what
+// "repo" vs "app" means. CLI uses it to pick safer defaults.
+const CONTEXT = detectContext(PROJECT_ROOT);
+const IS_REPO = CONTEXT === "repo";
 
 const EXAMPLES = [
   ["basic", "minimal API tour"],
@@ -18,7 +25,7 @@ const EXAMPLES = [
   ["showcase", "flagship SaaS CRM pressure app"],
   ["cloudflare", "Cloudflare Workers edge example"],
 ];
-const STARTERS = ["minimal", "crud"];
+const STARTERS = ["minimal", "crud", "admin"];
 
 const command = rawCommand ?? "help";
 
@@ -39,6 +46,8 @@ switch (command) {
     if (args[0] === "browser") {
       await runNodeScript("scripts/showcase-regression.mjs", args.slice(1));
     } else {
+      // Ensure dist/ is fresh so tests that import from ../dist/ work.
+      await runNodeBin("typescript/bin/tsc", []);
       const files = await listTestFiles();
       await run(process.execPath, ["--test", "--test-timeout=20000", ...files, ...args]);
     }
@@ -57,6 +66,9 @@ switch (command) {
     break;
   case "preview":
     await runNodeScript("scripts/preview.mjs", args);
+    break;
+  case "release":
+    await runRelease(args);
     break;
   case "new":
     await runNodeScript("scripts/new.mjs", args);
@@ -198,6 +210,79 @@ async function runDev(example) {
   });
 }
 
+async function runRelease(rawArgs) {
+  // Single "ship it" command. Composes the smaller steps so the user does not
+  // have to remember the order, and so the deploy artifact (out/) is always
+  // assembled the same way.
+  //
+  //   mado release
+  //     → mado typecheck
+  //     → mado build       (tsc → dist/)
+  //     → mado bundle      (esbuild → out/assets/, also copies index.html)
+  //     → mado bake        (HTML  → out/baked/)
+  //     → copy public/* → out/
+  //
+  // Flags are forwarded to bake/bundle.
+  const cfg = loadConfig({ projectRoot: PROJECT_ROOT });
+  const outDir = resolve(cfg.projectRoot, cfg.build.out ?? "out");
+  const publicDir = resolve(cfg.projectRoot, cfg.build.publicDir ?? "public");
+
+  console.log(`[release] context: ${cfg.context}`);
+  console.log(`[release] artifact: ${outDir}`);
+  console.log("");
+
+  console.log("[release] step 1/5  typecheck");
+  await runNodeBin("typescript/bin/tsc", ["--noEmit"]);
+
+  console.log("[release] step 2/5  build (tsc → dist/)");
+  await runNodeBin("typescript/bin/tsc", []);
+
+  console.log("[release] step 3/5  bundle (esbuild → out/assets/)");
+  await runNodeScript("scripts/bundle.mjs", rawArgs);
+
+  console.log("[release] step 4/5  bake (out/baked/)");
+  await runNodeScript("scripts/bake.mjs", rawArgs);
+
+  console.log("[release] step 5/5  copy public/ → out/");
+  if (existsSync(publicDir)) {
+    await mkdir(outDir, { recursive: true });
+    await cp(publicDir, outDir, { recursive: true });
+    console.log(`[release]   copied ${publicDir} → ${outDir}`);
+  } else {
+    console.log(`[release]   no ${publicDir}, skipping`);
+  }
+
+  // Optional CDN config files. Generated only when not already provided.
+  await writeIfMissing(
+    join(outDir, "_redirects"),
+    // Cloudflare Pages / Netlify: SPA fallback so deep links work after a
+    // hard refresh. Baked HTML files are matched first because of
+    // `force: false` / static-priority rules on these hosts.
+    "/* /index.html 200\n",
+  );
+  await writeIfMissing(
+    join(outDir, "_headers"),
+    [
+      "/assets/*",
+      "  Cache-Control: public, max-age=31536000, immutable",
+      "",
+      "/*.html",
+      "  Cache-Control: no-cache, must-revalidate",
+      "",
+    ].join("\n"),
+  );
+
+  console.log("");
+  console.log(`[release] done. Deploy artifact: ${outDir}`);
+  console.log("[release] try:  mado preview");
+}
+
+async function writeIfMissing(path, content) {
+  if (existsSync(path)) return;
+  await writeFile(path, content);
+  console.log(`[release]   wrote ${path}`);
+}
+
 async function copyCanonicalAgentFiles(target) {
   for (const file of ["AGENTS.md", "llms.txt"]) {
     const source = join(PACKAGE_ROOT, file);
@@ -274,19 +359,38 @@ async function listTestFiles() {
 }
 
 function printHelp() {
-  console.log(`mado commands:
-  mado init <name> [--starter minimal|crud] [--force]
-  mado build
-  mado watch
-  mado typecheck
-  mado test [browser]
-  mado serve [basic|tickets|showcase]
-  mado dev [basic|tickets|showcase]
-  mado bake
-  mado bundle
-  mado preview
-  mado new <list|form|detail> <name>
-  mado examples`);
+  const ctx = IS_REPO ? "repo-mode (framework repository)" : "app-mode";
+  console.log(`mado commands (${ctx}):
+
+  Project lifecycle:
+    mado init <name> [--starter minimal|crud|admin] [--force]
+                           scaffold a new app
+    mado dev               tsc -w + dev server with HMR
+    mado build             tsc (writes dist/)
+    mado typecheck         tsc --noEmit
+    mado test [browser]    run unit tests (or browser regression)
+
+  Production:
+    mado bundle            esbuild → out/assets/   (hashed bundles)
+    mado bake [--entry <file>] [--template <html>] [--out <dir>] [--base-url <url>]
+                           prerender baked routes  → out/baked/
+    mado release           typecheck + build + bundle + bake + copy public/ → out/
+                           ← the one command for "ship it"
+    mado preview           serve exactly out/ locally (production rehearsal)
+    mado serve [example]   simple static server (also runs in repo-mode for examples)
+
+  Generators:
+    mado new <list|form|detail> <name>
+
+  Misc:
+    mado examples          list bundled examples
+    mado help              this screen
+
+  Configuration:
+    mado reads ./mado.config.json (dev.proxy, build.out, bake.entry/template/baseUrl, …)
+    CLI flags > mado.config.json > built-in defaults.
+
+  See MADO_V1_PLAN.md for the road to v1.`);
 }
 
 function parseFlags(raw) {

@@ -30,6 +30,8 @@ const fakeLocation = {
   origin: "http://localhost",
   href: "http://localhost/",
 };
+let scrollX = 0;
+let scrollY = 0;
 
 function setUrl(url) {
   const u = new URL(url, "http://localhost");
@@ -59,9 +61,28 @@ const fakeWindow = {
   removeEventListener(evt, fn) {
     winListeners.get(evt)?.delete(fn);
   },
+  dispatchEvent(evt) {
+    for (const fn of winListeners.get(evt.type) ?? []) fn(evt);
+    return true;
+  },
   scrollTo(options) {
     scrollCalls.push(options);
+    scrollX = options?.left ?? 0;
+    scrollY = options?.top ?? 0;
   },
+  get scrollX() {
+    return scrollX;
+  },
+  get scrollY() {
+    return scrollY;
+  },
+  get pageXOffset() {
+    return scrollX;
+  },
+  get pageYOffset() {
+    return scrollY;
+  },
+  history: { scrollRestoration: "auto" },
 };
 const scrollCalls = [];
 
@@ -74,6 +95,11 @@ globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 globalThis.location = fakeLocation;
 globalThis.history = fakeHistory;
+globalThis.PopStateEvent = class PopStateEvent {
+  constructor(type) {
+    this.type = type;
+  }
+};
 
 // Intercept document listeners and count active listeners.
 const docListenerCount = { click: 0, mouseover: 0, mouseout: 0 };
@@ -88,7 +114,7 @@ w.document.removeEventListener = (evt, fn, opts) => {
   return origDocRemove(evt, fn, opts);
 };
 
-const { router, routes } = await import("../dist/src/router.js");
+const { navigate, router, routes } = await import("../dist/src/router.js");
 const { html } = await import("../dist/src/html.js");
 const { page } = await import("../dist/src/page.js");
 
@@ -222,6 +248,8 @@ test("router(): hover-prefetch uses shadow/composedPath", async () => {
 test("router(): new navigation scrolls to top", () => {
   setUrl("/");
   scrollCalls.length = 0;
+  scrollX = 0;
+  scrollY = 250;
 
   const r = router({
     "/": () => html`<x-home/>`,
@@ -231,6 +259,73 @@ test("router(): new navigation scrolls to top", () => {
   r.navigate("/next");
 
   assert.deepEqual(scrollCalls, [{ top: 0, left: 0 }]);
+  r.dispose();
+});
+
+test("router(): popstate restores saved scroll position", () => {
+  setUrl("/");
+  scrollCalls.length = 0;
+  scrollX = 0;
+  scrollY = 300;
+
+  const r = router({
+    "/": () => html`<x-home/>`,
+    "/next": () => html`<x-next/>`,
+  });
+
+  r.navigate("/next");
+  scrollX = 0;
+  scrollY = 900;
+
+  setUrl("/");
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+
+  assert.deepEqual(scrollCalls.at(-1), { top: 300, left: 0 });
+  r.dispose();
+});
+
+test("navigate(): preserves the previous route scroll before dispatching popstate", () => {
+  setUrl("/");
+  scrollCalls.length = 0;
+  scrollX = 0;
+  scrollY = 420;
+
+  const r = router({
+    "/": () => html`<x-home/>`,
+    "/next": () => html`<x-next/>`,
+  });
+
+  navigate("/next");
+  scrollX = 0;
+  scrollY = 50;
+
+  setUrl("/");
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+
+  assert.deepEqual(scrollCalls.at(-1), { top: 420, left: 0 });
+  r.dispose();
+});
+
+test("router(): navigation moves focus to the main content landmark", async () => {
+  setUrl("/");
+  const main = w.document.createElement("main");
+  let focused = false;
+  main.focus = () => {
+    focused = true;
+  };
+  w.document.body.appendChild(main);
+
+  const r = router({
+    "/": () => html`<x-home/>`,
+    "/next": () => html`<x-next/>`,
+  });
+
+  r.navigate("/next");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(focused, true);
+  assert.equal(main.getAttribute("tabindex"), "-1");
+  main.remove();
   r.dispose();
 });
 

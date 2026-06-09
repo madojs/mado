@@ -12,14 +12,30 @@
 // examples/<EXAMPLE>/index.html so the client router works from root, just
 // like a production SPA deploy.
 
-import { createServer } from "node:http";
-import { readFile, readdir, stat } from "node:fs/promises";
-import { watch, existsSync } from "node:fs";
+import { createServer, request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { readFile, readdir, readFile as readFileAsync, stat } from "node:fs/promises";
+import { watch, existsSync, readFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
 
 const ROOT = resolve(process.cwd());
-const PORT = Number(process.env.PORT ?? 5173);
+
+// Optional mado.config.json — used for dev.proxy and dev.port. Read with a
+// hand-rolled JSON parse to avoid a circular dep with scripts/_config.mjs
+// (this server is launched from cli.mjs and runs in its own Node process).
+const CONFIG = (() => {
+  try {
+    const file = join(ROOT, "mado.config.json");
+    if (!existsSync(file)) return {};
+    return JSON.parse(readFileSync(file, "utf8")) ?? {};
+  } catch {
+    return {};
+  }
+})();
+const PROXY_RULES = Object.entries(CONFIG.dev?.proxy ?? {}); // [["/api", "http://localhost:3000"], ...]
+
+const PORT = Number(process.env.PORT ?? CONFIG.dev?.port ?? 5173);
 const HMR = process.env.NO_HMR !== "1";
 
 const EXAMPLE = process.argv[2] ?? process.env.MADO_EXAMPLE ?? process.env.EXAMPLE ?? "";
@@ -117,6 +133,16 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     pathname = decodeURIComponent(url.pathname);
+
+    // Dev proxy: forward matching prefixes to an upstream backend, so the
+    // browser can reach the SPA and the API on a single origin without CORS.
+    const proxyRule = PROXY_RULES.find(([prefix]) => pathname.startsWith(prefix));
+    if (proxyRule) {
+      const [prefix, upstream] = proxyRule;
+      await proxyForward({ req, res, prefix, upstream, pathname, search: url.search });
+      reason = `proxy → ${upstream}`;
+      return;
+    }
 
     // SSE endpoint for HMR.
     if (pathname === "/__hmr") {
@@ -279,6 +305,52 @@ server.on("error", (err) => {
   process.exit(1);
 });
 
+async function proxyForward({ req, res, prefix, upstream, pathname, search }) {
+  // Strip the prefix only if the upstream URL itself ends with `/`; otherwise
+  // forward the full pathname so the backend sees /api/...
+  let upstreamUrl;
+  try {
+    upstreamUrl = new URL(upstream);
+  } catch {
+    res.writeHead(502).end(`bad upstream: ${upstream}`);
+    return;
+  }
+  const target = new URL(upstream);
+  // Compose path: <upstream.pathname rstrip "/"> + <pathname> + <search>
+  const tail = pathname; // keep the original /api/... so backends route normally
+  target.pathname = (target.pathname.replace(/\/$/, "")) + tail;
+  target.search = search;
+
+  const lib = target.protocol === "https:" ? httpsRequest : httpRequest;
+  const upstreamReq = lib(
+    target,
+    {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: target.host,
+      },
+    },
+    (upstreamRes) => {
+      // Forward status and headers, then pipe the body.
+      res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
+      upstreamRes.pipe(res);
+    },
+  );
+  upstreamReq.on("error", (err) => {
+    console.error(`[serve] proxy error for ${pathname} → ${target.href}:`, err.message);
+    if (!res.headersSent) {
+      res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+      res.end(`proxy upstream unavailable: ${target.host}\n${err.message}`);
+    } else {
+      res.end();
+    }
+  });
+  req.pipe(upstreamReq);
+  // Reference unused arg so lint is happy.
+  void prefix;
+}
+
 server.listen(PORT, () => {
   const distReady = existsSync(join(ROOT, "dist/src/index.js"))
     || existsSync(join(ROOT, "dist/main.js"));
@@ -295,6 +367,12 @@ server.listen(PORT, () => {
   console.log(`  hmr:      ${HMR ? "on" : "off"}`);
   console.log(`  preload:  ${PRELOAD}`);
   console.log(`  dist:     ${distReady ? "ready" : "missing (run mado build)"}`);
+  if (PROXY_RULES.length > 0) {
+    console.log("  proxy:");
+    for (const [prefix, upstream] of PROXY_RULES) {
+      console.log(`            ${prefix.padEnd(10)} → ${upstream}`);
+    }
+  }
   if (!EXAMPLE && existsSync(EXAMPLES_INDEX)) {
     console.log("  try:      mado serve basic");
     console.log("            mado serve showcase");

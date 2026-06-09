@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 const { signal, computed, effect, flushSync } = await import(
   "../dist/src/signal.js"
 );
+const { _testHooks } = await import("../dist/src/signal.js");
 
 test("computed without a reader does not call fn", () => {
   let calls = 0;
@@ -140,4 +141,64 @@ test("computed: computed to computed chain", () => {
   assert.equal(b(), 30);
   assert.equal(aCalls, 2);
   assert.equal(bCalls, 2);
+});
+
+test("computed: unobserved reads release dependency subscriptions after a tick", async () => {
+  const a = signal(1);
+  const c = computed(() => a() * 2);
+
+  assert.equal(c(), 2);
+  assert.equal(_testHooks.dependencyCount(c), 1);
+
+  await Promise.resolve();
+
+  assert.equal(
+    _testHooks.dependencyCount(c),
+    0,
+    "unobserved computed should not stay subscribed forever",
+  );
+});
+
+test("computed: disposing the last subscriber releases dependencies", async () => {
+  const a = signal(1);
+  const c = computed(() => a() * 2);
+  const dispose = effect(() => {
+    c();
+  });
+  flushSync();
+
+  assert.equal(_testHooks.dependencyCount(c), 1);
+  dispose();
+  await Promise.resolve();
+
+  assert.equal(
+    _testHooks.dependencyCount(c),
+    0,
+    "computed should unsubscribe from deps when it has no readers",
+  );
+});
+
+test("computed: equals option suppresses subscriber reruns for equal values", () => {
+  const n = signal(1);
+  const parity = computed(() => n() % 2, { equals: Object.is });
+  let runs = 0;
+  let seen = -1;
+
+  effect(() => {
+    seen = parity();
+    runs++;
+  });
+  flushSync();
+  assert.equal(seen, 1);
+  assert.equal(runs, 1);
+
+  n.set(3);
+  flushSync();
+  assert.equal(seen, 1);
+  assert.equal(runs, 1, "equal computed value should not rerun subscribers");
+
+  n.set(4);
+  flushSync();
+  assert.equal(seen, 0);
+  assert.equal(runs, 2);
 });

@@ -26,6 +26,8 @@
 
 type Subscriber = () => void;
 
+const MAX_FLUSH_RUNS_PER_SUBSCRIBER = 100;
+
 /**
  * Subscriber with metadata.
  *   - sync=true → when a dep changes, run() is called SYNCHRONOUSLY
@@ -39,11 +41,51 @@ interface SubscriberEntry {
 }
 
 interface Tracker {
-  deps: Set<Set<SubscriberEntry>>;
+  deps: Set<SubscriberSet>;
   entry: SubscriberEntry;
 }
 
 let activeTracker: Tracker | null = null;
+
+class SubscriberSet extends Set<SubscriberEntry> {
+  private emptyScheduled = false;
+
+  constructor(private readonly onEmpty?: () => void) {
+    super();
+  }
+
+  override add(entry: SubscriberEntry): this {
+    super.add(entry);
+    this.emptyScheduled = false;
+    return this;
+  }
+
+  override delete(entry: SubscriberEntry): boolean {
+    const deleted = super.delete(entry);
+    if (deleted) this.queueEmpty();
+    return deleted;
+  }
+
+  override clear(): void {
+    const hadEntries = this.size > 0;
+    super.clear();
+    if (hadEntries) this.queueEmpty();
+  }
+
+  private queueEmpty(): void {
+    if (!this.onEmpty || this.size > 0 || this.emptyScheduled) return;
+    this.emptyScheduled = true;
+    queueMicrotask(() => {
+      this.emptyScheduled = false;
+      if (this.size === 0) this.onEmpty?.();
+    });
+  }
+}
+
+function cleanupTracker(tracker: Tracker): void {
+  for (const dep of tracker.deps) dep.delete(tracker.entry);
+  tracker.deps.clear();
+}
 
 // ---------- Scheduler ----------
 
@@ -61,11 +103,22 @@ function schedule(sub: Subscriber): void {
 
 function flush(): void {
   flushScheduled = false;
+  const runCounts = new Map<Subscriber, number>();
   // guard against Set modification during iteration
   while (pending.size > 0) {
     const subs = [...pending];
     pending.clear();
     for (const sub of subs) {
+      const runs = (runCounts.get(sub) ?? 0) + 1;
+      runCounts.set(sub, runs);
+      if (runs > MAX_FLUSH_RUNS_PER_SUBSCRIBER) {
+        // eslint-disable-next-line no-console
+        console.error(
+          "[mado] effect cycle detected: subscriber re-ran more than " +
+            `${MAX_FLUSH_RUNS_PER_SUBSCRIBER} times in one flush.`,
+        );
+        continue;
+      }
       try {
         sub();
       } catch (err) {
@@ -114,7 +167,7 @@ export interface Signal<T> {
 
 export function signal<T>(initial: T): Signal<T> {
   let value = initial;
-  const subscribers = new Set<SubscriberEntry>();
+  const subscribers = new SubscriberSet();
 
   const read = (() => {
     if (activeTracker) {
@@ -148,6 +201,7 @@ export function signal<T>(initial: T): Signal<T> {
 
   read.update = (fn: (prev: T) => T) => read.set(fn(value));
   read.peek = () => value;
+  debugInfo.set(read, { subscribers });
 
   return read;
 }
@@ -158,6 +212,17 @@ export function signal<T>(initial: T): Signal<T> {
 export interface Computed<T> {
   (): T;
   peek(): T;
+}
+
+export interface ComputedOptions<T> {
+  /**
+   * Equality check used when an observed computed is invalidated.
+   *
+   * If the new value is equal to the previous value, subscribers are not
+   * notified. Defaults to always notifying on dependency invalidation, which
+   * preserves the classic lazy dirty-flag behavior.
+   */
+  equals?: (prev: T, next: T) => boolean;
 }
 
 /**
@@ -174,17 +239,59 @@ export interface Computed<T> {
  * instead of actually recomputing we mark ourselves dirty and
  * propagate to subscribers.
  */
-export function computed<T>(fn: () => T): Computed<T> {
-  const subscribers = new Set<SubscriberEntry>();
+export function computed<T>(
+  fn: () => T,
+  options: ComputedOptions<T> = {},
+): Computed<T> {
   let value: T = undefined as unknown as T;
   let dirty = true;
+  let hasValue = false;
+  let computing = false;
 
   const onInvalidate: Subscriber = () => {
     // dep changed → mark dirty synchronously and cascade.
     // Sync subscribers (other computed) are triggered immediately — they also
     // set dirty without delay. Async (effects) go through the scheduler.
     if (dirty) return;
+    if (subscribers.size === 0) {
+      dirty = true;
+      suspend();
+      return;
+    }
+    if (options.equals && hasValue) {
+      const prevValue = value;
+      recompute();
+      if (options.equals(prevValue, value)) return;
+      notifySubscribers();
+      return;
+    }
     dirty = true;
+    notifySubscribers();
+  };
+
+  const tracker: Tracker = {
+    deps: new Set(),
+    entry: { run: onInvalidate, sync: true },
+  };
+
+  const subscribers = new SubscriberSet(() => {
+    suspend();
+  });
+
+  const suspend = (): void => {
+    if (subscribers.size > 0) return;
+    cleanupTracker(tracker);
+    dirty = true;
+  };
+
+  const queueSuspendIfUnobserved = (): void => {
+    if (subscribers.size > 0) return;
+    queueMicrotask(() => {
+      if (subscribers.size === 0) suspend();
+    });
+  };
+
+  const notifySubscribers = (): void => {
     const snapshot = [...subscribers];
     for (const e of snapshot) {
       if (e.sync) {
@@ -200,23 +307,24 @@ export function computed<T>(fn: () => T): Computed<T> {
     }
   };
 
-  const tracker: Tracker = {
-    deps: new Set(),
-    entry: { run: onInvalidate, sync: true },
-  };
-
   const recompute = (): void => {
-    for (const dep of tracker.deps) dep.delete(tracker.entry);
-    tracker.deps.clear();
+    if (computing) {
+      throw new Error("[mado] computed cycle detected");
+    }
+    cleanupTracker(tracker);
 
     const prev = activeTracker;
     activeTracker = tracker;
+    computing = true;
     try {
       value = fn();
     } finally {
+      computing = false;
       activeTracker = prev;
     }
     dirty = false;
+    hasValue = true;
+    queueSuspendIfUnobserved();
   };
 
   const read = (() => {
@@ -233,6 +341,7 @@ export function computed<T>(fn: () => T): Computed<T> {
     return value;
   };
 
+  debugInfo.set(read, { subscribers, tracker });
   return read;
 }
 
@@ -244,8 +353,7 @@ export function effect(fn: () => void | Disposer): Disposer {
   let cleanup: Disposer | void;
 
   const run: Subscriber = () => {
-    for (const dep of tracker.deps) dep.delete(tracker.entry);
-    tracker.deps.clear();
+    cleanupTracker(tracker);
 
     if (typeof cleanup === "function") cleanup();
 
@@ -266,8 +374,7 @@ export function effect(fn: () => void | Disposer): Disposer {
   run();
 
   return () => {
-    for (const dep of tracker.deps) dep.delete(tracker.entry);
-    tracker.deps.clear();
+    cleanupTracker(tracker);
     if (typeof cleanup === "function") cleanup();
   };
 }
@@ -284,3 +391,19 @@ export function untracked<T>(fn: () => T): T {
     activeTracker = prev;
   }
 }
+
+interface DebugInfo {
+  subscribers: SubscriberSet;
+  tracker?: Tracker;
+}
+
+const debugInfo = new WeakMap<object, DebugInfo>();
+
+export const _testHooks = {
+  subscriberCount(source: object): number {
+    return debugInfo.get(source)?.subscribers.size ?? 0;
+  },
+  dependencyCount(source: object): number {
+    return debugInfo.get(source)?.tracker?.deps.size ?? 0;
+  },
+};

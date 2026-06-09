@@ -2,6 +2,11 @@
 
 > This file is read by AI agents in IDEs (Cursor, Cline, Copilot, Continue, etc.).
 > Goal: prevent them from generating React-like code where Mado should be used.
+>
+> **If you are working on the v1 push, the executable plan lives in
+> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).** Open it first, find the first
+> unchecked box in the tracker, continue from there, and tick the box in the
+> same commit that closes the task.
 
 ## Project at a glance
 
@@ -289,6 +294,25 @@ src/
 └── lib/              ← API client, contexts, pure logic
 ```
 
+## App architecture for LLM
+
+When generating an app, prefer the blessed production shape from
+`docs/en/10-app-architecture.md` and the `starters/admin/` example:
+
+- `src/main.ts` mounts `routesApi.view` and imports only global styles,
+  providers, and tiny shared components.
+- `src/routes.ts` exports both `manifest` and `default routes(manifest, ...)`.
+- Put route wrappers in `src/layouts/` via `layout()`, not ad-hoc shell logic
+  inside every page.
+- Put backend access in `src/lib/api.ts` and auth/session logic in
+  `src/lib/auth.ts`; guards call auth helpers, pages call API helpers.
+- Put one page per file under `src/pages/`; a page imports the feature
+  components it renders.
+- Use `resource()` for reads, `mutation(..., { invalidates })` for writes,
+  and `useForm()` for form state/validation.
+- Use `mado release` as the production path. `out/` is the only deploy
+  artifact; `dist/` is internal build output.
+
 ## Where to find specific answers
 
 | Question | File |
@@ -298,6 +322,9 @@ src/
 | How does the router work? | `src/router.ts` (~530 lines) |
 | How does resource + cache work? | `src/resource.ts` (297 lines) |
 | How do forms work? | `src/forms.ts` (212 lines) |
+| How should an app be structured? | `docs/en/10-app-architecture.md` |
+| How should errors be handled? | `docs/en/15-error-handling.md` |
+| How should bake be used? | `docs/en/16-bake-cookbook.md` |
 | When something goes wrong | `docs/en/07-llm-pitfalls.md` |
 
 ## Before committing

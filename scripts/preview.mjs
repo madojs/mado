@@ -1,28 +1,38 @@
-// Preview: a tiny production-like server that emulates nginx.conf on node:http.
+// Preview: a tiny production-like server that serves exactly out/ on node:http.
 //
-//   npm run preview
+//   mado preview
 //
 // What it does:
-//   1. npm run build (tsc)
-//   2. node scripts/bake.mjs   (generates SEO HTML when bake pages exist)
-//   3. node scripts/bundle.mjs (esbuild splitting + .gz/.br)
-//   4. Starts a static server on :4173 with:
+//   1. Reads `mado.config.json` to discover OUT (default `out/`) and PORT.
+//   2. If `out/` is missing AND we are in a project root, refuses to run and
+//      points the user at `mado release`. (Old auto-build behavior is opt-in
+//      via PREVIEW_AUTOBUILD=1 to stay backward-compatible for the framework
+//      repo.)
+//   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
 //        - SPA fallback to index.html;
-//        - baked HTML priority over index.html;
+//        - baked HTML priority over the SPA shell;
 //        - precompressed .gz / .br serving via Accept-Encoding.
 //
-// Goal: see production-like output locally without Docker/nginx.
+// Goal: see production-like output locally without Docker/nginx, identical to
+// what a static host (nginx / Cloudflare Pages / S3) would serve.
 
 import { createServer } from "node:http";
 import { readFile, stat, access } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const ROOT = resolve(process.cwd());
-const OUT = resolve(process.env.OUT_DIR ?? "out");
-const PORT = Number(process.env.PORT ?? 4173);
-const SKIP_BUILD = process.env.SKIP_BUILD === "1";
+import { loadConfig } from "./_config.mjs";
+
+const cfg = loadConfig({});
+const ROOT = cfg.projectRoot;
+const OUT = resolve(
+  ROOT,
+  process.env.OUT_DIR ?? cfg.build.out ?? "out",
+);
+const PORT = Number(process.env.PORT ?? cfg.dev?.port ?? 4173);
+const AUTOBUILD = process.env.PREVIEW_AUTOBUILD === "1";
+const SKIP_BUILD = process.env.SKIP_BUILD === "1" || !AUTOBUILD;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",

@@ -143,6 +143,13 @@ export default page({
 - docs/en/05-why-mado.md — honest comparison with Lit / Solid / Svelte / htmx / Alpine / React
 - docs/en/06-for-backenders.md — mental model in 10 minutes for Go/Rust/.NET/Java developers
 - docs/en/07-llm-pitfalls.md — common mistakes when generating Mado code
+- docs/en/10-app-architecture.md — canonical app file layout, routes, auth/API and release shape
+- docs/en/11-layouts.md — blessed layout recipe
+- docs/en/12-auth-and-api.md — blessed auth/API client recipe
+- docs/en/13-deployment.md — deployment recipes and cache rules
+- docs/en/14-testing.md — testing strategy and commands
+- docs/en/15-error-handling.md — route/data/action error boundaries
+- docs/en/16-bake-cookbook.md — static bake recipes and failure modes
 - examples/basic/ — minimal API tour
 - examples/tickets/ — LLM zero-history CRUD validation
 - examples/showcase/ — flagship CRM pressure app (auth, nested routes, forms, mutations)

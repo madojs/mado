@@ -43,6 +43,16 @@ export interface RouterOptions {
    * to register loaders; raw router() doesn't normally need this.
    */
   prefetch?: (pathname: string) => void;
+  /**
+   * Restore saved scroll on back/forward and scroll new navigations to top.
+   * Default true.
+   */
+  scrollRestoration?: boolean;
+  /**
+   * Move focus to the main content landmark after navigation.
+   * Default true.
+   */
+  focusManagement?: boolean;
 }
 
 /**
@@ -66,18 +76,39 @@ export function router(
   options: RouterOptions = {},
 ): RouterApi {
   const useViewTransitions = options.viewTransitions !== false;
+  const useScrollRestoration = options.scrollRestoration !== false;
+  const useFocusManagement = options.focusManagement !== false;
   const compiled = Object.entries(routes).map(([p, h]) => compile(p, h));
   const fallback =
     compiled.find((r) => r.pattern === "*") ?? defaultFallback();
 
   const path = signal(location.pathname);
   const cleanups: Array<() => void> = [];
+  const scrollPositions = new Map<string, { top: number; left: number }>();
+  let currentScrollKey = locationKey();
   let disposed = false;
+
+  const hist = history as History & { scrollRestoration?: "auto" | "manual" };
+  const previousScrollRestoration = hist.scrollRestoration;
+  if (useScrollRestoration && "scrollRestoration" in hist) {
+    try {
+      hist.scrollRestoration = "manual";
+      cleanups.push(() => {
+        hist.scrollRestoration = previousScrollRestoration;
+      });
+    } catch {
+      /* noop */
+    }
+  }
 
   // -- popstate
   const onPop = () => {
     if (disposed) return;
+    if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
+    currentScrollKey = locationKey();
     path.set(location.pathname);
+    if (useScrollRestoration) restoreScroll(scrollPositions, currentScrollKey);
+    if (useFocusManagement) scheduleFocusReset();
   };
   window.addEventListener("popstate", onPop);
   cleanups.push(() => window.removeEventListener("popstate", onPop));
@@ -141,10 +172,13 @@ export function router(
     path,
     navigate(to, opts) {
       const apply = () => {
+        if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
         if (opts?.replace) history.replaceState(null, "", to);
         else history.pushState(null, "", to);
+        currentScrollKey = locationKey();
         path.set(location.pathname);
-        scrollToTop();
+        if (useScrollRestoration) scrollToTop();
+        if (useFocusManagement) scheduleFocusReset();
       };
       // View Transitions API: smooth crossfade between pages,
       // if the browser supports it. Psychologically removes flashing
@@ -217,22 +251,74 @@ export function navigate(to: string, opts?: { replace?: boolean }): void {
   if (typeof history === "undefined" || typeof window === "undefined") return;
   if (opts?.replace) history.replaceState(null, "", to);
   else history.pushState(null, "", to);
-  scrollToTop();
   // popstate is NOT dispatched automatically on pushState/replaceState,
   // so we dispatch it manually — all active routers will hear and update.
   window.dispatchEvent(new PopStateEvent("popstate"));
+  scrollToTop();
+  scheduleFocusReset();
+}
+
+function locationKey(): string {
+  return `${location.pathname}${location.search}${location.hash}`;
+}
+
+function saveScroll(
+  positions: Map<string, { top: number; left: number }>,
+  key: string,
+): void {
+  const maybeWindow = window as Window & {
+    scrollX?: number;
+    scrollY?: number;
+    pageXOffset?: number;
+    pageYOffset?: number;
+  };
+  positions.set(key, {
+    left: maybeWindow.scrollX ?? maybeWindow.pageXOffset ?? 0,
+    top: maybeWindow.scrollY ?? maybeWindow.pageYOffset ?? 0,
+  });
+}
+
+function restoreScroll(
+  positions: Map<string, { top: number; left: number }>,
+  key: string,
+): void {
+  const pos = positions.get(key) ?? { top: 0, left: 0 };
+  scrollTo(pos);
 }
 
 function scrollToTop(): void {
+  scrollTo({ top: 0, left: 0 });
+}
+
+function scrollTo(options: ScrollToOptions): void {
   const maybeWindow = window as Window & {
     scrollTo?: (options: ScrollToOptions) => void;
   };
   if (typeof maybeWindow.scrollTo !== "function") return;
   try {
-    maybeWindow.scrollTo({ top: 0, left: 0 });
+    maybeWindow.scrollTo(options);
   } catch {
     /* noop */
   }
+}
+
+function scheduleFocusReset(): void {
+  queueMicrotask(() => {
+    const target = document.querySelector(
+      "[data-mado-focus], main, [role='main'], h1",
+    );
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+    try {
+      target.focus({ preventScroll: true });
+    } catch {
+      try {
+        target.focus();
+      } catch {
+        /* noop */
+      }
+    }
+  });
 }
 
 // ---------- queryParam ----------

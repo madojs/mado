@@ -267,3 +267,80 @@ test("mutation: invalidates function that throws does not fail the mutation", as
   assert.equal(m.data(), "ok");
   assert.equal(m.error(), null);
 });
+
+// ---------- Race condition: stale response must not overwrite fresh data ----------
+//
+// When the resource key changes rapidly (e.g. user types in a search input),
+// an in-flight request for the OLD key may resolve AFTER a request for the
+// NEW key has already completed. Without protection the stale response wins
+// because it set data() last.
+//
+// resource() must guard against this two ways:
+//   1) Abort the previous AbortController (works when the fetcher honors it).
+//   2) Compare the request's captured key to lastKey on resolution (defensive
+//      check for fetchers that ignore the AbortSignal).
+//
+// This test uses a fetcher that DELIBERATELY ignores the AbortSignal — it
+// returns based on its own timer regardless of cancellation. Without the
+// `key !== lastKey` guard, the slow stale resolution from key=1 would
+// overwrite the fast fresh resolution from key=2.
+
+test("resource: stale fetcher response does not overwrite fresh data on rapid key change", async () => {
+  const id = signal(1);
+  // Slow for key 1 (50ms), fast for key 2 (10ms). The fetcher ignores
+  // the AbortSignal on purpose: this is the worst-case scenario for a
+  // user-provided fetcher that does not propagate cancellation.
+  const r = resource(
+    () => `race/${id()}`,
+    async (key) => {
+      const ms = key === "race/1" ? 50 : 10;
+      await wait(ms);
+      return { from: key };
+    },
+  );
+
+  await wait(0); // kick off key=1
+  // Synchronously bump the key to 2 BEFORE key=1's fetch resolves.
+  id.set(2);
+  flushSync();
+
+  // Wait long enough for BOTH fetches to finish (key=2 first @10ms,
+  // then key=1 @50ms — the dangerous one).
+  await wait(80);
+
+  assert.deepEqual(
+    r.data(),
+    { from: "race/2" },
+    "fresh result for key=2 must not be overwritten by the slower stale key=1 response",
+  );
+});
+
+test("resource: rapid key thrash settles on the final key, not the slowest response", async () => {
+  const id = signal(1);
+  // Latencies chosen so that the FINAL key (3) is actually the SLOWEST,
+  // and an earlier key (2) finishes the fastest. If resource() naively
+  // wrote the first-arrived result, it would land on key=2.
+  const latency = { 1: 30, 2: 5, 3: 25 };
+  const r = resource(
+    () => `thrash/${id()}`,
+    async (key) => {
+      const ms = latency[key.split("/")[1]];
+      await wait(ms);
+      return key;
+    },
+  );
+
+  await wait(0);
+  id.set(2);
+  flushSync();
+  await wait(0);
+  id.set(3);
+  flushSync();
+
+  await wait(60);
+  assert.equal(
+    r.data(),
+    "thrash/3",
+    "data() must reflect the latest key, not the fastest in-flight response",
+  );
+});

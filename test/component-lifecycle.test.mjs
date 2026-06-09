@@ -30,6 +30,7 @@ globalThis.Element = w.Element ?? class {};
 globalThis.HTMLElement = w.HTMLElement;
 globalThis.CSSStyleSheet = FakeCSSStyleSheet;
 globalThis.customElements = w.customElements;
+globalThis.MutationObserver = w.MutationObserver;
 
 const { component, html } = await import("../dist/src/component.js");
 const { css } = await import("../dist/src/css.js");
@@ -96,4 +97,40 @@ test("component(): observedAttributes reflect into plain properties", () => {
   el.attributeChangedCallback("status", null, "open");
 
   assert.equal(el.status, "open");
+});
+
+test("ctx.attr(): reads initial value and updates on external setAttribute", async () => {
+  const { signal: sigFn } = await import("../dist/src/signal.js");
+  let variantReads = [];
+
+  component("x-attr-dynamic", ({ attr }) => {
+    const variant = attr("variant", "default");
+    return () => {
+      variantReads.push(variant());
+      return html`<span>${variant}</span>`;
+    };
+  });
+
+  const el = document.createElement("x-attr-dynamic");
+  el.setAttribute("variant", "primary");
+  document.body.appendChild(el);
+  el.connectedCallback();
+
+  // Initial read should pick up the attribute value set before connect
+  assert.equal(variantReads.at(-1), "primary");
+
+  // Simulate external attribute change (like Mado's ?disabled binding)
+  el.setAttribute("variant", "danger");
+
+  // MutationObserver fires on microtask in linkedom
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(variantReads.at(-1), "danger",
+    "ctx.attr() must react to setAttribute() after connectedCallback — " +
+    "this proves MutationObserver fallback works since observedAttributes " +
+    "was empty at define-time");
+
+  el.disconnectedCallback();
+  document.body.removeChild(el);
 });

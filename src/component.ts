@@ -160,9 +160,8 @@ export function component(
           if (!s) {
             s = signal(host.getAttribute(name) ?? defaultValue);
             host.#attrSignals.set(name, s);
-            // Ensure the attribute is observed. For the current instance
-            // we already have the signal; for future registrations of
-            // the same tag (HMR) the set persists.
+            // Record for future instances (HMR) — helps observedAttributes
+            // on hot-reloaded re-defines.
             attrSignalNames.add(name);
           }
           return s;
@@ -170,6 +169,24 @@ export function component(
       };
 
       this.#renderer = runInLifecycle(lifecycle, () => setup(ctx));
+
+      // After setup(), install a single MutationObserver for all attrs
+      // registered via ctx.attr(). This is necessary because
+      // observedAttributes is read once at customElements.define() time —
+      // attrs added by ctx.attr() during setup are too late for the
+      // browser's attributeChangedCallback mechanism. The observer bridges
+      // the gap for the current and all future instances.
+      if (this.#attrSignals.size > 0) {
+        const attrNames = [...this.#attrSignals.keys()];
+        const obs = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            const s = this.#attrSignals.get(m.attributeName!);
+            if (s) s.set(this.getAttribute(m.attributeName!) ?? "");
+          }
+        });
+        obs.observe(this, { attributes: true, attributeFilter: attrNames });
+        lifecycle.onDispose(() => obs.disconnect());
+      }
 
       this.#effectDispose = effect(() => {
         render(this.#renderer!(), this.#root);

@@ -25,7 +25,7 @@
 // its biggest example.
 
 import { build } from "esbuild";
-import { readFile, writeFile, mkdir, cp, stat, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, cp, stat, readdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { gzipSync, brotliCompressSync, constants as zlibConst } from "node:zlib";
 import { join, basename, resolve, dirname } from "node:path";
@@ -74,6 +74,29 @@ if (!existsSync(HTML)) {
   process.exit(1);
 }
 
+// Clean stale assets from previous bundles.
+//
+// Without this step, hashed chunks from prior runs (main-<oldhash>.js,
+// chunk-<oldhash>.js) accumulate in ASSETS_DIR. We later list ASSETS_DIR
+// (via readdir below) and emit <link rel="modulepreload"> for every
+// .js file we find — so stale chunks would be preloaded as if they were
+// still part of the app, polluting the production HTML and shipping dead
+// code over the wire. SRI is also only computed for the fresh entry, so
+// stale preloads would lack integrity checks.
+//
+// In app-mode the entire <out>/assets/ folder is owned by the bundler,
+// so wiping it is safe. In repo-mode the historical layout drops assets
+// directly into <out>/ alongside non-bundle artifacts, so we only remove
+// the recognisable hashed files there.
+if (ASSETS_REL) {
+  await rm(ASSETS_DIR, { recursive: true, force: true });
+} else if (existsSync(ASSETS_DIR)) {
+  for (const f of await readdir(ASSETS_DIR)) {
+    if (/^(main|chunk|asset)-[A-Z0-9]+\.(js|css)(\.map|\.gz|\.br)?$/i.test(f)) {
+      await rm(join(ASSETS_DIR, f), { force: true });
+    }
+  }
+}
 await mkdir(ASSETS_DIR, { recursive: true });
 
 console.log(`[bundle] entry:    ${ENTRY}`);

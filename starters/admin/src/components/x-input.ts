@@ -1,43 +1,74 @@
-// <x-input label name type placeholder required value @input @blur>
+// <x-input label name type placeholder required value error @input @blur>
 //
 // Labeled input that proxies its events. Use inside `useForm()`:
 //
 //   <x-input name="email" type="email" required
 //            @input=${form.onInput} @blur=${form.onBlur}></x-input>
+//
+// Shadow DOM integration notes:
+//   - `name` and `value` are exposed as DOM properties on the host so that
+//     event retargeting (e.target → <x-input>) still works with useForm().
+//     useForm.onInput reads e.target.name and e.target.value — without these
+//     getters the form silently receives undefined.
+//   - The inner <input> dispatches its events with `composed: true` (native
+//     behaviour), so @input/@blur bubble through the shadow boundary.
 
 import { component, css, html } from "@madojs/mado";
 
 component(
   "x-input",
-  ({ host }) => () => {
-    const label = host.getAttribute("label") ?? "";
-    const name = host.getAttribute("name") ?? "";
-    const type = host.getAttribute("type") ?? "text";
-    const placeholder = host.getAttribute("placeholder") ?? "";
-    const required = host.hasAttribute("required");
-    const value = host.getAttribute("value") ?? "";
-    const error = host.getAttribute("error");
+  ({ host, attr }) => {
+    const label = attr("label", "");
+    const name = attr("name", "");
+    const type = attr("type", "text");
+    const placeholder = attr("placeholder", "");
+    const required = attr("required");
+    const value = attr("value", "");
+    const error = attr("error");
 
-    return html`
+    // Proxy properties so useForm().onInput can read e.target.name / .value
+    // even after Shadow DOM retargets e.target from <input> to <x-input>.
+    Object.defineProperty(host, "name", {
+      get: () => host.getAttribute("name") ?? "",
+      configurable: true,
+    });
+    Object.defineProperty(host, "value", {
+      get: () => host.shadowRoot?.querySelector("input")?.value ?? "",
+      set: (v: string) => {
+        const input = host.shadowRoot?.querySelector("input");
+        if (input) input.value = v;
+      },
+      configurable: true,
+    });
+
+    return () => html`
       <label>
-        ${label
-          ? html`<span class="lbl">${label}${required ? html`<em>*</em>` : null}</span>`
-          : null}
+        ${() =>
+          label()
+            ? html`<span class="lbl"
+                >${label}${() =>
+                  required() !== "" ? html`<em>*</em>` : null}</span
+              >`
+            : null}
         <input
           name=${name}
           type=${type}
           placeholder=${placeholder}
-          ?required=${required}
+          ?required=${() => required() !== ""}
           .value=${value}
-        >
-        ${error ? html`<small class="err">${error}</small>` : null}
+        />
+        ${() => (error() ? html`<small class="err">${error}</small>` : null)}
       </label>
     `;
   },
   {
     styles: css`
-      :host { display: block; }
-      label { display: block; }
+      :host {
+        display: block;
+      }
+      label {
+        display: block;
+      }
       .lbl {
         display: block;
         font-size: 12px;

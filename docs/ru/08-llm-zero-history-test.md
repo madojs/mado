@@ -1,56 +1,57 @@
-# LLM zero-history test
+# Тест LLM с нулевой историей
 
-This document defines a practical validation test for Mado.
+Этот документ определяет практический валидационный тест для Mado.
 
-The question is not "can an LLM generate frontend code?" It can. The question is:
-can a fresh LLM write idiomatic Mado without falling back to React-shaped code?
+Вопрос не в том, «может ли LLM генерировать фронтенд-код?» — может. Вопрос в том:
+может ли свежая LLM написать идиоматичный Mado-код без скатывания в React-подобные
+паттерны?
 
-## Allowed context
+## Допустимый контекст
 
-For the first pass, give the agent only:
+При первом проходе предоставьте агенту только:
 
 - `AGENTS.md`
 - `README.md`
-- `docs/ru/07-llm-pitfalls.md`
-- `examples/basic/README.md` if a minimal API tour is needed
-- specific `examples/showcase/**` files only when the agent asks for a larger app pattern
+- `docs/en/07-llm-pitfalls.md`
+- `examples/basic/README.md` если нужен минимальный обзор API
+- конкретные файлы из `examples/showcase/**` только если агент сам попросит паттерн более крупного приложения
 
-The agent may search targeted APIs in `src/` when blocked, but should not load
-the whole framework into context.
+Агент может искать целевые API в `src/` когда заблокирован, но не должен
+загружать весь фреймворк в контекст.
 
-## Task
+## Задание
 
-Build `examples/tickets`: a small ticket-admin SPA for a solo/backend developer.
+Построить `examples/tickets`: маленький ticket-admin SPA для соло/бекенд-разработчика.
 
-Required behavior:
+Требуемое поведение:
 
-- routes: `/`, `/tickets`, `/tickets/new`, `/tickets/:id`, `*`;
-- in-memory mock API with realistic async delays;
-- list page with `resource()`, `queryParam()` search/status filters, `computed()`,
-  and keyed `each()` rows;
-- create and edit flows with `useForm()` + `mutation()` + `invalidates`;
-- local UI state with `signal()`;
-- slotted shell, metric, and badge components for a more realistic admin UI;
-- smoke test importing the built example.
+- маршруты: `/`, `/tickets`, `/tickets/new`, `/tickets/:id`, `*`;
+- in-memory mock API с реалистичными асинхронными задержками;
+- страница списка с `resource()`, `queryParam()` фильтрами поиска/статуса,
+  `computed()` и `each()` с ключами по строкам;
+- сценарии создания и редактирования с `useForm()` + `mutation()` + `invalidates`;
+- локальный UI-стейт через `signal()`;
+- slotted shell, metric и badge компоненты для более реалистичного admin UI;
+- smoke-тест, импортирующий собранный пример.
 
-## Failure checklist
+## Чеклист ошибок
 
-Look for these after implementation:
+Ищите следующее после реализации:
 
-- JSX, `useState`, `useEffect`, `ref`, `$state`, or class-style components;
-- `${signal()}` or `${signal() + 1}` where a reactive child thunk is required;
-- `disabled=${...}` instead of `?disabled=${...}`;
-- dynamic lists rendered with unkeyed array mapping instead of `each()`;
-- browser ESM imports without `.js`;
-- `resource()` created outside component setup;
-- new runtime dependencies or new public framework APIs.
+- JSX, `useState`, `useEffect`, `ref`, `$state` или class-style компоненты;
+- `${signal()}` или `${signal() + 1}` где требуется реактивный child thunk;
+- `disabled=${...}` вместо `?disabled=${...}`;
+- динамические списки, отрендеренные через unkeyed `.map()` вместо `each()`;
+- ESM-импорты в браузере без `.js`;
+- `resource()`, созданный вне component setup;
+- новые runtime-зависимости или новые публичные API фреймворка.
 
-## Result notes
+## Заметки по результатам
 
-The current `examples/tickets` implementation did not require new public APIs or
-runtime dependencies.
+Текущая реализация `examples/tickets` не потребовала новых публичных API или
+runtime-зависимостей.
 
-The main documentation pressure point remains lifecycle: older examples can make
-it look acceptable to create `resource()` directly in `page.view()`. The tickets
-example uses page-level wrapper components instead, so resources are registered
-inside component setup and clean up with the component.
+Основная болевая точка в документации остается lifecycle: старые примеры могут
+создать впечатление, что создание `resource()` прямо в `page.view()` допустимо.
+Пример tickets использует page-level wrapper-компоненты вместо этого, поэтому
+ресурсы регистрируются внутри component setup и очищаются вместе с компонентом.

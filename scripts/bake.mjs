@@ -41,19 +41,19 @@ const { flags } = parseFlags(process.argv.slice(2));
 const cfg = loadConfig({
   overrides: {
     bake: {
-      entry:    typeof flags.entry    === "string" ? flags.entry    : undefined,
+      entry: typeof flags.entry === "string" ? flags.entry : undefined,
       template: typeof flags.template === "string" ? flags.template : undefined,
-      baseUrl:  typeof flags["base-url"] === "string" ? flags["base-url"] : undefined,
-      outDir:   typeof flags.out      === "string" ? flags.out      : undefined,
+      baseUrl: typeof flags["base-url"] === "string" ? flags["base-url"] : undefined,
+      outDir: typeof flags.out === "string" ? flags.out : undefined,
     },
   },
 });
 
 // Env vars are legacy escape hatches (kept so old CI keeps working).
-const ENTRY     = process.env.ENTRY     ?? resolveProjectPath(cfg, cfg.bake.entry);
-const TEMPLATE  = process.env.TEMPLATE  ?? resolveProjectPath(cfg, cfg.bake.template);
-const BASE_URL  = process.env.BASE_URL  ?? cfg.bake.baseUrl;
-const OUT_DIR   = process.env.OUT_DIR
+const ENTRY = process.env.ENTRY ?? resolveProjectPath(cfg, cfg.bake.entry);
+const TEMPLATE = process.env.TEMPLATE ?? resolveProjectPath(cfg, cfg.bake.template);
+const BASE_URL = process.env.BASE_URL ?? cfg.bake.baseUrl;
+const OUT_DIR = process.env.OUT_DIR
   ?? resolveProjectPath(cfg, cfg.bake.outDir ?? join(cfg.build.out, "baked"));
 
 /** Write message to stderr and exit. Sync write keeps CI/execFile output reliable. */
@@ -119,21 +119,21 @@ const { window: linkedomWindow } = parseHTML(baseHtml);
 globalThis.window = linkedomWindow;
 globalThis.document = linkedomWindow.document;
 globalThis.location = new URL("http://localhost/");
-globalThis.history = { pushState: () => {}, replaceState: () => {} };
+globalThis.history = { pushState: () => { }, replaceState: () => { } };
 globalThis.customElements = {
-  define: () => {},
+  define: () => { },
   get: () => undefined,
   whenDefined: () => Promise.resolve(),
 };
-globalThis.HTMLElement = linkedomWindow.HTMLElement ?? class {};
+globalThis.HTMLElement = linkedomWindow.HTMLElement ?? class { };
 globalThis.CSSStyleSheet = globalThis.CSSStyleSheet ?? class {
   cssRules = [];
-  replaceSync() {}
+  replaceSync() { }
 };
 globalThis.matchMedia = () => ({
   matches: false,
-  addEventListener: () => {},
-  removeEventListener: () => {},
+  addEventListener: () => { },
+  removeEventListener: () => { },
 });
 if (!globalThis.queueMicrotask) {
   globalThis.queueMicrotask = (fn) => Promise.resolve().then(fn);
@@ -167,7 +167,7 @@ await esbuild.build({
 
 const routesUrl = pathToFileURL(tmpFile).href;
 const routesModule = await import(routesUrl);
-await rm(tmpFile).catch(() => {});
+await rm(tmpFile).catch(() => { });
 const routeApi = routesModule.default;
 
 if (!routeApi) {
@@ -232,6 +232,12 @@ for (const [pattern, entry] of Object.entries(manifest)) {
     }
     const headMeta = pg.head ? pg.head(params, data) : {};
 
+    // Ensure <title> is always set in baked HTML. page.title is the primary
+    // source (string or function of params); head().title overrides it.
+    if (!headMeta.title && pg.title) {
+      headMeta.title = typeof pg.title === "function" ? pg.title(params) : pg.title;
+    }
+
     const tpl = pg.view({
       params,
       data,
@@ -273,11 +279,11 @@ for (const [pattern, entry] of Object.entries(manifest)) {
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${sitemapEntries
-  .map(
-    (e) =>
-      `  <url><loc>${escapeXml(e.loc)}</loc><changefreq>${e.changefreq}</changefreq></url>`,
-  )
-  .join("\n")}
+    .map(
+      (e) =>
+        `  <url><loc>${escapeXml(e.loc)}</loc><changefreq>${e.changefreq}</changefreq></url>`,
+    )
+    .join("\n")}
 </urlset>
 `;
 await writeFile(join(OUT_DIR, "sitemap.xml"), sitemap);

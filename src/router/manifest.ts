@@ -19,6 +19,11 @@ import type { TemplateResult } from "../html/template-types.js";
 import type { Guard, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
+  createLifecycle,
+  runInLifecycle,
+  type LifecycleHandle,
+} from "../lifecycle.js";
+import {
   flatten,
   patternToRegex,
   type FlatEntry,
@@ -78,6 +83,13 @@ interface RoutesContext {
   pathToFlat: Map<string, FlatEntry>;
   compiledForPrefetch: Array<{ regex: RegExp; entry: FlatEntry }>;
   renderSeq: number;
+  /**
+   * Lifecycle of the page currently visible on screen. Disposed and
+   * replaced on every navigation so that resource() / effect() / persisted()
+   * subscriptions created inside page.view() are cleaned up exactly when
+   * the page leaves — no leak, no "resource-outside-lifecycle" warning.
+   */
+  activeLifecycle: LifecycleHandle | null;
 }
 
 /**
@@ -99,6 +111,7 @@ export function routes(
     pathToFlat: new Map(),
     compiledForPrefetch: [],
     renderSeq: 0,
+    activeLifecycle: null,
   };
   activeRoutes.add(ctx);
 
@@ -123,9 +136,33 @@ export function routes(
   const origDispose = api.dispose;
   api.dispose = () => {
     activeRoutes.delete(ctx);
+    // Tear down the last page's lifecycle so its resource()/effect()
+    // subscriptions are released when the whole router is disposed
+    // (test isolation, hot reload, etc.).
+    ctx.activeLifecycle?.dispose();
+    ctx.activeLifecycle = null;
     origDispose();
   };
   return api;
+}
+
+/**
+ * Open a fresh page lifecycle for the current render, disposing the
+ * previous page's lifecycle. Called right before any page.view() or
+ * layout.view() runs so that resource()/effect() created inside view
+ * find a `getCurrentLifecycle()` and register their cleanup with it.
+ *
+ * This is the single canonical place where page-level lifecycle is
+ * opened — `page.view()` is the documented place to create resources
+ * (see pitfalls + starter examples). Without this wrapper, calling
+ * `resource()` in view emits a [mado:resource-outside-lifecycle]
+ * warning even when used correctly.
+ */
+function openPageLifecycle(ctx: RoutesContext): LifecycleHandle {
+  ctx.activeLifecycle?.dispose();
+  const lc = createLifecycle();
+  ctx.activeLifecycle = lc;
+  return lc;
 }
 
 // ---------- prefetch ----------
@@ -268,7 +305,10 @@ function renderEntry(
           return html``;
         }
       }
-      return renderWithLayouts(sync.page, sync.layouts, params);
+      const lc = openPageLifecycle(ctx);
+      return runInLifecycle(lc, () =>
+        renderWithLayouts(sync.page, sync.layouts, params),
+      );
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       return renderError(e, params, options, sync.page);
@@ -356,7 +396,10 @@ function renderEntry(
       return renderError(s.err, params, options);
     }
     try {
-      return renderWithLayouts(s.page, s.layouts, params);
+      const lc = openPageLifecycle(ctx);
+      return runInLifecycle(lc, () =>
+        renderWithLayouts(s.page, s.layouts, params),
+      );
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       return renderError(e, params, options, s.page);

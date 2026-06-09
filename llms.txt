@@ -13,6 +13,7 @@ Mado is a narrowly-focused frontend framework that deliberately avoids React pat
 - **Components are Web Components.** Registered via `component('x-name', setupFn, options)`. Names must include a hyphen (`x-foo`, `my-button`).
 - **Component files register tags as side effects.** The browser does not auto-import files by tag name. If `<x-card>` works, some imported module already ran `customElements.define("x-card", ...)`.
 - **Cleanup via `ctx.onDispose(fn)`** in setup, not via return from effect.
+- **Reactive attributes via `ctx.attr(name, default?)`** — returns a Signal<string> that auto-updates when the attribute changes. No MutationObserver needed.
 
 ## Critical template rules
 
@@ -63,6 +64,53 @@ import {
   lazy,
 } from "@madojs/mado";
 ```
+
+## Component ctx.attr() — reactive attributes
+
+```ts
+component("x-badge", ({ attr }) => {
+  const variant = attr("variant", "default"); // Signal<string>, auto-updates
+  const size = attr("size", "md");
+
+  return () => html`<span class=${() => `badge-${variant()} size-${size()}`}>
+    <slot></slot>
+  </span>`;
+});
+```
+
+No MutationObserver boilerplate. The parent can bind with `?disabled=${...}` or
+plain attribute changes and the component re-renders reactively.
+
+## Shadow DOM + Forms
+
+Custom inputs in Shadow DOM need two things for `useForm()` compatibility:
+
+1. **Proxy properties** — expose `name` and `value` on the host:
+   ```ts
+   Object.defineProperty(host, "name", { get: () => host.getAttribute("name") ?? "" });
+   Object.defineProperty(host, "value", { get: () => host.shadowRoot?.querySelector("input")?.value ?? "" });
+   ```
+
+2. **Form submit bridge** — buttons inside Shadow DOM can't submit Light DOM forms:
+   ```ts
+   @click=${() => { const form = host.closest("form"); if (form) form.requestSubmit(); }}
+   ```
+
+See `docs/en/17-shadow-dom-forms.md` for the full recipe.
+
+## Auth fetcher for resource()
+
+The admin starter provides `apiFetcher<T>()` in `lib/api.ts` for protected endpoints:
+
+```ts
+import { resource } from "@madojs/mado";
+import { apiFetcher } from "../lib/api.js";
+
+const stats = resource(() => "/api/admin/stats", apiFetcher<Stats>());
+```
+
+Unlike `jsonFetcher()`, `apiFetcher()` attaches the Bearer token from memory.
+Use `jsonFetcher()` for public endpoints, `apiFetcher()` for anything behind auth.
 
 ## Canonical "Hello world"
 
@@ -150,6 +198,7 @@ export default page({
 - docs/en/14-testing.md — testing strategy and commands
 - docs/en/15-error-handling.md — route/data/action error boundaries
 - docs/en/16-bake-cookbook.md — static bake recipes and failure modes
+- docs/en/17-shadow-dom-forms.md — Shadow DOM + useForm() patterns (proxy properties, form submit bridge)
 - examples/basic/ — minimal API tour
 - examples/tickets/ — LLM zero-history CRUD validation
 - examples/showcase/ — flagship CRM pressure app (auth, nested routes, forms, mutations)
@@ -170,7 +219,7 @@ export default page({
 
 ## Version
 
-`0.6.0` — pre-1.0 product-surface release. API may still change before 1.0.
+`0.7.0` — pre-1.0 product-surface release. API may still change before 1.0.
 Semver is not guaranteed on minor versions before 1.0.
 
 ## License

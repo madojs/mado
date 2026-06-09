@@ -91,6 +91,36 @@ component("x-timer", (ctx) => {
 
 **`resource()`, `effect()`, and subscriptions inside `setup()` hook into the lifecycle automatically** — no need to write onDispose for them.
 
+### 4b. Reactive attributes — `ctx.attr()`
+
+```ts
+// ❌ NO (reading once, never reactive)
+component("x-badge", ({ host }) => () => {
+  const variant = host.getAttribute("variant") ?? "default";
+  return html`<span class=${variant}>...</span>`;
+});
+
+// ❌ NO (MutationObserver boilerplate)
+component("x-badge", ({ host, onDispose }) => {
+  const variant = signal(host.getAttribute("variant") ?? "default");
+  const obs = new MutationObserver(() =>
+    variant.set(host.getAttribute("variant") ?? "default"),
+  );
+  obs.observe(host, { attributes: true, attributeFilter: ["variant"] });
+  onDispose(() => obs.disconnect());
+  return () => html`<span class=${variant}>...</span>`;
+});
+
+// ✅ YES — one line, reactive, no cleanup needed
+component("x-badge", ({ attr }) => {
+  const variant = attr("variant", "default");
+  return () => html`<span class=${() => `badge-${variant()}`}>...</span>`;
+});
+```
+
+`ctx.attr(name, defaultValue?)` returns a `Signal<string>` that auto-updates.
+The attribute is automatically added to `observedAttributes`.
+
 ### 5. Reactive value in template child position = function
 
 The most common AI mistake:
@@ -99,13 +129,13 @@ The most common AI mistake:
 const count = signal(0);
 
 // ❌ NOT REACTIVE — count() is read once
-html`<div>${count() * 2}</div>`
+html`<div>${count() * 2}</div>`;
 
 // ✅ REACTIVE — the function will be called when count changes
-html`<div>${() => count() * 2}</div>`
+html`<div>${() => count() * 2}</div>`;
 
 // ✅ ALSO OK — the signal itself is a function, Mado recognizes it
-html`<div>${count}</div>`
+html`<div>${count}</div>`;
 ```
 
 **Rule of thumb:** if there is a signal call (with parentheses) inside `${...}`, wrap it in `() => ...`.
@@ -114,17 +144,17 @@ html`<div>${count}</div>`
 
 ```ts
 // string/number → attribute
-html`<a href=${url}>...</a>`
+html`<a href=${url}>...</a>`;
 
 // DOM property (objects, numbers without serialization, .value for input)
-html`<input .value=${user.name}>`
-html`<my-list .items=${arr}>`
+html`<input .value=${user.name} />`;
+html`<my-list .items=${arr}></my-list>`;
 
 // boolean attribute (toggle)
-html`<button ?disabled=${isLoading}>...</button>`
+html`<button ?disabled=${isLoading}>...</button>`;
 
 // event
-html`<button @click=${fn}>...</button>`
+html`<button @click=${fn}>...</button>`;
 ```
 
 Common mistake: `disabled=${loading()}` — this attempts to set a **string** attribute `disabled="true"` or `disabled="false"`, which does not work correctly. **Use `?disabled=`.**
@@ -135,10 +165,19 @@ Common mistake: `disabled=${loading()}` — this attempts to set a **string** at
 import { each } from "@madojs/mado";
 
 // ❌ Works, but no keyed reconciliation → loses focus on reorder
-html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() => items().map((t) => html`<li>${t.name}</li>`)}
+</ul>`;
 
 // ✅ Correct: keyed, reuses DOM nodes
-html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() =>
+    each(
+      items(),
+      (t) => t.id,
+      (t) => html`<li>${t.name}</li>`,
+    )}
+</ul>`;
 ```
 
 ### 8. Routing — `routes()` + `page()`
@@ -198,14 +237,20 @@ import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
-  age:   { required: true, type: "number", min: 18 },
+  age: { required: true, type: "number", min: 18 },
 });
 
 html`
-  <form @submit=${f.onSubmit(async v => { await api.save(v); })}>
-    <input name="email" @input=${f.onInput} @blur=${f.onBlur}>
-    ${() => f.touched().email && f.errors().email
-      ? html`<small>${f.errors().email}</small>` : null}
+  <form
+    @submit=${f.onSubmit(async (v) => {
+      await api.save(v);
+    })}
+  >
+    <input name="email" @input=${f.onInput} @blur=${f.onBlur} />
+    ${() =>
+      f.touched().email && f.errors().email
+        ? html`<small>${f.errors().email}</small>`
+        : null}
     <button ?disabled=${() => !f.isValid() || f.submitting()}>Save</button>
   </form>
 `;
@@ -220,16 +265,23 @@ import { component, css, html } from "@madojs/mado";
 
 component("x-card", () => () => html`<div><slot></slot></div>`, {
   styles: css`
-    :host { display: block; padding: 1rem; }
-    div { background: var(--bg); }
-    ::slotted(h2) { margin: 0; }
+    :host {
+      display: block;
+      padding: 1rem;
+    }
+    div {
+      background: var(--bg);
+    }
+    ::slotted(h2) {
+      margin: 0;
+    }
   `,
 });
 
 // Light DOM (without Shadow), global styles:
 component("x-shell", () => () => html`...`, {
-  shadow: false,  // disables Shadow DOM
-  styles: css`x-shell header { ... }`,  // selectors are written as usual
+  shadow: false, // disables Shadow DOM
+  styles: css`x-shell header { ... }`, // selectors are written as usual
 });
 ```
 
@@ -314,17 +366,17 @@ When generating an app, prefer the blessed production shape from
 
 ## Where to find specific answers
 
-| Question | File |
-|---|---|
-| How does reactivity work? | `src/signal.ts` (283 lines) |
-| How are templates parsed? | `src/html.ts` (1013 lines) |
-| How does the router work? | `src/router.ts` (~530 lines) |
-| How does resource + cache work? | `src/resource.ts` (297 lines) |
-| How do forms work? | `src/forms.ts` (212 lines) |
+| Question                         | File                             |
+| -------------------------------- | -------------------------------- |
+| How does reactivity work?        | `src/signal.ts` (283 lines)      |
+| How are templates parsed?        | `src/html.ts` (1013 lines)       |
+| How does the router work?        | `src/router.ts` (~530 lines)     |
+| How does resource + cache work?  | `src/resource.ts` (297 lines)    |
+| How do forms work?               | `src/forms.ts` (212 lines)       |
 | How should an app be structured? | `docs/en/10-app-architecture.md` |
-| How should errors be handled? | `docs/en/15-error-handling.md` |
-| How should bake be used? | `docs/en/16-bake-cookbook.md` |
-| When something goes wrong | `docs/en/07-llm-pitfalls.md` |
+| How should errors be handled?    | `docs/en/15-error-handling.md`   |
+| How should bake be used?         | `docs/en/16-bake-cookbook.md`    |
+| When something goes wrong        | `docs/en/07-llm-pitfalls.md`     |
 
 ## Before committing
 

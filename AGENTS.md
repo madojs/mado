@@ -3,10 +3,9 @@
 > This file is read by AI agents in IDEs (Cursor, Cline, Copilot, Continue, etc.).
 > Goal: prevent them from generating React-like code where Mado should be used.
 >
-> **If you are working on the v1 push, the executable plan lives in
-> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).** Open it first, find the first
-> unchecked box in the tracker, continue from there, and tick the box in the
-> same commit that closes the task.
+> The v0.6 product-surface push is archived in
+> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md). New work should follow `ROADMAP.md`
+> / `TODO.md` unless the user explicitly resumes that tracker.
 
 ## Project at a glance
 

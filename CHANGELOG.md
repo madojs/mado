@@ -2,8 +2,14 @@
 
 ## Unreleased
 
-Road to v1 (see [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md)). Phase 1 — Repo-vs-app
-split:
+Nothing yet.
+
+## 0.6.0
+
+Product-surface release: app-mode defaults, blessed admin starter, release
+pipeline, core hardening and v1 recipe docs.
+
+Phase 1 — Repo-vs-app split:
 
 ### Added
 - `MADO_V1_PLAN.md` — executable tracker for the v1 push.
@@ -34,8 +40,8 @@ split:
 - `docs/en/02-project-layout.md` rewritten around the canonical `src/` /
   `dist/` / `public/` / `out/` model plus a `mado.config.json` one-screen
   reference. [v1 F1.5]
-- `ROADMAP.md`, `TODO.md`, `AGENTS.md` now point to `MADO_V1_PLAN.md` as the
-  source of truth for the v1 push. [v1 F0]
+- `ROADMAP.md`, `TODO.md`, `AGENTS.md` now distinguish the completed
+  `MADO_V1_PLAN.md` archive from future roadmap/TODO work. [v1 F0]
 
 Phase 2 — One blessed way:
 

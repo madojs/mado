@@ -1,7 +1,8 @@
 # Roadmap
 
-Mado is pre-v1. The goal is not to grow sideways, but to keep the runtime small,
-readable and reliable under real application pressure.
+Mado is still pre-1.0, but the v0.6 product-surface push is complete. The goal
+from here is not to grow sideways, but to keep the runtime small, readable and
+reliable under real application pressure.
 
 ## Current Focus
 
@@ -12,11 +13,7 @@ readable and reliable under real application pressure.
 - Keep English as the public/default project language, with localized docs in
   `docs/ru`, `docs/fr` and `docs/uk`.
 
-## Before v1
-
-> The detailed, executable v1 plan lives in [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).
-> The summary below tracks the high-level milestones; the tracker in that file
-> holds the per-task acceptance criteria.
+## Completed in v0.6
 
 - **Phase 1 — Repo-vs-app split.** Kill `examples/`-leakage from CLI and bake;
   introduce `mado.config.json`; app-mode becomes the default for `mado bake`,
@@ -36,6 +33,10 @@ readable and reliable under real application pressure.
   `11-layouts.md`, `12-auth-and-api.md`, `13-deployment.md`, `14-testing.md`,
   `15-error-handling.md`, `16-bake-cookbook.md`; AGENTS.md app-architecture
   section; ru/fr/uk translations.
+
+The detailed completed tracker lives in [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).
+
+## Remaining Before 1.0
 
 - Browser compatibility pass across current Chrome, Edge, Firefox and Safari.
 - Accessibility pass for examples and common component patterns.
@@ -74,6 +75,7 @@ readable and reliable under real application pressure.
 | 2026-06-06 | Mado rebrand | Public package/import name `@madojs/mado`, CLI `mado`, brand/docs/examples updated, internal legacy markers cleaned. |
 | 2026-06-06 | Public polish | English public surface, localized docs, translated code comments/examples/templates/GitHub files. |
 | 2026-06-07 | First npm release | Published `@madojs/mado@0.5.0` with the `mado` CLI, minimal/crud starters, CI and release workflow. |
+| 2026-06-09 | v0.6 product surface | App-mode CLI/config split, admin starter, release pipeline, core hardening, v1 recipe docs and localized docs. |
 
 ## Future Ideas
 

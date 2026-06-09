@@ -1,8 +1,8 @@
-# MadoJS — Road to v1 (executable plan)
+# MadoJS — Road to v1 (completed v0.6 tracker)
 
-> Living tracker for the v1 push. This file is the **single source of truth** for the work
-> agreed during the v1 audit. If an agent or human session is reset, open this file first
-> and continue from the first unchecked box.
+> Completed tracker for the v0.6 product-surface push. The work agreed during
+> the v1 audit is now closed and squash-merged into `main` as
+> `feat: add v1 product surface`.
 >
 > Convention: every commit/PR that advances v1 references task IDs in its message,
 > e.g. `[v1 F1.2] bake.mjs: app-mode defaults + --entry/--template/--out flags`.
@@ -175,4 +175,5 @@ The remaining work is deeper recipes plus translation sync.
 - `task_progress` in chat = current phase/task.
 - Git commits tagged `[v1 Fx.y]` = time machine.
 
-If a session is reset: open `MADO_V1_PLAN.md`, find the first `- [ ]`, continue.
+If future work resumes from this plan, treat it as archive context. New tasks
+belong in `ROADMAP.md`, `TODO.md`, or a fresh tracker.

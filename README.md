@@ -91,12 +91,20 @@ enough for serious admin apps while remaining small and readable.
 npm exec --package @madojs/mado@latest -- mado init my-app
 cd my-app
 npm install
-npm run build
-npm run serve
+npm run dev
 ```
 
-Use the CRUD starter when you want a compact admin-style example with
-`resource()`, `mutation()`, `useForm()`, `each()` and `queryParam()`:
+Use the admin starter when you want the blessed production shape out of the box:
+layouts, guards, auth/API client, dev proxy, forms and a small admin shell.
+
+```bash
+npm exec --package @madojs/mado@latest -- mado init dashboard --starter admin
+cd dashboard
+npm install
+npm run dev
+```
+
+Use the CRUD starter when you want a compact resource/mutation/forms example:
 
 ```bash
 npm exec --package @madojs/mado@latest -- mado init my-app --starter crud
@@ -151,16 +159,18 @@ The developer convenience CLI is available as `mado`:
 
 ```bash
 mado init my-app
+mado init dashboard --starter admin
 mado init my-app --starter crud
+mado dev
 mado build
 mado typecheck
 mado test
+mado release
+mado preview
 mado serve basic
 mado dev showcase
 mado examples
 ```
-
-The CLI is useful before v1, but its command polish may still change.
 
 ## Documentation
 
@@ -181,6 +191,13 @@ Core topics:
 - [For backenders](./docs/en/06-for-backenders.md)
 - [LLM pitfalls](./docs/en/07-llm-pitfalls.md)
 - [Shadow DOM vs Light DOM](./docs/en/09-shadow-vs-light-dom.md)
+- [App architecture](./docs/en/10-app-architecture.md)
+- [Layouts](./docs/en/11-layouts.md)
+- [Auth and API](./docs/en/12-auth-and-api.md)
+- [Deployment](./docs/en/13-deployment.md)
+- [Testing](./docs/en/14-testing.md)
+- [Error handling](./docs/en/15-error-handling.md)
+- [Bake cookbook](./docs/en/16-bake-cookbook.md)
 
 AI-agent entrypoints:
 
@@ -327,7 +344,8 @@ html`
 
 Validation is schema-based and intentionally close to native HTML constraints:
 `required`, `min`, `max`, `pattern`, `type=email/url/number`, plus optional
-custom `validate(values)`.
+custom `validate(values)`. Async validators and field arrays are available via
+`validateAsync`, `validateField()` and `form.array("items")`.
 
 Only the root import is the stable public API:
 
@@ -347,16 +365,16 @@ Cloudflare Worker edge-prerender PoC in [`examples/cloudflare`](./examples/cloud
 
 ## Production Bundle
 
-Native ESM is the default development and demo path. When a bundled production
-artifact is useful, run:
+Native ESM is the default development path. For production, use the one-command
+release pipeline:
 
 ```bash
-npm run bundle
-npm run preview
+mado release
+mado preview
 ```
 
-`bundle` uses optional `esbuild` for code splitting, SRI, `.gz` and `.br`
-outputs. `preview` emulates the provided `nginx.conf` with `node:http`.
+`release` runs typecheck, build, bundle, bake and public asset copy, then writes
+the deployable artifact into `out/`. `preview` serves `out/` like a static host.
 
 ## Tests
 

@@ -1,9 +1,8 @@
 # TODO
 
-> **Road to v1 is tracked in [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md).**
-> That file is the single source of truth for the v1 push (CLI app-mode split,
-> blessed layouts/auth/api, bake-first release pipeline, core hardening, docs).
-> The items below are smaller ideas that are not part of the v1 contract.
+> The v0.6 product-surface push is complete. The closed tracker is archived in
+> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md). The items below are ideas for later
+> releases and are not part of the v0.6 contract.
 
 Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
 

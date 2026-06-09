@@ -20,6 +20,7 @@ import type { Guard, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
   createLifecycle,
+  getCurrentLifecycle,
   runInLifecycle,
   type LifecycleHandle,
 } from "../lifecycle.js";
@@ -532,11 +533,17 @@ function renderWithLayouts(
   const baked = readBaked<unknown>();
   const data = page.load ? page.load(params, baked) : undefined;
 
+  // Expose onDispose to page views so they can clean up timers, manual
+  // subscriptions, etc. that aren't auto-managed by resource()/effect().
+  const lc = getCurrentLifecycle();
+  const onDispose = lc ? (fn: () => void) => lc.onDispose(fn) : undefined;
+
   let view: TemplateResult = page.view({
     params,
     data,
     path: () => location.pathname,
     child: null,
+    onDispose,
   } as PageContext<RouteParams, unknown>);
 
   for (let i = layouts.length - 1; i >= 0; i--) {
@@ -547,6 +554,7 @@ function renderWithLayouts(
       data: layoutData,
       path: () => location.pathname,
       child: view,
+      onDispose,
     } as PageContext<RouteParams, unknown>);
   }
 

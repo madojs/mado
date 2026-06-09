@@ -47,6 +47,18 @@ export interface PageContext<P extends RouteParams, D> {
    * For regular pages always null.
    */
   child: TemplateResult | null;
+  /**
+   * Register cleanup that runs when the page navigates away.
+   * Use for timers, manual subscriptions, or anything not automatically
+   * managed by resource()/effect().
+   *
+   *   view: ({ onDispose }) => {
+   *     const id = setInterval(tick, 3000);
+   *     onDispose(() => clearInterval(id));
+   *     return html`...`;
+   *   }
+   */
+  onDispose?: (fn: () => void) => void;
 }
 
 /**

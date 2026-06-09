@@ -4,6 +4,118 @@
 
 Nothing yet.
 
+## 0.6.1
+
+Starter & release-pipeline hardening pass. No public API breaks.
+Identified from a lab pressure-test on `/admin/lab` plus a deep audit of the
+starter / bundle / bake / dev-server contour. All fixes verified by
+regression tests added in this release.
+
+### Fixed
+- **Starters**: every `index.html` in `starters/{admin,crud,minimal}/` now
+  uses root-absolute paths in the importmap and entry `<script>` tag
+  (`/node_modules/@madojs/mado/...`, `/dist/main.js`). Relative paths
+  (`./node_modules/...`, `./dist/main.js`) broke hard-refresh of any nested
+  route (`/admin/orders/42` → browser fetched
+  `/admin/orders/dist/main.js` → 404 → blank page). Inline comments in each
+  file explain the trap so it does not get reverted.
+- **Starters/admin**: `pages/admin/order-detail.ts` now uses `each(items,
+  key, render)` instead of `o.items.map(...)`, matching `llms.txt` rule #3
+  and the framework's own pitfalls documentation.
+- **`scripts/bundle.mjs`**: cleans stale hashed assets before every build.
+  Previously each `mado bundle` / `mado release` left old `main-<hash>.js`
+  and `chunk-<hash>.js` in `out/assets/`; the rewriter then emitted
+  `<link rel="modulepreload">` for every leftover `.js` it found, so
+  production HTML shipped dead-code preloads without SRI. In app-mode the
+  whole assets directory is wiped; in repo-mode only recognisable hashed
+  files are removed so unrelated repo artifacts stay put.
+- **`src/router/manifest.ts`**: opens a fresh component lifecycle scope
+  around every `page.view()` / layout `view()` call and disposes the
+  previous one on navigation (and on `router.dispose()`). `resource()`,
+  `effect()` and `persisted()` created inside `page.view()` now register
+  cleanup with that scope automatically — no more
+  `[mado:resource-outside-lifecycle]` warnings on the framework's own
+  canonical examples, and no more invalidator-subscription leaks across
+  route changes.
+- **`src/resource.ts`**: guards against stale responses overwriting fresh
+  data on rapid key changes. The previous `AbortController` defence worked
+  only if the user-supplied fetcher honored `AbortSignal` — for fetchers
+  that ignore cancellation, a slow stale resolution for an old key could
+  win over a fast fresh one. Both then/catch branches now also check
+  `if (key !== lastKey) return`.
+- **`server/serve.mjs`**: falls back to `./public/*` when a file is not
+  found at the project root, mirroring what `mado release` does to `out/`.
+  `favicon.svg`, `robots.txt`, `og-image.png` etc. no longer 404 in dev.
+- **`server/serve.mjs`**: prints an actionable hint on `EPERM`/`EACCES`
+  pointing at `mado dev --host 127.0.0.1` (the default host changed from
+  the implicit `0.0.0.0` to `localhost`, which is friendlier in sandboxed
+  environments).
+- **`scripts/preview.mjs`**: serves prerendered HTML from `<out>/baked/`
+  with priority over the SPA shell. Previously `mado preview` only looked
+  at `out/` and never saw bake's output, so prerendered routes returned
+  the empty SPA shell — looking like a "blank page" bug even when bake
+  had succeeded.
+
+### Added
+- **`mado dev` / `mado serve` flag pass-through**: `cli.mjs` now splits
+  positional arguments from flags via `splitDevArgs()`, so calls like
+  `mado dev --host 127.0.0.1`, `mado dev showcase --port 6000` and
+  `mado dev -- --host 0.0.0.0` all work. Previously the CLI mistook the
+  flag for an example name and exited with `unknown example`.
+- **`server/serve.mjs`**: tiny argv parser supporting `--host`, `--port`
+  and `--host=value` forms; HOST and PORT also fall back to environment
+  variables and `mado.config.json` (`dev.host`, `dev.port`).
+- **`scripts/preview.mjs`**: same `--host` / `--port` flags as the dev
+  server, plus a startup banner showing `url:` / `out:` / `baked:` so it
+  is obvious which directories preview is serving from.
+- **`scripts/bake.mjs`**: fails loudly when the manifest exists but no
+  page declares `bake: { paths, data }`. The previous behaviour produced
+  `0 pages + sitemap.xml` silently with exit code 0, making `mado
+  release` look successful while shipping only the SPA shell with no
+  SEO-friendly HTML. The new warning prints the skipped routes, a
+  worked example bake snippet, and exits non-zero. Override with
+  `MADO_BAKE_ALLOW_EMPTY=1` for intentional SPA-only deploys.
+- **`scripts/bake.mjs`**: clearer "missing dev dep" errors — when
+  `linkedom` or `esbuild` is missing the message now tells the user
+  exactly which packages to `npm i -D`.
+- **Starter landing pages**: `home.ts` in all three starters now declares
+  `bake: { paths: () => [{}], data: () => ({}) }` and a `head()` so
+  `mado release` actually prerenders the landing page out of the box.
+- **Starter `devDependencies`**: `linkedom` and `esbuild` added to
+  `starters/{admin,crud,minimal}/package.json` so `mado release` works
+  immediately after `mado init <app>` + `npm install`, without manual
+  follow-up installs.
+- **Regression tests** (`test/`):
+  - `starter-html-paths.test.mjs` — asserts every starter `index.html`
+    uses root-absolute paths in both the importmap and the entry script.
+  - `bundle-cleanup.test.mjs` — end-to-end: runs `mado bundle` twice on
+    a synthesized temp project (mutating source between runs) and
+    asserts there is exactly one `main-<hash>.js` in `out/assets/`
+    afterwards.
+  - `resource.test.mjs` (2 new cases) — stale-response races: a fetcher
+    that ignores `AbortSignal` with key=1 slower than key=2, plus a
+    rapid 3-way key thrash where the final key is the slowest fetch.
+    Both assert `data()` reflects the latest key, not the fastest
+    response.
+
+### Changed
+- **`server/serve.mjs`** default host is now `localhost` (was implicitly
+  `0.0.0.0`). LAN exposure is opt-in via `mado dev --host 0.0.0.0` or
+  `HOST=0.0.0.0`. The startup banner shows both the bound host and a
+  click-friendly URL (`localhost` substituted when bound to `0.0.0.0`).
+
+### Notes
+- No public API changes; no migrations required. Apps that previously
+  worked on a fresh-out-of-the-box `mado init` did so only because
+  someone manually fixed the starter's relative paths and dev deps —
+  this release closes those gaps so the documented "happy path" actually
+  is happy.
+- If you intentionally deploy SPA-only (no prerendered HTML), drop
+  `mado bake` from your release pipeline or set
+  `MADO_BAKE_ALLOW_EMPTY=1`; otherwise bake will now fail your
+  CI with a clear pointer to the missing config.
+- Test count: 137 pass, 0 fail, 3 skipped (Playwright e2e — unchanged).
+
 ## 0.6.0
 
 Product-surface release: app-mode defaults, blessed admin starter, release

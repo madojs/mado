@@ -11,7 +11,7 @@ For the first pass, give the agent only:
 
 - `AGENTS.md`
 - `README.md`
-- `docs/ru/07-llm-pitfalls.md`
+- `docs/en/07-llm-pitfalls.md`
 - `examples/basic/README.md` if a minimal API tour is needed
 - specific `examples/showcase/**` files only when the agent asks for a larger app pattern
 

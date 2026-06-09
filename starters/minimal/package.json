@@ -17,6 +17,8 @@
     "@madojs/mado": "__MADOJS_VERSION__"
   },
   "devDependencies": {
+    "esbuild": "^0.24.0",
+    "linkedom": "^0.18.0",
     "typescript": "^6.0.3"
   }
 }

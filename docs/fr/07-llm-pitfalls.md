@@ -4,6 +4,7 @@
 > commettent lors de la génération de code Mado. Et comment les corriger.
 
 Ce document s'adresse à **deux publics** :
+
 1. **Les agents IA dans l'IDE** qui lisent `AGENTS.md` / `.cursorrules` / `.github/copilot-instructions.md`. Plus de détails sur les pièges typiques sont fournis ici.
 2. **Les humains** qui ont reçu du code d'une IA avec ces erreurs et ne comprennent pas ce qui ne va pas.
 
@@ -17,19 +18,20 @@ Ce document s'adresse à **deux publics** :
 const count = signal(0);
 
 // ❌ L'IA génère souvent ceci
-html`<div>Compte : ${count() * 2}</div>`
+html`<div>Compte : ${count() * 2}</div>`;
 // → Affichera "Compte : 0" et ne se mettra plus jamais à jour.
 // count() est lu une seule fois quand le TemplateResult est créé.
 
 // ✅ Correct — fonction getter
-html`<div>Compte : ${() => count() * 2}</div>`
+html`<div>Compte : ${() => count() * 2}</div>`;
 // → Mado créera un effect() pour cette fonction et re-rendra quand count change.
 
 // ✅ Aussi correct — le signal lui-même est une fonction
-html`<div>Compte : ${count}</div>`
+html`<div>Compte : ${count}</div>`;
 ```
 
 **Règle :**
+
 - Si `${...}` contient une **expression** (quelque chose est fait avec le signal) — enveloppez dans `() => ...`.
 - Si `${...}` contient **le signal lui-même** — il peut être utilisé tel quel.
 
@@ -45,10 +47,10 @@ Ceci s'applique aux **bindings enfants** (texte à l'intérieur des tags) et aux
 const loading = signal(false);
 
 // ❌ C'est setAttribute("disabled", "false") — le DOM traite ça comme disabled
-html`<button disabled=${loading()}>Enregistrer</button>`
+html`<button disabled=${loading()}>Enregistrer</button>`;
 
 // ✅ Correct — binding booléen (basculer l'attribut)
-html`<button ?disabled=${loading}>Enregistrer</button>`
+html`<button ?disabled=${loading}>Enregistrer</button>`;
 ```
 
 **Règles pour les attributs :**
@@ -86,6 +88,7 @@ component("x-counter", () => {
 ```
 
 **Différences clés :**
+
 - Pas de hooks, pas de règles de hooks.
 - `signal()` peut être créé n'importe où — dans le setup, dans un effect, dans un handler.
 - `effect()` voit ce qu'il a lu de lui-même — pas besoin de tableau de dépendances.
@@ -172,11 +175,20 @@ import { Home } from "./pages/home.js";
 
 ```ts
 // ❌ Fonctionne, mais sans clé : recrée le DOM à chaque changement
-html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() => items().map((t) => html`<li>${t.name}</li>`)}
+</ul>`;
 
 // ✅ Correct : each() avec une fonction de clé
 import { each } from "@madojs/mado";
-html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() =>
+    each(
+      items(),
+      (t) => t.id,
+      (t) => html`<li>${t.name}</li>`,
+    )}
+</ul>`;
 ```
 
 **Règle :** utilisez toujours `each()` pour les listes de tableaux avec des IDs stables. Réservez `.map()` uniquement pour les listes statiques.
@@ -191,15 +203,15 @@ html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
 const count = signal(0);
 
 // ❌ Pas une telle API
-count.value
-count.value = 5
-count.get()
+count.value;
+count.value = 5;
+count.get();
 
 // ✅ Correct
-count()           // lecture
-count.set(5)      // écriture
-count.update(n => n + 1)
-count.peek()      // lecture sans abonnement
+count(); // lecture
+count.set(5); // écriture
+count.update((n) => n + 1);
+count.peek(); // lecture sans abonnement
 ```
 
 ---
@@ -220,7 +232,7 @@ component("x-app", ({ host }) => {
 });
 
 component("x-child", ({ host }) => {
-  const api = inject(host, ApiCtx);  // signal<valeur>
+  const api = inject(host, ApiCtx); // signal<valeur>
   return () => html`...`;
 });
 ```
@@ -242,6 +254,7 @@ if (typeof window !== "undefined") { ... }  // dans Mado, window est TOUJOURS di
 Mado **ne fait pas de SSR avec hydratation**. Le code ne s'exécute pas sur le serveur — il y a uniquement `bake` (prérendu statique au moment du build) et edge-prerender. Les deux remplacent le code utilisateur par un environnement linkedom, mais c'est **uniquement** pour générer du HTML avec des meta tags, pas pour exécuter la logique de page.
 
 Cela signifie :
+
 - ✅ `window`, `document`, `location`, `fetch` — disponibles sans vérifications.
 - ❌ N'écrivez pas de code qui essaie de "fonctionner universellement sur serveur et client".
 - ❌ N'utilisez pas les patterns Next.js (`getServerSideProps`, `headers()`).
@@ -259,7 +272,7 @@ const f = useForm({ resolver: zodResolver(schema) });
 // ✅ Correct : validation proche du HTML via le schéma useForm
 const f = useForm({
   email: { required: true, type: "email" },
-  age:   { required: true, type: "number", min: 18 },
+  age: { required: true, type: "number", min: 18 },
 });
 
 // ✅ Ou une fonction personnalisée si HTML5 ne suffit pas
@@ -288,11 +301,13 @@ Bootstrap-via-classes) **ne fonctionnent qu'en light DOM** (`shadow: false`) :
 
 ```ts
 // Composant page/écran Light-DOM, les classes Tailwind fonctionnent
-component("x-admin-page", () => () => html`
-  <section class="bg-white shadow-lg rounded-lg p-4">
-    ...
-  </section>
-`, { shadow: false });
+component(
+  "x-admin-page",
+  () => () => html`
+    <section class="bg-white shadow-lg rounded-lg p-4">...</section>
+  `,
+  { shadow: false },
+);
 
 // Composant Shadow-DOM (par défaut) — Tailwind ne fonctionne PAS.
 // Utilisez css`` ou ::part() pour le stylage externe.
@@ -301,7 +316,7 @@ component("x-button", () => () => html`<button><slot></slot></button>`, {
     button {
       background: var(--button-bg, #2563eb);
       color: white;
-      padding: .5rem 1rem;
+      padding: 0.5rem 1rem;
       border-radius: 6px;
     }
   `,
@@ -334,6 +349,7 @@ Mado.signal(0);
 **Symptôme :** l'IA suggère `npm install lodash` / `npm install date-fns` / etc.
 
 Mado est **zéro dépendances runtime** par conception. Si l'IA veut ajouter :
+
 - **lodash** → utilisez du JS natif (`Object.entries`, `Array.prototype`, `structuredClone`) ;
 - **date-fns** → utilisez `Intl.DateTimeFormat` et `Intl.RelativeTimeFormat` ;
 - **uuid** → `crypto.randomUUID()` ;
@@ -352,19 +368,27 @@ Toute dépendance runtime est une **violation des principes du framework**. Si v
 // ❌ Fonctionne, mais se met à l'échelle difficilement et complique le nettoyage
 page({
   view: () => html`
-    <style>.panel { padding: 1rem; }</style>
+    <style>
+      .panel {
+        padding: 1rem;
+      }
+    </style>
     <section class="panel">...</section>
   `,
 });
 
 // ✅ Correct : styles de composant via css``
-component("x-admin-panel", () => () => html`
-  <section class="panel">...</section>
-`, {
-  styles: css`
-    .panel { padding: 1rem; }
-  `,
-});
+component(
+  "x-admin-panel",
+  () => () => html` <section class="panel">...</section> `,
+  {
+    styles: css`
+      .panel {
+        padding: 1rem;
+      }
+    `,
+  },
+);
 ```
 
 Pour les écrans route/page d'admin backend, il est souvent approprié d'utiliser `shadow: false`,
@@ -381,10 +405,10 @@ la page ou n'est pas préchargé.
 
 ```ts
 // ❌ Lien ordinaire : le navigateur effectuera un rechargement complet
-html`<a href="/tickets/42">Ouvrir</a>`
+html`<a href="/tickets/42">Ouvrir</a>`;
 
 // ✅ Navigation SPA : router() interceptera le clic même à travers Shadow DOM
-html`<a href="/tickets/42" data-link>Ouvrir</a>`
+html`<a href="/tickets/42" data-link>Ouvrir</a>`;
 ```
 
 Mado trouve le lien via `event.composedPath()`, donc `data-link` fonctionne aussi à l'intérieur
@@ -400,7 +424,10 @@ entre les pages.
 
 ```ts
 // ❌ Pas de nettoyage du lifecycle, générera un avertissement dev
-const tickets = resource(() => "tickets", () => api.listTickets());
+const tickets = resource(
+  () => "tickets",
+  () => api.listTickets(),
+);
 
 component("x-tickets", () => {
   return () => html`${() => tickets.data()?.length ?? 0}`;
@@ -408,7 +435,10 @@ component("x-tickets", () => {
 
 // ✅ Créer la resource à l'intérieur du setup du composant
 component("x-tickets", () => {
-  const tickets = resource(() => "tickets", () => api.listTickets());
+  const tickets = resource(
+    () => "tickets",
+    () => api.listTickets(),
+  );
   return () => html`${() => tickets.data()?.length ?? 0}`;
 });
 ```
@@ -427,7 +457,7 @@ nettoyés quand le composant se déconnecte.
 const view = signal(html`<x-home></x-home>`);
 
 // ✅ Pattern normal : un TemplateResult imbriqué peut être retourné depuis un binding enfant
-html`${view}`
+html`${view}`;
 ```
 
 À partir de v0.3, ceci est garanti par des tests de régression : quand un binding enfant est
@@ -444,16 +474,23 @@ nettoyer manuellement.
 
 ```ts
 // ❌ .page-head est déclaré globalement, mais x-dashboard utilise Shadow DOM par défaut
-component("x-dashboard", () => () => html`
-  <header class="page-head">...</header>
-  <div class="metric-grid">...</div>
-`);
+component(
+  "x-dashboard",
+  () => () => html`
+    <header class="page-head">...</header>
+    <div class="metric-grid">...</div>
+  `,
+);
 
 // ✅ Les composants page/layout/admin-shell doivent souvent être Light DOM
-component("x-dashboard", () => () => html`
-  <header class="page-head">...</header>
-  <div class="metric-grid">...</div>
-`, { shadow: false });
+component(
+  "x-dashboard",
+  () => () => html`
+    <header class="page-head">...</header>
+    <div class="metric-grid">...</div>
+  `,
+  { shadow: false },
+);
 ```
 
 Règle : Shadow DOM — pour les widgets feuilles et les layouts basés sur slot, Light DOM — pour
@@ -464,24 +501,123 @@ Plus de détails : [`09-shadow-vs-light-dom.md`](./09-shadow-vs-light-dom.md).
 
 ---
 
+## Piège #20 : `host.getAttribute()` dans render = pas réactif
+
+**Symptôme :** l'apparence du composant ne se met pas à jour quand le parent change un attribut.
+
+```ts
+// ❌ host.getAttribute() dans la fonction render est lu une seule fois.
+// Le render ne se relance que quand ses propres signaux changent.
+component("x-badge", ({ host }) => () => {
+  const variant = host.getAttribute("variant") ?? "default";
+  return html`<span class=${variant}>...</span>`;
+});
+
+// ✅ Correct : ctx.attr() — retourne un Signal<string> réactif
+component("x-badge", ({ attr }) => {
+  const variant = attr("variant", "default");
+  return () => html`<span class=${() => `badge-${variant()}`}>...</span>`;
+});
+```
+
+**Règle :** n'utilisez jamais `host.getAttribute()` ou `host.hasAttribute()` dans la
+fonction render pour des valeurs qui peuvent changer de l'extérieur. Utilisez `ctx.attr()` —
+il retourne un Signal qui se met à jour via `attributeChangedCallback`.
+
+---
+
+## Piège #21 : `<button>` Shadow DOM ne soumet pas les formulaires
+
+**Symptôme :** cliquer sur `<x-button type="submit">` dans un `<form>` ne fait rien.
+
+Un `<button>` dans le Shadow DOM ne participe pas à l'algorithme form-owner pour
+`<form>` dans le Light DOM — c'est une limitation de la spécification.
+
+```ts
+// ❌ Le <button type="submit"> interne ne peut pas déclencher le <form> parent
+component("x-button", ({ host }) => {
+  return () => html`<button type="submit"><slot></slot></button>`;
+});
+
+// ✅ Pont via requestSubmit()
+component("x-button", ({ host, attr }) => {
+  const disabled = attr("disabled");
+
+  const handleClick = () => {
+    const typeAttr = host.getAttribute("type");
+    if (typeAttr === "button" || typeAttr === "reset") return;
+    const form = host.closest("form");
+    if (form && !host.hasAttribute("disabled")) form.requestSubmit();
+  };
+
+  return () => html`
+    <button ?disabled=${() => disabled() !== ""} @click=${handleClick}>
+      <slot></slot>
+    </button>
+  `;
+});
+```
+
+Plus de détails : [`17-shadow-dom-forms.md`](./17-shadow-dom-forms.md).
+
+---
+
+## Piège #22 : `useForm()` avec des inputs Shadow DOM personnalisés
+
+**Symptôme :** `form.onInput` reçoit `undefined` pour name/value de `<x-input>`.
+
+Quand un input Shadow DOM dispatche un événement `input`, le navigateur retarget
+`e.target` du `<input>` interne vers le host `<x-input>`. Mais `<x-input>`
+(HTMLElement) n'a pas `.name` ni `.value` — donc `useForm` ne reçoit rien.
+
+```ts
+// ❌ Pas de propriétés proxy — useForm ignore silencieusement les événements
+component("x-input", ({ host, attr }) => {
+  const name = attr("name", "");
+  return () => html`<input name=${name} />`;
+});
+
+// ✅ Ajouter des propriétés proxy pour la compatibilité useForm
+component("x-input", ({ host, attr }) => {
+  const name = attr("name", "");
+
+  Object.defineProperty(host, "name", {
+    get: () => host.getAttribute("name") ?? "",
+    configurable: true,
+  });
+  Object.defineProperty(host, "value", {
+    get: () => host.shadowRoot?.querySelector("input")?.value ?? "",
+    configurable: true,
+  });
+
+  return () => html`<input name=${name} />`;
+});
+```
+
+Plus de détails : [`17-shadow-dom-forms.md`](./17-shadow-dom-forms.md).
+
+---
+
 ## Aide-mémoire pour l'IA
 
-| Si vous voulez faire… | Correct dans Mado |
-|---|---|
-| `useState(0)` | `signal(0)` |
-| `useEffect(() => {...}, [a, b])` | `effect(() => {...})` (auto-dépendances) |
-| `useEffect(() => return cleanup, [])` | `ctx.onDispose(cleanup)` |
-| `useMemo(() => x, [a])` | `computed(() => x)` |
-| `useCallback(fn, [])` | fonction ordinaire |
-| `useContext(Ctx)` | `inject(host, Ctx)` |
-| `useQuery(['key'], fn)` | `resource(() => 'key', fn)` |
-| `useMutation(fn)` | `mutation(fn, { invalidates: [...] })` |
-| `useRouter().push('/')` | `navigate('/')` |
-| `useRouter().query.q` | `queryParam('q')` |
-| `<input value={v} onChange={...}>` | `<input .value=${v} @input=${...}>` |
-| `{items.map(x => ...)}` | `${() => each(items, x => x.id, x => ...)}` |
-| `useForm({ resolver: zodResolver })` | `useForm({...}, { validate: (v) => ... })` |
-| `class extends HTMLElement` | `component('x-name', setup)` |
-| `@customElement('x')` | `component('x-name', setup)` |
+| Si vous voulez faire…                 | Correct dans Mado                           |
+| ------------------------------------- | ------------------------------------------- |
+| `useState(0)`                         | `signal(0)`                                 |
+| `useEffect(() => {...}, [a, b])`      | `effect(() => {...})` (auto-dépendances)    |
+| `useEffect(() => return cleanup, [])` | `ctx.onDispose(cleanup)`                    |
+| `useMemo(() => x, [a])`               | `computed(() => x)`                         |
+| `useCallback(fn, [])`                 | fonction ordinaire                          |
+| `useContext(Ctx)`                     | `inject(host, Ctx)`                         |
+| `useQuery(['key'], fn)`               | `resource(() => 'key', fn)`                 |
+| `useMutation(fn)`                     | `mutation(fn, { invalidates: [...] })`      |
+| `useRouter().push('/')`               | `navigate('/')`                             |
+| `useRouter().query.q`                 | `queryParam('q')`                           |
+| `<input value={v} onChange={...}>`    | `<input .value=${v} @input=${...}>`         |
+| `{items.map(x => ...)}`               | `${() => each(items, x => x.id, x => ...)}` |
+| `useForm({ resolver: zodResolver })`  | `useForm({...}, { validate: (v) => ... })`  |
+| `class extends HTMLElement`           | `component('x-name', setup)`                |
+| `@customElement('x')`                 | `component('x-name', setup)`                |
+| `host.getAttribute('x')` dans render  | `ctx.attr('x', default)` (réactif)          |
+| `jsonFetcher()` avec auth             | `apiFetcher()` (attache le Bearer token)    |
 
 Si quelque chose ne rentre pas dans cette liste — ouvrez `src/` et **lisez 500 lignes**. Sérieusement. Mado est intentionnellement petit pour être lisible.

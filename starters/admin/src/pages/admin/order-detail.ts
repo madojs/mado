@@ -1,7 +1,7 @@
 // Order detail page. Reads :id from params, fetches the order, and shows
 // inline loading/error/empty/ready states.
 
-import { html, jsonFetcher, page, resource } from "@madojs/mado";
+import { each, html, jsonFetcher, page, resource } from "@madojs/mado";
 
 interface OrderDetail {
   id: string;
@@ -46,7 +46,9 @@ export default page<{ id: string }>({
                 </tr>
               </thead>
               <tbody>
-                ${o.items.map(
+                ${each(
+                  o.items,
+                  (it) => it.sku,
                   (it) => html`
                     <tr style="border-bottom:1px solid var(--border);">
                       <td style="padding:8px 0;">${it.sku}</td>

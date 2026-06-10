@@ -13,7 +13,9 @@ Mado is a narrowly-focused frontend framework that deliberately avoids React pat
 - **Components are Web Components.** Registered via `component('x-name', setupFn, options)`. Names must include a hyphen (`x-foo`, `my-button`).
 - **Component files register tags as side effects.** The browser does not auto-import files by tag name. If `<x-card>` works, some imported module already ran `customElements.define("x-card", ...)`.
 - **Cleanup via `ctx.onDispose(fn)`** in setup, not via return from effect.
-- **Reactive attributes via `ctx.attr(name, default?)`** — returns a Signal<string> that auto-updates when the attribute changes. No MutationObserver needed.
+- **Page cleanup via `onDispose`** in view: `view: ({ onDispose }) => { ... onDispose(() => cleanup()); }`. Only needed for raw APIs (setInterval, WebSocket). `resource()`/`effect()` auto-cleanup.
+- **`untracked()` in page view async** — functions called synchronously in `view()` that read signals must wrap reads in `untracked()` to avoid effect cycles with the router.
+- **Reactive attributes via `ctx.attr(name, default?)`** — returns a Signal<string> that auto-updates when the attribute changes. Uses `observedAttributes` when available, falls back to a per-instance `MutationObserver` for attrs registered during setup. No boilerplate needed.
 
 ## Critical template rules
 

@@ -618,5 +618,7 @@ component("x-input", ({ host, attr }) => {
 | `@customElement('x')`                 | `component('x-name', setup)`                |
 | `host.getAttribute('x')` в render     | `ctx.attr('x', default)` (реактивно)        |
 | `jsonFetcher()` с авторизацией        | `apiFetcher()` (прикрепляет Bearer токен)   |
+| `setInterval` в page view             | `onDispose(() => clearInterval(id))`        |
+| чтение сигнала в async init view()    | `untracked(() => cursor())`                 |
 
 Если что-то не подходит из этого списка — открой `src/` и **прочитай 500 строк**. Это серьёзно. Mado специально маленький, чтобы быть читаемым.

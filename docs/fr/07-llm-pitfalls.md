@@ -619,5 +619,7 @@ Plus de détails : [`17-shadow-dom-forms.md`](./17-shadow-dom-forms.md).
 | `@customElement('x')`                 | `component('x-name', setup)`                |
 | `host.getAttribute('x')` dans render  | `ctx.attr('x', default)` (réactif)          |
 | `jsonFetcher()` avec auth             | `apiFetcher()` (attache le Bearer token)    |
+| `setInterval` dans page view          | `onDispose(() => clearInterval(id))`        |
+| lecture signal dans async init view()  | `untracked(() => cursor())`                 |
 
 Si quelque chose ne rentre pas dans cette liste — ouvrez `src/` et **lisez 500 lignes**. Sérieusement. Mado est intentionnellement petit pour être lisible.

@@ -141,3 +141,5 @@ Object.defineProperty(host, "value", {
 | `class extends HTMLElement` | `component('x-name', setup)` |
 | `host.getAttribute('x')`    | `ctx.attr('x', default)`     |
 | `jsonFetcher()` з auth      | `apiFetcher()`               |
+| `setInterval` в page view   | `onDispose(() => clearInterval(id))` |
+| читання сигналу в async init | `untracked(() => cursor())`  |

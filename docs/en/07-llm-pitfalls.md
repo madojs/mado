@@ -598,6 +598,105 @@ See [`17-shadow-dom-forms.md`](./17-shadow-dom-forms.md) for the full pattern.
 
 ---
 
+## Pitfall #23: signal reads in async functions called from `view()` create effect cycles
+
+**Symptom:** `[mado] effect cycle detected: subscriber re-ran more than 100 times in one flush.`
+
+The router calls `page.view()` inside a reactive effect. Any signal read
+**synchronously** during `view()` subscribes the router's render effect. If that
+signal is then written (e.g. `loading.set(true)`) — the router re-runs `view()`,
+which reads the signal again → infinite loop.
+
+```ts
+// ❌ INFINITE LOOP — loadMore reads signals inside the router's effect
+export default page({
+  view: () => {
+    const cursor = signal<string | null>("start");
+    const loading = signal(false);
+
+    const loadMore = async () => {
+      if (cursor() === null || loading()) return; // ← subscribes render effect!
+      loading.set(true); // ← re-triggers render → loadMore() → ∞
+      const res = await fetch(`/api/items?cursor=${cursor()}`);
+      // ...
+    };
+
+    loadMore(); // called synchronously during view()
+    return html`...`;
+  },
+});
+
+// ✅ CORRECT — wrap signal reads in untracked()
+import { untracked } from "@madojs/mado";
+
+export default page({
+  view: () => {
+    const cursor = signal<string | null>("start");
+    const loading = signal(false);
+
+    const loadMore = async () => {
+      const c = untracked(() => cursor());
+      if (c === null || untracked(() => loading())) return;
+      loading.set(true);
+      const res = await fetch(`/api/items?cursor=${c}`);
+      // ...
+    };
+
+    loadMore();
+    return html`...`;
+  },
+});
+```
+
+**Rule:** Any function that reads signals AND is called synchronously during
+`view()` initialization must use `untracked()` for those reads. This includes:
+
+- Data fetching / loadMore functions
+- IntersectionObserver callbacks set up during init
+- Timer/polling setup functions that check state
+
+Signals read inside the **returned template** (`html\`...\``) are fine — they are
+wrapped in a child-binding function `${() => ...}` which creates its own effect.
+
+---
+
+## Pitfall #24: `setInterval` / manual subscriptions in `page()` view without cleanup
+
+**Symptom:** After navigating away, timers/subscriptions keep running (zombie intervals,
+server logs show polling requests from pages the user already left).
+
+```ts
+// ❌ ZOMBIE — interval survives navigation
+export default page({
+  view: () => {
+    const tick = signal(0);
+    setInterval(() => tick.update((n) => n + 1), 3000); // never cleaned up!
+    return html`<div>${tick}</div>`;
+  },
+});
+
+// ✅ CORRECT — use onDispose for cleanup
+export default page({
+  view: ({ onDispose }) => {
+    const tick = signal(0);
+    const id = setInterval(() => tick.update((n) => n + 1), 3000);
+    onDispose(() => clearInterval(id));
+    return html`<div>${tick}</div>`;
+  },
+});
+```
+
+**Note:** `resource()` and `effect()` created inside `view()` are automatically
+cleaned up on navigation (they register with the page lifecycle). Only raw
+browser APIs need explicit `onDispose()`:
+
+- `setInterval` / `setTimeout`
+- `addEventListener` (on window/document)
+- `WebSocket` / `EventSource`
+- `IntersectionObserver` / `ResizeObserver`
+
+---
+
 ## Cheat-sheet for AI
 
 | If you want to do…                    | Correct in Mado                             |
@@ -619,5 +718,7 @@ See [`17-shadow-dom-forms.md`](./17-shadow-dom-forms.md) for the full pattern.
 | `@customElement('x')`                 | `component('x-name', setup)`                |
 | `host.getAttribute('x')` in render    | `ctx.attr('x', default)` (reactive)         |
 | `jsonFetcher()` with auth             | `apiFetcher()` (attaches Bearer token)      |
+| `setInterval` in page view            | `onDispose(() => clearInterval(id))`        |
+| signal read in view() async init      | `untracked(() => cursor())`                 |
 
 If something doesn't fit this list — open `src/` and **read 500 lines**. Seriously. Mado is intentionally small to be readable.

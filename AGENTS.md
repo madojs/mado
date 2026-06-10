@@ -119,7 +119,11 @@ component("x-badge", ({ attr }) => {
 ```
 
 `ctx.attr(name, defaultValue?)` returns a `Signal<string>` that auto-updates.
-The attribute is automatically added to `observedAttributes`.
+Internally Mado uses `observedAttributes` when available and a per-instance
+`MutationObserver` fallback for attributes registered during `setup()`. This is
+necessary because the browser reads `observedAttributes` once at
+`customElements.define()` time — before any instance calls `setup()`. The
+observer auto-disconnects on component removal via lifecycle cleanup.
 
 ### 5. Reactive value in template child position = function
 
@@ -202,6 +206,27 @@ export default page<{ id: string }>({
 - Each page is a **separate file** in `pages/` with `export default page({...})`.
 - Import via `() => import("./pages/foo.js")` — this enables code-splitting via ESM.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
+- **`onDispose`** — cleanup hook for page views. Use for `setInterval`, `WebSocket`, `EventSource`. `resource()` and `effect()` are auto-cleaned.
+- **`untracked()`** — required when reading signals inside async functions called synchronously from `view()`. Without it, the signal subscribes the router's render effect → infinite loop.
+
+```ts
+// page with polling and cleanup
+import { page, html, signal, untracked } from "@madojs/mado";
+export default page({
+  view: ({ onDispose }) => {
+    const data = signal(null);
+    const poll = async () => {
+      // untracked: don't subscribe the router's render effect
+      const res = await fetch("/api/status");
+      data.set(await res.json());
+    };
+    const id = setInterval(poll, 5000);
+    onDispose(() => clearInterval(id)); // ← cleaned up on navigation
+    poll(); // initial call
+    return html`<div>${() => JSON.stringify(data())}</div>`;
+  },
+});
+```
 
 ### 9. Data fetching — `resource()` / `mutation()`
 

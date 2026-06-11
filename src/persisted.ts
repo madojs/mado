@@ -20,7 +20,9 @@
  *   - destroy() optionally closes the BroadcastChannel subscription.
  */
 
-import { signal as makeSignal, effect, type Signal } from "./signal.js";
+import { effect, type Disposer, type Signal } from "./signal.js";
+import { getCurrentLifecycle } from "./lifecycle.js";
+
 
 export interface PersistedOptions<T> {
   /** "local" (default) or "session". */
@@ -73,10 +75,23 @@ export function persisted<T>(
     }
   }
 
+  // Echo guard: the serialized form of the last value we either received from
+  // the channel or published to it. For object/array values, structured clone
+  // gives a new identity on every cross-tab hop, so Object.is inside signal.set
+  // never suppresses the echo — without this guard two tabs ping-pong forever.
+  // Seeded with the current value so the creation-time publish is a no-op.
+  let lastSync = serialize(base.peek());
+  let destroyed = false;
+
+  // Collected so destroy() actually tears everything down. The original code
+  // dropped these disposers, so destroy() left the write effect alive and the
+  // next set() re-created the storage key.
+  const disposers: Disposer[] = [];
+
   // 2) Write on each change (optionally debounced)
   let writeTimer: ReturnType<typeof setTimeout> | null = null;
   const flushWrite = (v: T) => {
-    if (!storage) return;
+    if (!storage || destroyed) return;
     try {
       storage.setItem(fullKey, serialize(v));
     } catch {
@@ -84,15 +99,17 @@ export function persisted<T>(
     }
   };
 
-  effect(() => {
-    const v = base();
-    if (options.debounce && options.debounce > 0) {
-      if (writeTimer) clearTimeout(writeTimer);
-      writeTimer = setTimeout(() => flushWrite(v), options.debounce);
-    } else {
-      flushWrite(v);
-    }
-  });
+  disposers.push(
+    effect(() => {
+      const v = base();
+      if (options.debounce && options.debounce > 0) {
+        if (writeTimer) clearTimeout(writeTimer);
+        writeTimer = setTimeout(() => flushWrite(v), options.debounce);
+      } else {
+        flushWrite(v);
+      }
+    }),
+  );
 
   // 3) Cross-tab synchronisation via BroadcastChannel
   const wantSync = options.syncTabs ?? options.storage !== "session";
@@ -100,19 +117,28 @@ export function persisted<T>(
   if (wantSync && typeof BroadcastChannel !== "undefined") {
     try {
       bc = new BroadcastChannel(`mado:persisted:${key}`);
-      bc.addEventListener("message", (e) => {
+      const onMessage = (e: MessageEvent) => {
         try {
+          // Record what arrived BEFORE applying it, so the publisher effect
+          // below recognises this value as remote-origin and does not echo it.
+          lastSync = serialize(e.data as T);
           base.set(e.data as T);
         } catch {
           /* noop */
         }
-      });
-      // publish changes
-      effect(() => {
-        const v = base();
-        // peek-exclusion to avoid infinite loop: we don't read from bc-source
-        bc?.postMessage(v);
-      });
+      };
+      bc.addEventListener("message", onMessage as EventListener);
+      // publish changes — but never re-publish a value that just arrived from
+      // another tab (which is what created the infinite loop).
+      disposers.push(
+        effect(() => {
+          const v = base();
+          const s = serialize(v);
+          if (s === lastSync) return; // unchanged or remote-origin → no echo
+          lastSync = s;
+          bc?.postMessage(v);
+        }),
+      );
     } catch {
       bc = null;
     }
@@ -120,6 +146,14 @@ export function persisted<T>(
 
   const out = base as PersistedSignal<T>;
   out.destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    if (writeTimer) {
+      clearTimeout(writeTimer);
+      writeTimer = null;
+    }
+    // Dispose the write + publish effects so later set() calls are inert.
+    for (const d of disposers.splice(0)) d();
     if (storage) {
       try {
         storage.removeItem(fullKey);
@@ -128,9 +162,16 @@ export function persisted<T>(
       }
     }
     bc?.close();
+    bc = null;
   };
+
+  // Tie destroy() to the surrounding component/page lifecycle when present, so
+  // a persisted() created inside setup() does not leak its effects/channel.
+  getCurrentLifecycle()?.onDispose(() => out.destroy());
+
   return out;
 }
+
 
 function safeStorage(name: "localStorage" | "sessionStorage"): Storage | null {
   try {

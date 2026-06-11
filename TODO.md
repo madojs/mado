@@ -2,9 +2,15 @@
 
 > The v0.6 product-surface push is complete. The closed tracker is archived in
 > [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md). The items below are ideas for later
-> releases and are not part of the v0.6 contract.
+> releases and are not part of any active contract.
+>
+> The active road to v1 (correctness → surface lockdown → proof) is tracked in
+> [`MADO_V1_TRACKER.md`](./MADO_V1_TRACKER.md); product-surface milestones live
+> in `ROADMAP.md`. Anything that the v1 tracker now owns has been moved out of
+> the "ideas" list below.
 
 Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
+
 
 ## DX
 
@@ -33,16 +39,13 @@ Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
 ## Operations
 
 - [ ] Benchmark against Lit / Solid / Preact.
-- [ ] Decide package exports policy before v1: remove the wildcard export or
-  keep it documented as unstable internal deep imports.
-- [ ] Add first-class size reporting for runtime budget (ESM graph,
-  bundled/minified, gzip, brotli) without counting docs/starters/package files.
 - [ ] `eslint-plugin-mado` rules for common mistakes.
 - [ ] CSP-friendly style mode.
 - [ ] PWA scaffold.
 - [ ] Schema validation hook for resources.
 - [ ] Timeout / retry options for resource fetchers.
 - [ ] Source-map notes and a minimal dev error overlay.
+
 
 ## Bake / Smart Static
 

@@ -2,7 +2,92 @@
 
 ## Unreleased
 
-Nothing yet.
+### Changed
+
+- **`mutation().run()` is concurrent by default (C6).** Previously a `run()`
+  aborted any previous in-flight run, so two quick submits of different entities
+  through one mutation cancelled the first POST client-side — its `invalidates`
+  never fired even though the server had likely applied it. Mutations are now
+  concurrent: each `run()` has its own `AbortController`, `loading` is an
+  in-flight counter (true until the last run settles), and aborting the previous
+  run is opt-in via `mutation(fetcher, { abortPrevious: true })` for
+  search-as-you-type. `reset()` aborts all in-flight runs. **Behavioural change**
+  (done before the v1 API freeze). Regression test:
+  `test/mutation-concurrent.test.mjs`.
+
+### Fixed
+
+- **Forms: stale async validation no longer lands on a shifted field-array row
+
+  (C5).** `useForm().array()` mutations (`remove`/`move`/`replace`/…) shift
+  indices, but an in-flight `validateAsync` for e.g. `items.2.title` still
+  matched its per-path generation guard and wrote its result onto a row that had
+  moved — a red error "jumping" onto a neighbouring valid row after a delete.
+  Array writes now bump the validation generation for every in-flight path under
+  the array prefix, so stale results are discarded. Row identity remains
+  positional. Regression test: `test/forms-array-stale-async.test.mjs`.
+
+- **`computed({ equals })` no longer breaks `batch()` atomicity (C4).** An
+
+  observed `equals`-computed recomputed eagerly inside `set()`, so during
+  `batch(() => { x.set(2); y.set(2) })` a computed reading both `x` and `y` ran
+  on half-applied state `(new x, old y)` — observing an inconsistent snapshot,
+  potentially notifying with it, and running once per `set()`. An observed
+  `equals`-computed invalidated inside a batch now defers its recompute+compare
+  to a queue drained at the end of the outermost `batch()`, so it runs once on
+  fully-applied state. Behaviour outside a batch is unchanged. Regression test:
+  `test/signal-batch-equals.test.mjs`.
+
+- **`update()` reuses nested templates instead of recreating them (C3).** A
+
+  renderer returning a nested `html\`\`` (e.g. a conditional form block) rebuilt
+  its entire subtree on every change of any signal it read, because `renderChild`
+  always did clear + re-instantiate for a single `TemplateResult` — unlike
+  `each()` and `render()`, which compare `_strings` and patch in place. Focus and
+  `<input>` values inside such blocks were lost and listeners re-attached.
+  `renderChild` now reuses the existing instance via `update()` when the new
+  value is a single `TemplateResult` with matching `_strings`, preserving DOM
+  identity; a structurally different template still rebuilds. Regression test:
+  `test/update-nested-reuse.test.mjs`.
+
+- **`persisted()` cross-tab sync no longer ping-pongs, and `destroy()` is
+
+  complete (C2).** For object/array values, every cross-tab message produced a
+  new structured-clone identity, so the publisher effect re-broadcast each
+  received value forever (a single change generated 80+ messages in the
+  regression test). Cross-tab values are now echo-suppressed by their serialized
+  form, so an arriving value is never re-published. `destroy()` previously only
+  closed the channel and cleared storage while leaving the write/publish effects
+  alive — so the next `set()` re-created the key; it now disposes both effects,
+  clears the debounce timer, and marks the signal inert. `persisted()` also
+  registers `destroy()` with the active component/page lifecycle, so a persisted
+  signal created inside `setup()` no longer leaks. Regression test:
+  `test/persisted-crosstab.test.mjs`.
+
+- **`each()` reorder no longer destroys custom-element state (C1).** Moving a
+  connected node (which keyed `each()` does via `insertBefore`) fires
+  `disconnectedCallback` → `connectedCallback` synchronously, and the old
+
+  `disconnectedCallback` tore the component down immediately — re-running
+  `setup()` and wiping every signal/resource/timer plus focus and `<input>`
+  values on a shuffle. Teardown is now deferred to a microtask and cancelled if
+  the element is re-inserted in the same tick, so a keyed move preserves state;
+  a genuine removal still disposes. `each()` also uses `Node.prototype.moveBefore`
+  (Chrome 133+) when available, which relocates connected nodes without firing
+  lifecycle callbacks at all. Regression test: `test/each-component-state.test.mjs`.
+
+### Docs / planning
+
+
+- **Road to v1 re-sequenced around correctness.** Added
+  [`MADO_V1_TRACKER.md`](./MADO_V1_TRACKER.md), the active task-by-task tracker
+  derived from the `FABLE_REPORT.md` audit: phase A `v0.9` (correctness fixes
+  C1–C8, TDD: reproducing test → fix), phase B `v0.10` (surface cleanup, explicit
+  exports map, API freeze map), phase C `v1.0-rc` (live demo + external
+  dogfooding), phase D `v1.0` (freeze). `ROADMAP.md` now gates its
+  product-surface milestones behind a new "Milestone 0"; `TODO.md` points at the
+  tracker and drops items it now owns (exports policy, size reporting).
+
 
 ## 0.8.0
 

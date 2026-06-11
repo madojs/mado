@@ -90,8 +90,30 @@ function cleanupTracker(tracker: Tracker): void {
 // ---------- Scheduler ----------
 
 const pending = new Set<Subscriber>();
+// Reconciles for observed `equals`-computeds whose deps changed inside a batch.
+// Deferred to batch end so they recompute once, on fully-applied (consistent)
+// state, instead of eagerly inside each set() on half-applied state.
+// (FABLE_REPORT.md finding #4)
+const deferredEquals = new Set<Subscriber>();
 let batchDepth = 0;
 let flushScheduled = false;
+
+/** Run all deferred equals-computed reconciles; cascades may enqueue more. */
+function drainDeferredEquals(): void {
+  while (deferredEquals.size > 0) {
+    const items = [...deferredEquals];
+    deferredEquals.clear();
+    for (const fn of items) {
+      try {
+        fn();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("[mado] deferred computed reconcile threw:", err);
+      }
+    }
+  }
+}
+
 
 function schedule(sub: Subscriber): void {
   pending.add(sub);
@@ -103,7 +125,11 @@ function schedule(sub: Subscriber): void {
 
 function flush(): void {
   flushScheduled = false;
+  // Defensive: reconcile any deferred equals-computeds before running effects,
+  // so effects always observe settled computed values.
+  drainDeferredEquals();
   const runCounts = new Map<Subscriber, number>();
+
   // guard against Set modification during iteration
   while (pending.size > 0) {
     const subs = [...pending];
@@ -140,11 +166,17 @@ export function batch<T>(fn: () => T): T {
     return fn();
   } finally {
     batchDepth--;
-    if (batchDepth === 0 && pending.size > 0 && !flushScheduled) {
-      flushScheduled = true;
-      queueMicrotask(flush);
+    if (batchDepth === 0) {
+      // Reconcile deferred equals-computeds now that all sets are applied and
+      // state is consistent. This may enqueue effects into `pending`.
+      drainDeferredEquals();
+      if (pending.size > 0 && !flushScheduled) {
+        flushScheduled = true;
+        queueMicrotask(flush);
+      }
     }
   }
+
 }
 
 /**
@@ -248,6 +280,21 @@ export function computed<T>(
   let hasValue = false;
   let computing = false;
 
+  // Recompute an observed equals-computed and notify only if the value
+  // actually changed. Extracted so it can run eagerly (outside a batch) or
+  // deferred to batch end (inside a batch), where it sees consistent state.
+  const reconcileEquals = (): void => {
+    if (subscribers.size === 0) {
+      dirty = true;
+      suspend();
+      return;
+    }
+    const prevValue = value;
+    recompute();
+    if (hasValue && options.equals!(prevValue, value)) return;
+    notifySubscribers();
+  };
+
   const onInvalidate: Subscriber = () => {
     // dep changed → mark dirty synchronously and cascade.
     // Sync subscribers (other computed) are triggered immediately — they also
@@ -259,15 +306,21 @@ export function computed<T>(
       return;
     }
     if (options.equals && hasValue) {
-      const prevValue = value;
-      recompute();
-      if (options.equals(prevValue, value)) return;
-      notifySubscribers();
+      // Inside a batch, defer the recompute+compare to batch end so it runs
+      // once on fully-applied state instead of eagerly on half-applied state
+      // (which would observe a mixed snapshot and could notify spuriously or
+      // run O(number of sets) times). (FABLE_REPORT.md finding #4)
+      if (batchDepth > 0) {
+        deferredEquals.add(reconcileEquals);
+        return;
+      }
+      reconcileEquals();
       return;
     }
     dirty = true;
     notifySubscribers();
   };
+
 
   const tracker: Tracker = {
     deps: new Set(),

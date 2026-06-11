@@ -122,7 +122,12 @@ export function component(
     #effectDispose: Disposer | null = null;
     #lifecycle: LifecycleHandle | null = null;
     #connected = false;
+    // True while a teardown is queued on the microtask after a
+    // disconnectedCallback. Used to cancel teardown when the element is
+    // re-inserted in the same tick (a keyed move via insertBefore).
+    #teardownQueued = false;
     #attrSignals = new Map<string, Signal<string>>();
+
 
     constructor() {
       super();
@@ -130,8 +135,14 @@ export function component(
     }
 
     connectedCallback() {
+      // A keyed move (each() relocating via insertBefore) fires
+      // disconnectedCallback → connectedCallback synchronously. The teardown
+      // queued by disconnectedCallback is cancelled here so state survives the
+      // move and setup() is NOT re-run.
+      this.#teardownQueued = false;
       if (this.#connected) return;
       this.#connected = true;
+
 
       if (stylesheets.length > 0) {
         if (useShadow) {
@@ -194,12 +205,30 @@ export function component(
     }
 
     disconnectedCallback() {
+      // Defer teardown to a microtask. A keyed move (each() relocating a node
+      // via insertBefore) fires disconnectedCallback → connectedCallback in the
+      // same tick; connectedCallback clears #teardownQueued so the teardown is
+      // skipped and component state survives the move. A genuine removal leaves
+      // the element disconnected, so the microtask tears it down.
+      if (this.#teardownQueued) return;
+      this.#teardownQueued = true;
+      queueMicrotask(() => {
+        if (!this.#teardownQueued) return; // re-inserted in the same tick
+        this.#teardownQueued = false;
+        if (this.isConnected) return; // moved back into the document
+        this.#teardown();
+      });
+    }
+
+    /** Synchronously dispose effects and lifecycle. */
+    #teardown() {
       this.#effectDispose?.();
       this.#effectDispose = null;
       this.#lifecycle?.dispose();
       this.#lifecycle = null;
       this.#connected = false;
     }
+
 
     attributeChangedCallback(
       name: string,

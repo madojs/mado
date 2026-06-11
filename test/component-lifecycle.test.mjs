@@ -35,7 +35,15 @@ globalThis.MutationObserver = w.MutationObserver;
 const { component, html } = await import("../dist/src/component.js");
 const { css } = await import("../dist/src/css.js");
 
-test("component(): repeated connectedCallback does not duplicate setup", () => {
+// Teardown is deferred to a microtask (see C1 / FABLE_REPORT.md finding #1):
+// a synchronous disconnect→connect pair is treated as a move and preserves
+// state, while a genuine removal (element detached) disposes on the microtask.
+async function microtasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+test("component(): repeated connectedCallback does not duplicate setup", async () => {
   let setups = 0;
   let disposes = 0;
 
@@ -48,22 +56,30 @@ test("component(): repeated connectedCallback does not duplicate setup", () => {
   });
 
   const el = document.createElement("x-lifecycle-once");
+  document.body.appendChild(el);
 
   el.connectedCallback();
   el.connectedCallback();
   assert.equal(setups, 1);
   assert.equal(disposes, 0);
 
+  // Genuine removal: detach then fire the callback; teardown runs on microtask.
+  el.remove();
   el.disconnectedCallback();
+  await microtasks();
   assert.equal(disposes, 1);
 
+  document.body.appendChild(el);
   el.connectedCallback();
   assert.equal(setups, 2);
   assert.equal(disposes, 1);
 
+  el.remove();
   el.disconnectedCallback();
+  await microtasks();
   assert.equal(disposes, 2);
 });
+
 
 test("component(): light DOM styles adopt once across instances", () => {
   const sheet = css`button { color: red; }`;

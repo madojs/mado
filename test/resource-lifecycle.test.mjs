@@ -36,6 +36,14 @@ const { html } = await import("../dist/src/html.js");
 const { resource, _testHooks } = await import("../dist/src/resource.js");
 const { signal, flushSync } = await import("../dist/src/signal.js");
 
+// Component teardown is deferred to a microtask (C1 / FABLE_REPORT.md #1), so a
+// genuine removal disposes only after the microtask queue drains.
+async function microtasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+
 // Utility: create a custom element and connect/disconnect it manually.
 function defineAndCreate(tag, setup, opts) {
   // Use the real component() helper in the test DOM.
@@ -68,12 +76,14 @@ test("resource inside component cleans up on disconnect", async () => {
     `after mount, an invalidator subscription should be added (before=${before}, during=${during})`,
   );
 
-  // Disconnect.
+  // Disconnect. Teardown is deferred to a microtask, so flush both.
   document.body.removeChild(el);
   if (typeof el.disconnectedCallback === "function") el.disconnectedCallback();
+  await microtasks();
   flushSync();
 
   const after = _testHooks.invalidatorsSize();
+
   assert.equal(
     after,
     before,
@@ -101,8 +111,9 @@ test("resource outside component warns in dev but still works", () => {
   }
 });
 
-test("several components clean up only their own subscriptions", () => {
+test("several components clean up only their own subscriptions", async () => {
   const fetcher = () => Promise.resolve(0);
+
 
   const tagA = "x-test-cleanup-a-" + Math.random().toString(36).slice(2, 8);
   const tagB = "x-test-cleanup-b-" + Math.random().toString(36).slice(2, 8);
@@ -128,9 +139,10 @@ test("several components clean up only their own subscriptions", () => {
   const during = _testHooks.invalidatorsSize();
   assert.equal(during, before + 2);
 
-  // Disconnect only A.
+  // Disconnect only A. Teardown is deferred to a microtask.
   document.body.removeChild(a);
   if (typeof a.disconnectedCallback === "function") a.disconnectedCallback();
+  await microtasks();
   flushSync();
 
   const middle = _testHooks.invalidatorsSize();
@@ -139,6 +151,8 @@ test("several components clean up only their own subscriptions", () => {
   // Now disconnect B.
   document.body.removeChild(b);
   if (typeof b.disconnectedCallback === "function") b.disconnectedCallback();
+  await microtasks();
   flushSync();
   assert.equal(_testHooks.invalidatorsSize(), before);
+
 });

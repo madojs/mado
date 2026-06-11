@@ -1,7 +1,7 @@
 {
   "name": "@madojs/mado",
   "version": "0.8.0",
-  "description": "Mado — a small native-web SPA framework with Web Components, signals, tagged-template html, router, resources, and forms. TypeScript-only build, zero runtime dependencies.",
+  "description": "Mado — a calm browser-native SPA framework for internal tools, admin panels and business apps. Routing, forms, state and data fetching without frontend infrastructure overhead.",
   "type": "module",
   "license": "MIT",
   "keywords": [

@@ -5,8 +5,9 @@
 
 ## Project at a glance
 
-- **Mado** — SPA framework built on Web Components + signals + tagged-template `html`.
-- No build system (only `tsc`), no runtime dependencies.
+- **Mado** — a calm browser-native SPA framework for internal tools, admin panels and business apps.
+- Built on Web Components + signals + tagged-template `html`.
+- No build system beyond `tsc`, no runtime dependencies.
 - ~3500 lines of TypeScript in `src/`, ~16 KB gzip.
 
 ## HARD RULES — violation = bug
@@ -95,13 +96,13 @@ The most common AI mistake:
 const count = signal(0);
 
 // ❌ NOT REACTIVE — count() is read once
-html`<div>${count() * 2}</div>`
+html`<div>${count() * 2}</div>`;
 
 // ✅ REACTIVE — the function will be called when count changes
-html`<div>${() => count() * 2}</div>`
+html`<div>${() => count() * 2}</div>`;
 
 // ✅ ALSO OK — the signal itself is a function, Mado recognizes it
-html`<div>${count}</div>`
+html`<div>${count}</div>`;
 ```
 
 **Rule of thumb:** if there is a signal call (with parentheses) inside `${...}`, wrap it in `() => ...`.
@@ -110,17 +111,17 @@ html`<div>${count}</div>`
 
 ```ts
 // string/number → attribute
-html`<a href=${url}>...</a>`
+html`<a href=${url}>...</a>`;
 
 // DOM property (objects, numbers without serialization, .value for input)
-html`<input .value=${user.name}>`
-html`<my-list .items=${arr}>`
+html`<input .value=${user.name} />`;
+html`<my-list .items=${arr}></my-list>`;
 
 // boolean attribute (toggle)
-html`<button ?disabled=${isLoading}>...</button>`
+html`<button ?disabled=${isLoading}>...</button>`;
 
 // event
-html`<button @click=${fn}>...</button>`
+html`<button @click=${fn}>...</button>`;
 ```
 
 Common mistake: `disabled=${loading()}` — this attempts to set a **string** attribute `disabled="true"` or `disabled="false"`, which does not work correctly. **Use `?disabled=`.**
@@ -131,10 +132,19 @@ Common mistake: `disabled=${loading()}` — this attempts to set a **string** at
 import { each } from "@madojs/mado";
 
 // ❌ Works, but no keyed reconciliation → loses focus on reorder
-html`<ul>${() => items().map(t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() => items().map((t) => html`<li>${t.name}</li>`)}
+</ul>`;
 
 // ✅ Correct: keyed, reuses DOM nodes
-html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.name}</li>`)}</ul>`
+html`<ul>
+  ${() =>
+    each(
+      items(),
+      (t) => t.id,
+      (t) => html`<li>${t.name}</li>`,
+    )}
+</ul>`;
 ```
 
 ### 8. Routing — `routes()` + `page()`
@@ -194,14 +204,20 @@ import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
-  age:   { required: true, type: "number", min: 18 },
+  age: { required: true, type: "number", min: 18 },
 });
 
 html`
-  <form @submit=${f.onSubmit(async v => { await api.save(v); })}>
-    <input name="email" @input=${f.onInput} @blur=${f.onBlur}>
-    ${() => f.touched().email && f.errors().email
-      ? html`<small>${f.errors().email}</small>` : null}
+  <form
+    @submit=${f.onSubmit(async (v) => {
+      await api.save(v);
+    })}
+  >
+    <input name="email" @input=${f.onInput} @blur=${f.onBlur} />
+    ${() =>
+      f.touched().email && f.errors().email
+        ? html`<small>${f.errors().email}</small>`
+        : null}
     <button ?disabled=${() => !f.isValid() || f.submitting()}>Save</button>
   </form>
 `;
@@ -216,16 +232,23 @@ import { component, css, html } from "@madojs/mado";
 
 component("x-card", () => () => html`<div><slot></slot></div>`, {
   styles: css`
-    :host { display: block; padding: 1rem; }
-    div { background: var(--bg); }
-    ::slotted(h2) { margin: 0; }
+    :host {
+      display: block;
+      padding: 1rem;
+    }
+    div {
+      background: var(--bg);
+    }
+    ::slotted(h2) {
+      margin: 0;
+    }
   `,
 });
 
 // Light DOM (without Shadow), global styles:
 component("x-shell", () => () => html`...`, {
-  shadow: false,  // disables Shadow DOM
-  styles: css`x-shell header { ... }`,  // selectors are written as usual
+  shadow: false, // disables Shadow DOM
+  styles: css`x-shell header { ... }`, // selectors are written as usual
 });
 ```
 
@@ -269,14 +292,14 @@ src/
 
 ## Where to find specific answers
 
-| Question | File |
-|---|---|
-| How does reactivity work? | `src/signal.ts` (283 lines) |
-| How are templates parsed? | `src/html.ts` (1013 lines) |
-| How does the router work? | `src/router.ts` (~530 lines) |
+| Question                        | File                          |
+| ------------------------------- | ----------------------------- |
+| How does reactivity work?       | `src/signal.ts` (283 lines)   |
+| How are templates parsed?       | `src/html.ts` (1013 lines)    |
+| How does the router work?       | `src/router.ts` (~530 lines)  |
 | How does resource + cache work? | `src/resource.ts` (297 lines) |
-| How do forms work? | `src/forms.ts` (212 lines) |
-| When something goes wrong | `docs/en/07-llm-pitfalls.md` |
+| How do forms work?              | `src/forms.ts` (212 lines)    |
+| When something goes wrong       | `docs/en/07-llm-pitfalls.md`  |
 
 ## Before committing
 

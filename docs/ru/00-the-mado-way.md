@@ -2,7 +2,11 @@
 
 > Один правильный путь. Жёсткие контракты. Никакой магии.
 
-Mado — это не просто фреймворк, это **набор соглашений**. Если ты следуешь им, проект остаётся понятным даже когда в нём 200 экранов и 5 разработчиков. Если нарушаешь — типы и линтер скажут об этом сразу.
+Mado — фреймворк для команд, которые строят админки, внутренние инструменты
+и бизнес-SPA — приложения, которые должны быть просты в разработке и скучны
+в поддержке. Для этого он задаёт **набор соглашений**. Если ты следуешь им,
+проект остаётся понятным даже когда в нём 200 экранов и 5 разработчиков. Если
+нарушаешь — типы и линтер скажут об этом сразу.
 
 ## Принципы
 
@@ -32,13 +36,21 @@ src/
 
 ```ts
 // src/components/user-card.ts
-import { component, html, css } from '@madojs/mado';
+import { component, html, css } from "@madojs/mado";
 
-component('x-user-card', () => {
-  return () => html`<div class="card"><slot/></div>`;
-}, {
-  styles: css`.card { padding: 1rem; }`,
-});
+component(
+  "x-user-card",
+  () => {
+    return () => html`<div class="card"><slot /></div>`;
+  },
+  {
+    styles: css`
+      .card {
+        padding: 1rem;
+      }
+    `,
+  },
+);
 ```
 
 Импорт `import './components/user-card.js'` **регистрирует** компонент через `customElements.define`. Это side-effect. Где компонент нужен — там и импортируем.
@@ -52,7 +64,7 @@ component('x-user-card', () => {
 const user = resource(() => `/api/users/${id()}`, jsonFetcher());
 
 // запись → mutation
-const save = mutation(api.save, { invalidates: ['/api/users*'] });
+const save = mutation(api.save, { invalidates: ["/api/users*"] });
 ```
 
 Это даёт кеш, отмену, обработку ошибок, авто-инвалидацию.
@@ -61,11 +73,11 @@ const save = mutation(api.save, { invalidates: ['/api/users*'] });
 
 ```ts
 // src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { page, html, resource, jsonFetcher } from "@madojs/mado";
 
 export default page({
   title: ({ id }) => `User #${id}`,
-  view:  ({ params }) => html`...`,
+  view: ({ params }) => html`...`,
 });
 ```
 
@@ -87,6 +99,7 @@ export default page({
 ## Когда сомневаешься
 
 Если ты задаёшься вопросом "а как тут лучше?" — это сигнал, что:
+
 1. Либо есть встроенный хелпер, который ты не знаешь (загляни в `docs/`).
 2. Либо это новая ситуация — её надо обсудить и **зафиксировать** в этом документе как ещё одно соглашение.
 

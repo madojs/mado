@@ -2,9 +2,12 @@
 
 > Une seule bonne façon. Des contrats stricts. Pas de magie.
 
-Mado n'est pas seulement un framework — c'est un **ensemble de conventions**. Si vous les
-respectez, le projet reste compréhensible même avec 200 écrans et 5 développeurs. Si vous
-les enfreignez — les types et le linter vous le diront immédiatement.
+Mado est un framework pour les équipes qui construisent des panneaux d'admin,
+des outils internes et des SPA métier — des apps qui doivent être simples à
+créer et ennuyeuses à maintenir. Pour cela, il impose un **ensemble de
+conventions**. Si vous les respectez, le projet reste compréhensible même avec
+200 écrans et 5 développeurs. Si vous les enfreignez — les types et le linter
+vous le diront immédiatement.
 
 ## Principes
 
@@ -42,13 +45,21 @@ tous écrire de la même manière.
 
 ```ts
 // src/components/user-card.ts
-import { component, html, css } from '@madojs/mado';
+import { component, html, css } from "@madojs/mado";
 
-component('x-user-card', () => {
-  return () => html`<div class="card"><slot/></div>`;
-}, {
-  styles: css`.card { padding: 1rem; }`,
-});
+component(
+  "x-user-card",
+  () => {
+    return () => html`<div class="card"><slot /></div>`;
+  },
+  {
+    styles: css`
+      .card {
+        padding: 1rem;
+      }
+    `,
+  },
+);
 ```
 
 `import './components/user-card.js'` **enregistre** le composant via
@@ -63,7 +74,7 @@ component('x-user-card', () => {
 const user = resource(() => `/api/users/${id()}`, jsonFetcher());
 
 // écriture → mutation
-const save = mutation(api.save, { invalidates: ['/api/users*'] });
+const save = mutation(api.save, { invalidates: ["/api/users*"] });
 ```
 
 Cela fournit la mise en cache, l'annulation, la gestion des erreurs et l'invalidation automatique.
@@ -72,11 +83,11 @@ Cela fournit la mise en cache, l'annulation, la gestion des erreurs et l'invalid
 
 ```ts
 // src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { page, html, resource, jsonFetcher } from "@madojs/mado";
 
 export default page({
   title: ({ id }) => `Utilisateur #${id}`,
-  view:  ({ params }) => html`...`,
+  view: ({ params }) => html`...`,
 });
 ```
 
@@ -101,6 +112,7 @@ Voir [`01-routing.md`](./01-routing.md).
 ## En cas de doute
 
 Si vous vous demandez "quelle est la meilleure façon ici ?" — c'est un signal que :
+
 1. Soit il existe un helper intégré que vous ne connaissez pas (consultez `docs/`).
 2. Soit c'est une nouvelle situation — discutez-en et **consignez-la** dans ce document
    comme une convention supplémentaire.

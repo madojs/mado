@@ -2,8 +2,10 @@
 
 > One right way. Strict contracts. No magic.
 
-Mado is not just a framework — it is a **set of conventions**. If you follow them,
-the project stays understandable even with 200 screens and 5 developers. If you
+Mado is a framework for teams building admin panels, internal tools and
+business SPA — apps that should be easy to build and boring to maintain. To
+achieve that, it enforces a **set of conventions**. If you follow them, the
+project stays understandable even with 200 screens and 5 developers. If you
 break them — types and the linter will tell you immediately.
 
 ## Principles
@@ -40,13 +42,21 @@ all write the same way.
 
 ```ts
 // src/components/user-card.ts
-import { component, html, css } from '@madojs/mado';
+import { component, html, css } from "@madojs/mado";
 
-component('x-user-card', () => {
-  return () => html`<div class="card"><slot/></div>`;
-}, {
-  styles: css`.card { padding: 1rem; }`,
-});
+component(
+  "x-user-card",
+  () => {
+    return () => html`<div class="card"><slot /></div>`;
+  },
+  {
+    styles: css`
+      .card {
+        padding: 1rem;
+      }
+    `,
+  },
+);
 ```
 
 `import './components/user-card.js'` **registers** the component via
@@ -61,7 +71,7 @@ component('x-user-card', () => {
 const user = resource(() => `/api/users/${id()}`, jsonFetcher());
 
 // writing → mutation
-const save = mutation(api.save, { invalidates: ['/api/users*'] });
+const save = mutation(api.save, { invalidates: ["/api/users*"] });
 ```
 
 This provides caching, cancellation, error handling, and auto-invalidation.
@@ -70,11 +80,11 @@ This provides caching, cancellation, error handling, and auto-invalidation.
 
 ```ts
 // src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { page, html, resource, jsonFetcher } from "@madojs/mado";
 
 export default page({
   title: ({ id }) => `User #${id}`,
-  view:  ({ params }) => html`...`,
+  view: ({ params }) => html`...`,
 });
 ```
 
@@ -99,6 +109,7 @@ See [`01-routing.md`](./01-routing.md).
 ## When in doubt
 
 If you are asking "what's the best way here?" — that is a signal that:
+
 1. Either there is a built-in helper you don't know about (check `docs/`).
 2. Or this is a new situation — discuss it and **record** it in this document
    as one more convention.

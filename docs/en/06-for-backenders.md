@@ -1,6 +1,7 @@
 # Mado for Backend Developers
 
-> You write in Go / Rust / .NET / Java / Python and you need to build a web UI.  
+> You write in Go / Rust / .NET / Java / Python and you need to build a web UI
+> for an admin panel, internal tool or dashboard.  
 > This page is the mental model of Mado in 10 minutes, in your language.
 
 ---
@@ -9,17 +10,17 @@
 
 Mado is structured **like an HTTP server**. Seriously:
 
-| Server world | Mado |
-|---|---|
-| HTTP router (chi, axum, mux) | `routes()` — path manifest |
-| Handler `func(req, resp)` | `page({ view: (ctx) => html\`...\` })` |
-| Middleware | `layout` in `nested()` (wraps the handler) |
-| Template engine (Jinja, Handlebars) | `html\`\`` tagged template |
-| HTTP client with cache | `resource()` — fetch + cache + invalidation |
-| Reactive variable / atom | `signal()` — reactive getter |
-| Background goroutine / task | `effect()` — auto-reruns when a signal changes |
-| `defer cleanup()` | `ctx.onDispose(fn)` in component setup |
-| ENV variables | `createContext()` + `provide()`/`inject()` |
+| Server world                        | Mado                                           |
+| ----------------------------------- | ---------------------------------------------- |
+| HTTP router (chi, axum, mux)        | `routes()` — path manifest                     |
+| Handler `func(req, resp)`           | `page({ view: (ctx) => html\`...\` })`         |
+| Middleware                          | `layout` in `nested()` (wraps the handler)     |
+| Template engine (Jinja, Handlebars) | `html\`\`` tagged template                     |
+| HTTP client with cache              | `resource()` — fetch + cache + invalidation    |
+| Reactive variable / atom            | `signal()` — reactive getter                   |
+| Background goroutine / task         | `effect()` — auto-reruns when a signal changes |
+| `defer cleanup()`                   | `ctx.onDispose(fn)` in component setup         |
+| ENV variables                       | `createContext()` + `provide()`/`inject()`     |
 
 If you understand an HTTP server, you understand Mado.
 
@@ -130,20 +131,23 @@ import { resource, mutation, jsonFetcher, invalidate } from "@madojs/mado";
 const userId = signal(1);
 
 const user = resource(
-  () => `/api/users/${userId()}`,         // cache key (reactive!)
-  jsonFetcher<User>(),                    // how to load
-  { staleTime: 60_000 },                  // 60-second cache
+  () => `/api/users/${userId()}`, // cache key (reactive!)
+  jsonFetcher<User>(), // how to load
+  { staleTime: 60_000 }, // 60-second cache
 );
 
 // in the component:
-user.data();     // User | undefined
-user.error();    // Error | null
-user.loading();  // boolean
+user.data(); // User | undefined
+user.error(); // Error | null
+user.loading(); // boolean
 
 // mutation (like POST/PUT)
 const save = mutation<User, User>(
-  (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
-  { invalidates: ["/api/users*"] },  // glob invalidation — like `cache.Drop("users:*")`
+  (u) =>
+    fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then((r) =>
+      r.json(),
+    ),
+  { invalidates: ["/api/users*"] }, // glob invalidation — like `cache.Drop("users:*")`
 );
 
 await save.run(newUser);
@@ -169,9 +173,7 @@ component("x-counter", () => {
   const count = signal(0);
 
   return () => html`
-    <button @click=${() => count.update(n => n + 1)}>
-      Clicks: ${count}
-    </button>
+    <button @click=${() => count.update((n) => n + 1)}>Clicks: ${count}</button>
   `;
 });
 ```
@@ -179,7 +181,7 @@ component("x-counter", () => {
 Usage:
 
 ```ts
-html`<x-counter></x-counter>`
+html`<x-counter></x-counter>`;
 ```
 
 We register the `<x-counter>` tag in the browser — it becomes a "function" that can be inserted into HTML. This is a **native** browser mechanism (Web Components), Mado only glues it together with signals.
@@ -195,22 +197,29 @@ import { useForm } from "@madojs/mado";
 
 const f = useForm({
   email: { required: true, type: "email" },
-  age:   { required: true, type: "number", min: 18 },
+  age: { required: true, type: "number", min: 18 },
 });
 
 // in the template:
 html`
-  <form @submit=${f.onSubmit(async (v) => {
-    await api.save(v);
-    f.reset();
-  })}>
-    <input name="email" .value=${() => f.values().email ?? ""}
-           @input=${f.onInput} @blur=${f.onBlur} />
-    
-    ${() => f.errors().email && f.touched().email
-      ? html`<small>${f.errors().email}</small>`
-      : null}
-    
+  <form
+    @submit=${f.onSubmit(async (v) => {
+      await api.save(v);
+      f.reset();
+    })}
+  >
+    <input
+      name="email"
+      .value=${() => f.values().email ?? ""}
+      @input=${f.onInput}
+      @blur=${f.onBlur}
+    />
+
+    ${() =>
+      f.errors().email && f.touched().email
+        ? html`<small>${f.errors().email}</small>`
+        : null}
+
     <button ?disabled=${() => !f.isValid() || f.submitting()}>Save</button>
   </form>
 `;
@@ -233,12 +242,12 @@ const ApiCtx = createContext<ApiClient>(defaultApiClient);
 // in the root component — provide
 component("x-app", ({ host }) => {
   provide(host, ApiCtx, new ApiClient("https://api.example.com"));
-  return () => html`<x-page/>`;
+  return () => html`<x-page />`;
 });
 
 // in any child — consume
 component("x-page", ({ host }) => {
-  const api = inject(host, ApiCtx);  // signal<ApiClient>
+  const api = inject(host, ApiCtx); // signal<ApiClient>
   return () => html`<div>API version: ${() => api().version}</div>`;
 });
 ```
@@ -255,7 +264,7 @@ If you're used to server-side rendering for SEO, in Mado this is solved differen
 // src/pages/product.ts
 export default page({
   bake: {
-    paths: () => api.allProductSlugs(),   // build-time fetch
+    paths: () => api.allProductSlugs(), // build-time fetch
     data: ({ slug }) => api.getProduct(slug),
     revalidate: 3600,
   },
@@ -264,7 +273,7 @@ export default page({
     canonical: `/product/${slug}`,
     og: { title: data.name, image: data.image },
   }),
-  view: ({ params }) => html`<x-product data-slug=${params.slug}/>`,
+  view: ({ params }) => html`<x-product data-slug=${params.slug} />`,
 });
 ```
 
@@ -288,14 +297,20 @@ import { page, html, resource, each, signal } from "@madojs/mado";
 export default page({
   view: () => {
     const users = resource(() => "/api/users", jsonFetcher<User[]>());
-    
+
     return html`
-      ${() => users.loading() ? html`<p>Loading…</p>` : null}
-      ${() => users.error() ? html`<p>Error: ${users.error()!.message}</p>` : null}
+      ${() => (users.loading() ? html`<p>Loading…</p>` : null)}
+      ${() =>
+        users.error() ? html`<p>Error: ${users.error()!.message}</p>` : null}
       <ul>
-        ${() => each(users.data() ?? [], u => u.id, u => html`
-          <li><a href="/users/${u.id}" data-link>${u.name}</a></li>
-        `)}
+        ${() =>
+          each(
+            users.data() ?? [],
+            (u) => u.id,
+            (u) => html`
+              <li><a href="/users/${u.id}" data-link>${u.name}</a></li>
+            `,
+          )}
       </ul>
     `;
   },
@@ -308,7 +323,10 @@ export default page({
 import { useForm, mutation } from "@madojs/mado";
 
 const createUser = mutation<NewUser, User>(
-  (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
+  (u) =>
+    fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then((r) =>
+      r.json(),
+    ),
   { invalidates: ["/api/users*"] },
 );
 
@@ -316,11 +334,13 @@ const createUser = mutation<NewUser, User>(
 const f = useForm({ name: { required: true } });
 
 html`
-  <form @submit=${f.onSubmit(async (v) => {
-    await createUser.run(v);
-    navigate("/users");
-  })}>
-    <input name="name" @input=${f.onInput}>
+  <form
+    @submit=${f.onSubmit(async (v) => {
+      await createUser.run(v);
+      navigate("/users");
+    })}
+  >
+    <input name="name" @input=${f.onInput} />
     <button>Create</button>
   </form>
 `;
@@ -353,8 +373,8 @@ export default routes({
   "/app/*": nested({
     layout: () => import("./layouts/auth-layout.js"),
     routes: {
-      "dashboard": () => import("./pages/dashboard.js"),
-      "users": () => import("./pages/users.js"),
+      dashboard: () => import("./pages/dashboard.js"),
+      users: () => import("./pages/users.js"),
     },
   }),
 });
@@ -367,7 +387,7 @@ export default routes({
 export class ApiClient {
   constructor(private base: string) {}
   get<T>(path: string): Promise<T> {
-    return fetch(this.base + path).then(r => r.json());
+    return fetch(this.base + path).then((r) => r.json());
   }
 }
 

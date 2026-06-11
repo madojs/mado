@@ -1,9 +1,9 @@
 # Mado
 
-> Small native-web SPA framework on the platform (Web Components + signals + tagged-template `html`).  
-> No build step (only `tsc`), no runtime dependencies, readable in an evening.
+> A calm browser-native SPA framework for internal tools, admin panels and business apps.  
+> Routing, forms, state, data fetching and prerendering. TypeScript-only build (`tsc`), zero runtime dependencies.
 
-Mado is a narrowly-focused frontend framework that deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and senior frontend engineers who are tired of the infrastructure complexity of React/Next.
+Mado is a focused frontend framework for admin panels, internal tools and CRUD-heavy SPA. It deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and small teams who want a complete app stack without frontend infrastructure overhead.
 
 ## Key things an AI assistant needs to know
 

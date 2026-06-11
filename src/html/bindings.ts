@@ -213,8 +213,26 @@ function renderChild(
     st.isEach = false;
   }
 
+  // Reuse fast-path: when the previous content was exactly one nested template
+  // instance and the new value is a TemplateResult with the SAME strings, patch
+  // it in place via update() instead of clear+instantiate. This mirrors the
+  // reuse already done by each() and render(), and preserves DOM identity (and
+  // therefore focus / <input> value / listeners) inside conditional blocks.
+  // The length check guards against extra sibling nodes (e.g. a previous array
+  // value), in which case a full rebuild is still required. (FABLE_REPORT #3)
+  if (
+    isTemplateResult(value) &&
+    st.currentInsts.length === 1 &&
+    st.current.length === st.currentInsts[0]!.nodes.length &&
+    st.currentInsts[0]!._strings === value.strings
+  ) {
+    st.currentInsts[0]!.update(value.values);
+    return;
+  }
+
   // normal branch: clear + recreate
   clearCurrent(st);
+
 
   const parent = st.anchor.parentNode;
   if (!parent) return;
@@ -354,8 +372,20 @@ function applyEach(
   }
 
   // 3) place nodes in the correct order.
-  // Iterate from the end: for each entry insertBefore(node, ref),
+  // Iterate from the end: for each entry place(node, ref),
   // where ref is the first node of the next entry, or st.anchor for the last.
+  //
+  // Prefer Node.prototype.moveBefore (Chrome 133+) when available: it relocates
+  // a connected node WITHOUT firing disconnectedCallback/connectedCallback, so
+  // custom-element state is preserved for free. insertBefore is the fallback —
+  // it fires a disconnect→connect pair on a move, but MadoElement defers its
+  // teardown to a microtask and cancels it on the same-tick reconnect, so a
+  // keyed reorder still preserves component state. (FABLE_REPORT.md finding #1)
+  const moveBefore = (
+    parent as unknown as {
+      moveBefore?: (node: Node, ref: Node | null) => void;
+    }
+  ).moveBefore;
   let refNode: Node = st.anchor;
   for (let i = newOrder.length - 1; i >= 0; i--) {
     const key = newOrder[i]!;
@@ -364,13 +394,20 @@ function applyEach(
     // Go from last to first so every node ends up before refNode in order.
     for (let j = entry.nodes.length - 1; j >= 0; j--) {
       const n = entry.nodes[j]!;
-      // insertBefore moves the node if it is already in the DOM.
       if (n.parentNode !== parent || n.nextSibling !== refNode) {
-        parent.insertBefore(n, refNode);
+        // moveBefore only applies to a node already connected under `parent`;
+        // for fresh nodes (not yet in the document) it would throw, so guard on
+        // current connectivity and fall back to insertBefore otherwise.
+        if (moveBefore && n.parentNode === parent) {
+          moveBefore.call(parent, n, refNode);
+        } else {
+          parent.insertBefore(n, refNode);
+        }
       }
       refNode = n;
     }
   }
+
 
   st.eachEntries = newEntries;
   st.eachOrder = newOrder;

@@ -234,7 +234,18 @@ export interface MutationOptions<TArgs = unknown, TResult = unknown> {
   invalidates?:
     | readonly string[]
     | ((result: TResult, args: TArgs) => readonly string[]);
+  /**
+   * Abort the previous in-flight run when a new run starts.
+   *
+   * Default: `false`. Mutations (POST/PUT/DELETE) are concurrent by default —
+   * two quick submits of different entities must both complete; client-side
+   * aborting the first would drop its `invalidates` even though the server
+   * likely applied it. Set `true` only for last-write-wins flows like
+   * search-as-you-type, where stale in-flight requests should be cancelled.
+   */
+  abortPrevious?: boolean;
 }
+
 
 export interface Mutation<TArgs, TResult> {
   /** Signal: request in progress */
@@ -256,16 +267,30 @@ export function mutation<TArgs, TResult>(
   const loading = signal(false);
   const error = signal<Error | null>(null);
   const data = signal<TResult | undefined>(undefined);
-  let abort: AbortController | null = null;
+  // Track every controller so reset() can abort them all; `inFlight` is a
+  // counter so `loading` stays true while ANY concurrent run is pending.
+  const controllers = new Set<AbortController>();
+  let inFlight = 0;
+
+  const settle = (ac: AbortController): void => {
+    controllers.delete(ac);
+    inFlight--;
+    if (inFlight === 0) loading.set(false);
+  };
 
   return {
     loading,
     error,
     data,
     async run(args) {
-      abort?.abort();
+      // Mutations are concurrent by default — only abort the previous run when
+      // explicitly opted in (search-as-you-type). (FABLE_REPORT.md finding #6)
+      if (options.abortPrevious) {
+        for (const c of controllers) c.abort();
+      }
       const ac = new AbortController();
-      abort = ac;
+      controllers.add(ac);
+      inFlight++;
       loading.set(true);
       error.set(null);
       try {
@@ -274,7 +299,7 @@ export function mutation<TArgs, TResult>(
           throw new DOMException("aborted", "AbortError");
         }
         data.set(result);
-        loading.set(false);
+        settle(ac);
         const inv = options.invalidates;
         if (inv) {
           let patterns: readonly string[] = [];
@@ -291,19 +316,22 @@ export function mutation<TArgs, TResult>(
       } catch (err) {
         if (!ac.signal.aborted) {
           error.set(err instanceof Error ? err : new Error(String(err)));
-          loading.set(false);
         }
+        settle(ac);
         throw err;
       }
     },
     reset() {
-      abort?.abort();
+      for (const c of controllers) c.abort();
+      controllers.clear();
+      inFlight = 0;
       loading.set(false);
       error.set(null);
       data.set(undefined);
     },
   };
 }
+
 
 // ---------- Utilities ----------
 

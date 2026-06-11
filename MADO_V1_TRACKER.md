@@ -213,13 +213,17 @@ SVG. "Silently doesn't work" is the worst failure mode for a framework selling
 predictability and LLM-friendliness (an LLM will naturally write
 `<textarea>${draft}</textarea>`).
 
-- [ ] **C7.test** — extend `test/html-parser.test.mjs`: a slot in `<textarea>`
-  throws a clear, fixable error; a nested SVG template either throws or produces
-  the correct namespace. Red first.
-- [ ] **C7.fix** — throw a descriptive error on a slot in a RAW_TEXT context
-  (e.g. *"use `.value=` for `<textarea>`"*); add a `svg\`\`` tag or detect SVG
-  context and throw. Loud errors beat silent drops. Document both cases in
-  `docs/en/07-llm-pitfalls.md` and `llms.txt`.
+- [x] **C7.test** — `test/html-rawtext-svg.test.mjs`: a slot in `<textarea>`
+  throws a `.value=`-pointing error, a slot in `<style>` throws, a nested
+  SVG-child template throws a namespace error, and a self-contained `<svg>`
+  still renders. Confirmed **red** first (slots silently dropped; nested SVG
+  silently mis-namespaced).
+- [x] **C7.fix** — `src/html/parser.ts`: a `${}` slot in a RAW_TEXT element now
+  throws `rawTextSlotError()` (tailored hint per tag); an SVG-only top-level tag
+  (`<path>`, `<circle>`, …) throws a wrong-namespace error after parsing. Suite
+  green (154 pass / 3 skipped). Doc sync (`07-llm-pitfalls.md`, `llms.txt`)
+  folded into Phase B (B11).
+
 
 ### 🟡 C8 — Lifecycle / router defect pack (Medium)
 

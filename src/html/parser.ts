@@ -91,6 +91,35 @@ type State =
 // Tags inside which HTML is not parsed.
 const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
 
+// SVG-only element names. If one of these is the TOP-LEVEL element of a
+// template, the HTML parser (`<template>.innerHTML`) places it in the HTML
+// namespace instead of the SVG namespace → an invisible element. Mado has no
+// `svg\`\`` tag yet, so we detect this and throw a clear error instead of
+// rendering nothing. A self-contained `<svg>…</svg>` is fine: the parser puts
+// everything under <svg> into the SVG namespace correctly. (FABLE_REPORT #7)
+const SVG_ONLY_TAGS = new Set([
+  "circle",
+  "clippath",
+  "defs",
+  "ellipse",
+  "g",
+  "image",
+  "line",
+  "lineargradient",
+  "mask",
+  "path",
+  "pattern",
+  "polygon",
+  "polyline",
+  "radialgradient",
+  "rect",
+  "stop",
+  "text",
+  "tspan",
+  "use",
+]);
+
+
 interface AttrAccum {
   /** Raw name as written in the template (including @/./? prefixes). */
   rawName: string;
@@ -120,7 +149,9 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
   let tagName = "";
   let attr: AttrAccum | null = null;
   let rawTagName = "";
+  let firstTagName = "";
   let nextId = 0;
+
 
   /** Creates a child binding and adds a marker to html. */
   const emitChildMarker = (slot: number): void => {
@@ -218,11 +249,15 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
       case "TAG_NAME": {
         if (/\s/.test(c)) {
           html += c;
+          // Tag name complete — remember the first element's tag (SVG guard).
+          if (firstTagName === "") firstTagName = tagName.toLowerCase();
           state = "BEFORE_ATTR";
         } else if (c === "/") {
+          if (firstTagName === "") firstTagName = tagName.toLowerCase();
           state = "SELF_CLOSE";
         } else if (c === ">") {
           html += c;
+          if (firstTagName === "") firstTagName = tagName.toLowerCase();
           if (RAW_TEXT_TAGS.has(tagName.toLowerCase())) {
             rawTagName = tagName.toLowerCase();
             state = "RAW_TEXT";
@@ -238,6 +273,7 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
 
       // ---------- BEFORE_ATTR ----------
       case "BEFORE_ATTR": {
+
         if (/\s/.test(c)) {
           html += c;
         } else if (c === "/") {
@@ -494,10 +530,13 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
         break;
       }
       case "RAW_TEXT": {
-        // binding inside <script>/<style>: ignore for security
-        // (can be extended later if a real use-case arises)
-        break;
+        // A ${} slot inside <textarea>/<title>/<style>/<script> cannot become a
+        // child binding — the browser parses these as raw text, so the marker
+        // comment would be literal text. Throw a clear, fixable error instead
+        // of silently dropping the value. (FABLE_REPORT.md finding #7)
+        throw new Error(rawTextSlotError(rawTagName));
       }
+
       case "SELF_CLOSE":
       case "CLOSE_TAG":
       case "TAG_OPEN": {
@@ -518,9 +557,22 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
     }
   }
 
+  // SVG-only root guard: <template>.innerHTML parses an SVG child element
+  // (e.g. <circle>, <path>) in the HTML namespace, producing an invisible
+  // element. Detect it and throw a clear error instead of rendering nothing.
+  if (SVG_ONLY_TAGS.has(firstTagName)) {
+    throw new Error(
+      `[mado] <${firstTagName}> cannot be a top-level template element — it ` +
+        `renders in the wrong (HTML) namespace and stays invisible. Wrap SVG ` +
+        `content in a single <svg>…</svg> template instead of nesting an SVG ` +
+        `child as its own html\`\` fragment.`,
+    );
+  }
+
   // 2) Parse the final HTML string through <template>.
   const tpl = document.createElement("template");
   tpl.innerHTML = html;
+
 
   // 3) Walk content, find markers, fill path/childIndex for bindings.
   const byId = new Map<number, BindingSpec>();
@@ -590,3 +642,16 @@ export function resolvePath(root: Node, path: number[]): Node {
   for (const i of path) n = n.childNodes[i]!;
   return n;
 }
+
+/** Build a fixable error message for a ${} slot inside a RAW_TEXT element. */
+function rawTextSlotError(rawTagName: string): string {
+  const base = `[mado] Dynamic \${...} inside <${rawTagName}> is not supported`;
+  if (rawTagName === "textarea" || rawTagName === "title") {
+    return `${base} — the browser parses it as raw text. Use .value=\${value} on the element instead, e.g. <${rawTagName} .value=\${value}></${rawTagName}>.`;
+  }
+  if (rawTagName === "style") {
+    return `${base}. Build styles with the css\`\` tag (component styles) or a static <style>.`;
+  }
+  return `${base}. Inline <script> with dynamic content is not supported.`;
+}
+

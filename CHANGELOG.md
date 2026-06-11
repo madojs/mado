@@ -17,7 +17,18 @@
 
 ### Fixed
 
+- **Parser fails loudly instead of silently dropping bindings (C7).** A `${}`
+  slot inside a RAW_TEXT element (`<textarea>`/`<title>`/`<style>`/`<script>`)
+  was silently ignored — an LLM writing `<textarea>${draft}</textarea>` got
+  neither an error nor a render. And a nested `html\`<path …>\`` for `<svg>` was
+  parsed in the HTML namespace, producing an invisible element. The parser now
+  throws a clear, fixable error in both cases (the RAW_TEXT message points at
+  `.value=`; the SVG message says to keep SVG content in one `<svg>…</svg>`
+  template). A self-contained `<svg>` still works. Regression test:
+  `test/html-rawtext-svg.test.mjs`.
+
 - **Forms: stale async validation no longer lands on a shifted field-array row
+
 
   (C5).** `useForm().array()` mutations (`remove`/`move`/`replace`/…) shift
   indices, but an in-flight `validateAsync` for e.g. `items.2.title` still

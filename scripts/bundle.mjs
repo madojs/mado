@@ -120,14 +120,14 @@ const result = await build({
   legalComments: "none",
 });
 
-const entryOutput = Object.entries(result.metafile.outputs).find(
-  ([name, info]) => info.entryPoint && name.endsWith(".js"),
-);
-if (!entryOutput) {
-  console.error("[bundle] entry not found in outputs");
+// With splitting: true, esbuild marks all dynamic-import chunks as having
+// entryPoint. We identify the real app entry by the `entryNames` prefix "main-".
+const mainBundle = (await readdir(ASSETS_DIR))
+  .find((f) => f.startsWith("main-") && f.endsWith(".js") && !f.endsWith(".js.map"));
+if (!mainBundle) {
+  console.error("[bundle] entry not found in outputs (no main-*.js in assets dir)");
   process.exit(1);
 }
-const mainBundle = basename(entryOutput[0]);
 
 // Collect all js chunks in the assets dir.
 const allJs = (await readdir(ASSETS_DIR)).filter((f) => f.endsWith(".js"));

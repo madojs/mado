@@ -256,6 +256,22 @@ export function useForm<V extends FormValues>(
     asyncErrors.update((prev) => clearRecordPrefix(prev, prefix));
   };
 
+  // Invalidate every in-flight async validation whose path is at or under
+  // `prefix`. Bumping the generation makes a stale validateField() see
+  // fieldRuns.get(name) !== run in its finally and skip writing its result —
+  // otherwise a result for e.g. "items.2.title" would land on a row that an
+  // array mutation (remove/move/replace) has since shifted. (FABLE_REPORT #5)
+  const invalidateRunsPrefix = (prefix: string): void => {
+    const dotted = `${prefix}.`;
+    for (const name of fieldRuns.keys()) {
+      if (name === prefix || name.startsWith(dotted)) {
+        fieldRuns.set(name, (fieldRuns.get(name) ?? 0) + 1);
+        setFieldValidating(name, false);
+      }
+    }
+  };
+
+
   const validateField = async (name: string): Promise<boolean> => {
     const matching = Object.entries(schema).filter(
       ([pattern, s]) => s.validateAsync && schemaPathMatches(pattern, name),
@@ -407,7 +423,11 @@ export function useForm<V extends FormValues>(
         values.update((v) => setPath(v, name, [...items]) as V);
         touched.update((m) => clearRecordPrefix(m, name));
         clearAsyncPrefix(name);
+        // Array indices shifted — invalidate in-flight async validations under
+        // this array so their stale results don't land on the wrong row.
+        invalidateRunsPrefix(name);
       };
+
       const clamp = (index: number, length: number): number =>
         Math.max(0, Math.min(index, length));
 

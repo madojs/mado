@@ -11,7 +11,7 @@
 //   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
 //        - SPA fallback to index.html;
-//        - baked HTML priority over the SPA shell;
+//        - exact `out/` route files before SPA fallback;
 //        - precompressed .gz / .br serving via Accept-Encoding.
 //
 // Goal: see production-like output locally without Docker/nginx, identical to
@@ -58,9 +58,9 @@ const OUT = resolve(
   process.env.OUT_DIR ?? cfg.build.out ?? "out",
 );
 // Baked HTML lives in <out>/baked/ by default (see scripts/bake.mjs and
-// mado.config.json bake.outDir). Preview serves it with priority over the
-// SPA shell so URLs that have a prerendered HTML page render real markup
-// instead of an empty <div id="app"></div>.
+// mado.config.json bake.outDir). `mado release` promotes those HTML files into
+// real route paths inside <out>/, so preview can serve exactly what a static
+// host sees instead of applying a preview-only virtual mapping.
 const BAKED = resolve(
   ROOT,
   process.env.BAKED_DIR ?? cfg.bake?.outDir ?? join(cfg.build.out ?? "out", "baked"),
@@ -215,30 +215,10 @@ function basenameSafe(p) {
 async function resolveTarget(pathname) {
   if (pathname === "/") pathname = "/index.html";
 
-  // 1) Baked HTML wins. `mado bake` writes prerendered pages into
-  //    <out>/baked/<path>/index.html. Serve them with priority over the
-  //    SPA shell so search engines AND human users hitting a prerendered
-  //    URL see real content immediately. Without this branch preview
-  //    served the empty SPA shell for every URL, which looked like a
-  //    "blank page" bug even when bake had succeeded.
-  if (await exists(BAKED)) {
-    if (!extname(pathname) || pathname.endsWith("/index.html")) {
-      const bakedDir = join(BAKED, pathname.replace(/\/index\.html$/, ""));
-      const bakedIdx = join(bakedDir, "index.html");
-      if (await exists(bakedIdx)) return bakedIdx;
-    }
-    // Direct file (sitemap.xml etc.) from the baked dir.
-    const bakedFile = resolve(join(BAKED, pathname));
-    if (bakedFile.startsWith(BAKED + sep) && (await exists(bakedFile))) {
-      const s = await stat(bakedFile);
-      if (!s.isDirectory()) return bakedFile;
-    }
-  }
-
   const candidate = resolve(join(OUT, pathname));
   if (!candidate.startsWith(OUT + sep) && candidate !== OUT) return null;
 
-  // 2) Exact match inside out/.
+  // 1) Exact match inside out/.
   if (await exists(candidate)) {
     const s = await stat(candidate);
     if (s.isDirectory()) {
@@ -249,13 +229,13 @@ async function resolveTarget(pathname) {
     }
   }
 
-  // 3) /foo → /foo/index.html (for sub-folders without trailing slash).
+  // 2) /foo → /foo/index.html (for sub-folders without trailing slash).
   if (!extname(pathname)) {
     const asDir = join(OUT, pathname, "index.html");
     if (await exists(asDir)) return asDir;
   }
 
-  // 4) SPA-fallback: any non-asset path falls back to the SPA shell so
+  // 3) SPA-fallback: any non-asset path falls back to the SPA shell so
   //    client-side routing handles it. Asset-looking paths (with an
   //    extension) deliberately 404 instead — otherwise a 200 on
   //    /missing.png would mask real bugs.

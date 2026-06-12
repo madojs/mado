@@ -28,7 +28,7 @@ npm run build      # tsc → dist/
 npm run typecheck  # tsc --noEmit
 npm run bundle     # esbuild → out/assets/
 npm run bake       # prerender baked routes → out/baked/
-npm run release    # typecheck + build + bundle + bake + copy public/ → out/
+npm run release    # typecheck + build + bundle + bake + promote baked HTML + copy public/ → out/
 npm run preview    # serve out/ locally (production rehearsal)
 ```
 

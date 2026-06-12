@@ -1,23 +1,17 @@
-# Project layout
+# Project Layout
 
 Каждый new-проект на Mado имеет одинаковую структуру. Это **обязательное** соглашение.
 
 ```
 my-app/
-├── package.json              # ровно 1 dep: typescript (esbuild опц.)
-├── tsconfig.json             # с paths "@madojs/mado" → импорт без относительных путей
-├── Dockerfile + nginx.conf   # копируем из Mado/ при scaffold
-├── .gitlab-ci.yml | .github/workflows/ci.yml
-├── server/serve.mjs          # dev-сервер из Mado, без deps
-├── scripts/
-│   ├── bundle.mjs            # esbuild прод-бандл
-│   └── new.mjs               # скаффолд страницы
-├── templates/                # шаблоны для new.mjs
-├── docs/                     # проектные доки (можно копировать наши гайды)
-├── public/                   # статика (favicon, манифесты)
+├── package.json              # runtime dep: @madojs/mado
+├── tsconfig.json             # strict TS, ES2022, Bundler resolution
+├── mado.config.json          # dev/build/bake/bundle config
+├── index.html                # SPA shell и template для bake
+├── public/                   # статика (favicon, images, robots.txt)
 └── src/
-    ├── main.ts               # точка входа: провайдеры + монтаж <x-app>
-    ├── routes.ts             # манифест роутов
+    ├── main.ts               # точка входа: mount router в #app
+    ├── routes.ts             # route manifest (default + named manifest)
     ├── pages/                # одна страница = один файл = `export default page({...})`
     ├── components/           # переиспользуемые компоненты (x-*)
     ├── layouts/              # layout-страницы (для nested)
@@ -27,6 +21,19 @@ my-app/
         ├── theme.ts          # темы
         └── ...               # утилиты, типы, бизнес-правила
 ```
+
+## Artifact States
+
+| Folder | Что это | Кто пишет | Deploy? |
+|---|---|---|---|
+| `src/` | исходники TypeScript | ты | no |
+| `dist/` | output `tsc`, native ESM для dev | `mado build` | no |
+| `public/` | авторская статика | ты | через `out/` |
+| `out/` | deploy artifact: SPA shell + bundles + promoted baked HTML | `mado release` | yes |
+
+`mado release` = `typecheck` + `build` (`dist/`) + `bundle`
+(`out/assets/`) + `bake` (`out/baked/`) + promote baked HTML и
+`sitemap.xml` в deployable `out/` paths + copy `public/*`.
 
 ## Куда положить новый файл?
 

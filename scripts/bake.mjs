@@ -533,7 +533,10 @@ function buildHtml({ template, bodyHtml, head, bakedData, revalidate, canonical 
   }
 
   const app = document.getElementById("app");
-  if (app) app.innerHTML = bodyHtml;
+  if (app) {
+    app.setAttribute("data-mado-baked", "");
+    app.innerHTML = bodyHtml;
+  }
 
   return "<!doctype html>\n" + document.documentElement.outerHTML;
 }

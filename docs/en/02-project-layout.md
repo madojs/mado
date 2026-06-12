@@ -36,7 +36,8 @@ One-liner to remember:
 > Develop with `mado dev`. To ship: run `mado release`, then upload `out/`.
 
 `mado release` = `typecheck` + `build` (tsc → `dist/`) + `bundle` (esbuild
-→ `out/assets/`) + `bake` (HTML → `out/baked/`) + copy `public/*` → `out/`.
+→ `out/assets/`) + `bake` (HTML → `out/baked/`) + promote baked HTML and
+`sitemap.xml` into deployable `out/` paths + copy `public/*` → `out/`.
 
 You almost never need to look inside `dist/`. It exists so the dev browser can
 load native ESM modules without a bundler during development. In production

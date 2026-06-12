@@ -140,6 +140,18 @@ export function render(
     existing.dispose();
   }
 
+  // `mado bake` writes static first-paint markup into #app and marks the
+  // container. That markup is not hydrated: once the client app starts, Mado
+  // owns the container again and replaces the baked DOM with live bindings.
+  const isBakedContainer =
+    !existing &&
+    "hasAttribute" in container &&
+    container.hasAttribute("data-mado-baked");
+  if (isBakedContainer) {
+    container.replaceChildren();
+    container.removeAttribute("data-mado-baked");
+  }
+
   if (!existing && container.childNodes.length > 0) {
     warnOnce(
       "render-unmanaged-dom",

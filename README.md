@@ -272,7 +272,7 @@ PoC in [`examples/cloudflare`](./examples/cloudflare/).
 ## Production
 
 ```bash
-mado release    # typecheck + build + bundle + bake + copy public -> out/
+mado release    # typecheck + build + bundle + bake + promote baked HTML + copy public -> out/
 mado preview    # serve out/ like a static host
 ```
 

@@ -241,15 +241,28 @@ async function runRelease(rawArgs) {
   //     → rm -rf out/        (unless --no-clean)
   //     → mado typecheck
   //     → mado build       (tsc → dist/)
-  //     → mado bundle      (esbuild → out/assets/, also copies index.html)
-  //     → mado bake        (HTML  → out/baked/)
+  //     → mado bundle      (esbuild → out/assets/, also writes out/index.html)
+  //     → mado bake        (HTML → out/baked/, using bundled out/index.html)
   //     → copy public/* → out/
+  //     → promote baked HTML + sitemap into out/ route paths
   //
   // Flags are forwarded to bake/bundle.
   const { flags: releaseFlags } = parseFlags(rawArgs);
   const cfg = loadConfig({ projectRoot: PROJECT_ROOT });
-  const outDir = resolve(cfg.projectRoot, cfg.build.out ?? "out");
+  const outDir = resolve(
+    cfg.projectRoot,
+    typeof releaseFlags.out === "string" ? releaseFlags.out : cfg.build.out ?? "out",
+  );
   const publicDir = resolve(cfg.projectRoot, cfg.build.publicDir ?? "public");
+  const bundledHtml = join(outDir, "index.html");
+  const bakedDir = resolve(
+    cfg.projectRoot,
+    cfg.bake.outDir ??
+      join(
+        typeof releaseFlags.out === "string" ? releaseFlags.out : cfg.build.out ?? "out",
+        "baked",
+      ),
+  );
 
   console.log(`[release] context: ${cfg.context}`);
   console.log(`[release] artifact: ${outDir}`);
@@ -276,8 +289,14 @@ async function runRelease(rawArgs) {
   console.log("[release] step 3/5  bundle (esbuild → out/assets/)");
   await runNodeScript("scripts/bundle.mjs", rawArgs);
 
-  console.log("[release] step 4/5  bake (out/baked/)");
-  await runNodeScript("scripts/bake.mjs", rawArgs);
+  console.log("[release] step 4/5  bake (out/baked/, bundled shell)");
+  await runNodeScript("scripts/bake.mjs", [
+    ...rawArgs,
+    "--template",
+    bundledHtml,
+    "--out",
+    bakedDir,
+  ]);
 
   console.log("[release] step 5/5  copy public/ → out/");
   if (existsSync(publicDir)) {
@@ -286,6 +305,14 @@ async function runRelease(rawArgs) {
     console.log(`[release]   copied ${publicDir} → ${outDir}`);
   } else {
     console.log(`[release]   no ${publicDir}, skipping`);
+  }
+
+  const promoted = await promoteBakedHtml(bakedDir, outDir);
+  if (promoted.html > 0) {
+    console.log(`[release]   promoted ${promoted.html} baked HTML page(s) into out/`);
+  }
+  if (promoted.sitemap) {
+    console.log(`[release]   copied sitemap.xml → ${join(outDir, "sitemap.xml")}`);
   }
 
   // Optional CDN config files. Generated only when not already provided.
@@ -317,6 +344,40 @@ async function writeIfMissing(path, content) {
   if (existsSync(path)) return;
   await writeFile(path, content);
   console.log(`[release]   wrote ${path}`);
+}
+
+async function promoteBakedHtml(bakedDir, outDir) {
+  if (!existsSync(bakedDir)) return { html: 0, sitemap: false };
+
+  let html = 0;
+
+  async function walk(dir, rel = "") {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const nextRel = rel ? `${rel}/${entry.name}` : entry.name;
+      const source = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(source, nextRel);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
+      const target = join(outDir, nextRel);
+      await mkdir(dirname(target), { recursive: true });
+      await copyFile(source, target);
+      html++;
+    }
+  }
+
+  await walk(bakedDir);
+
+  const bakedSitemap = join(bakedDir, "sitemap.xml");
+  const rootSitemap = join(outDir, "sitemap.xml");
+  let sitemap = false;
+  if (existsSync(bakedSitemap)) {
+    await copyFile(bakedSitemap, rootSitemap);
+    sitemap = true;
+  }
+
+  return { html, sitemap };
 }
 
 async function copyCanonicalAgentFiles(target) {

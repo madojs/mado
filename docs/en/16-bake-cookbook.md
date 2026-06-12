@@ -55,8 +55,10 @@ export default routes(manifest);
 
 ## Output
 
-By default app-mode writes baked pages under `out/baked/`. `mado release`
-produces the final deploy artifact:
+By default standalone `mado bake` writes baked pages under `out/baked/`.
+`mado release` uses the bundled production shell, keeps that `out/baked/` copy
+for inspection, promotes baked HTML into real route paths inside `out/`, and
+copies the generated sitemap to `out/sitemap.xml`:
 
 ```bash
 mado release
@@ -64,6 +66,12 @@ tree out
 ```
 
 The deployable folder is `out/`, not `dist/`.
+
+## Client boot
+
+Baked HTML marks `#app` with `data-mado-baked`. This is not hydration: when the
+client app starts, `render()` replaces the baked DOM with live bindings. The
+first response contains SEO/first-paint HTML, then the SPA takes over normally.
 
 ## Unsupported values
 

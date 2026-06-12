@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.10.1 - 2026-06-12
+
+Patch release for the production bake/preview path.
+
+### Fixed
+
+- **Baked pages now use the production bundle during `mado release`.** Release
+  now bakes from the already bundled `out/index.html`, so baked HTML references
+  `/assets/main-*.js` instead of the dev-only `/dist/main.js`.
+
+- **Client boot no longer appends pages below baked HTML.** `mado bake` marks
+  the app container with `data-mado-baked`, and runtime `render()` replaces
+  that marked static DOM with live bindings on startup. This keeps bake as a
+  static first-paint/SEO shell, not SSR hydration, while avoiding duplicate
+  landing + route content after navigation.
+
+- **`mado preview` now serves the final `out/` artifact exactly.** Release
+  promotes baked HTML into real route paths inside `out/`, and preview no
+  longer applies a preview-only virtual mapping from `out/baked/`.
+
+- **`sitemap.xml` is promoted to the site root during release.** Standalone
+  `mado bake` still writes `out/baked/sitemap.xml`; `mado release` also copies
+  it to `out/sitemap.xml`, where static hosts and crawlers expect it.
+
+### Docs
+
+- Updated EN/RU/FR bake, deployment and project-layout docs to describe the
+  production release artifact, promoted baked routes, root sitemap and
+  `data-mado-baked` client boot behavior.
+
 ## 0.10.0 - 2026-06-12
 
 Surface-cleanup and API-lock release from the v1 tracker Phase B: legacy public

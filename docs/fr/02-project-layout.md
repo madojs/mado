@@ -4,20 +4,14 @@ Chaque nouveau projet Mado a la même structure. C'est une convention **obligato
 
 ```
 my-app/
-├── package.json              # exactement 1 dép : typescript (esbuild optionnel)
-├── tsconfig.json             # avec paths "@madojs/mado" → import sans chemins relatifs
-├── Dockerfile + nginx.conf   # copiés depuis Mado/ lors du scaffold
-├── .gitlab-ci.yml | .github/workflows/ci.yml
-├── server/serve.mjs          # dev-server de Mado, sans dépendances
-├── scripts/
-│   ├── bundle.mjs            # bundle de production esbuild
-│   └── new.mjs               # générateur de pages
-├── templates/                # templates pour new.mjs
-├── docs/                     # documentation du projet (vous pouvez copier nos guides)
-├── public/                   # assets statiques (favicon, manifests)
+├── package.json              # runtime dep: @madojs/mado
+├── tsconfig.json             # strict TS, ES2022, Bundler resolution
+├── mado.config.json          # configuration dev/build/bake/bundle
+├── index.html                # shell SPA et template pour bake
+├── public/                   # assets statiques (favicon, images, robots.txt)
 └── src/
-    ├── main.ts               # entrée : providers + montage de <x-app>
-    ├── routes.ts             # manifeste de routes
+    ├── main.ts               # entrée : mount router dans #app
+    ├── routes.ts             # route manifest (default + named manifest)
     ├── pages/                # une page = un fichier = `export default page({...})`
     ├── components/           # composants réutilisables (x-*)
     ├── layouts/              # pages de layout (pour nested)
@@ -27,6 +21,19 @@ my-app/
         ├── theme.ts          # thèmes
         └── ...               # utilitaires, types, règles métier
 ```
+
+## États Des Artefacts
+
+| Dossier | Ce que c'est | Écrit par | Déployer ? |
+|---|---|---|---|
+| `src/` | sources TypeScript | vous | non |
+| `dist/` | output `tsc`, native ESM pour dev | `mado build` | non |
+| `public/` | assets statiques écrits par vous | vous | via `out/` |
+| `out/` | artefact déployable : shell SPA + bundles + HTML baked promu | `mado release` | oui |
+
+`mado release` = `typecheck` + `build` (`dist/`) + `bundle`
+(`out/assets/`) + `bake` (`out/baked/`) + promotion du HTML baked et de
+`sitemap.xml` dans les chemins déployables de `out/` + copie de `public/*`.
 
 ## Où mettre un nouveau fichier ?
 

@@ -1,6 +1,6 @@
 # Deployment
 
-Один command, один artifact:
+Одна команда, один deploy artifact:
 
 ```bash
 mado release
@@ -10,15 +10,21 @@ mado release
 
 ```txt
 out/
-├── index.html
-├── assets/
-├── baked/
-├── _redirects
-└── _headers
+├── index.html              ← SPA shell или promoted baked HTML для /
+├── assets/                 ← hashed bundles (main-ABC.js, chunk-XYZ.js, ...)
+│   ├── *.gz                ← precompressed gzip
+│   └── *.br                ← precompressed brotli
+├── baked/                  ← копия результата bake для inspection/debugging
+│   ├── <route>/index.html
+│   └── sitemap.xml
+├── <route>/index.html      ← promoted baked HTML для static hosts
+├── sitemap.xml             ← sitemap в root сайта
+├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
+└── _headers                ← cache rules
 ```
 
 `out/` можно деплоить на nginx, Cloudflare Pages, Netlify, S3/CloudFront или
-GitHub Pages.
+GitHub Pages. Не деплой `dist/`: это внутренний output для dev/build.
 
 ## Preview
 
@@ -27,8 +33,10 @@ mado release
 mado preview
 ```
 
-`mado preview` сервит `out/` как статический хост: baked HTML имеет приоритет,
-а неизвестные пути падают в SPA fallback.
+`mado preview` сервит финальный `out/` как обычный static host: сначала реальные
+файлы (`/<route>/index.html`, если route был baked), потом SPA fallback в
+`index.html`. Preview больше не делает отдельную виртуальную подстановку из
+`out/baked/`, поэтому он проверяет ровно то, что будет загружено на хостинг.
 
 ## VPS + nginx
 
@@ -37,8 +45,8 @@ mado release
 rsync -avz --delete out/ user@server:/var/www/myapp/
 ```
 
-В репозитории есть production `nginx.conf`: hashed bundles кешируются
-immutably, HTML идет с `no-cache`, deep links работают через SPA fallback.
+В репозитории есть production `nginx.conf`: hashed bundles кешируются immutable,
+HTML идет с `no-cache`, deep links работают через SPA fallback.
 
 ## Cloudflare / Netlify
 
@@ -47,9 +55,11 @@ mado release
 npx wrangler pages deploy out --project-name=myapp
 ```
 
-`_redirects` и `_headers` генерируются автоматически.
+`_redirects` и `_headers` генерируются автоматически, если ты не положил свои.
+Baked routes промотируются в реальные файлы (`out/<route>/index.html`), поэтому
+static host отдаст их до SPA fallback.
 
-## Cache rules
+## Cache Rules
 
 | Path | Cache-Control |
 |---|---|

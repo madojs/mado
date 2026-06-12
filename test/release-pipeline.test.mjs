@@ -136,7 +136,17 @@ test("mado release: produces out/ with bundle, baked HTML, public assets, _heade
     const html = readFileSync(join(baked, "index.html"), "utf8");
     assert.match(html, /Welcome/);
     assert.match(html, /"greeting":"hi"/);
+    assert.match(html, /data-mado-baked/);
+    assert.match(html, /\/assets\/main-[A-Z0-9]+\.js/);
+    assert.doesNotMatch(html, /<script[^>]+src="\/dist\/main\.js"/);
     assert.ok(existsSync(join(baked, "sitemap.xml")), "baked/sitemap.xml written");
+    assert.ok(existsSync(join(out, "sitemap.xml")), "sitemap.xml promoted to out/");
+
+    const rootHtml = readFileSync(join(out, "index.html"), "utf8");
+    assert.match(rootHtml, /Welcome/);
+    assert.match(rootHtml, /data-mado-baked/);
+    assert.match(rootHtml, /\/assets\/main-[A-Z0-9]+\.js/);
+    assert.doesNotMatch(rootHtml, /<script[^>]+src="\/dist\/main\.js"/);
 
     // Bundle step produced at least one hashed asset.
     // (bundle.mjs uses esbuild splitting; the exact filenames are hashed.)

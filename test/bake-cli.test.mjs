@@ -115,6 +115,7 @@ test("bake: --entry / --template / --out / --base-url honored, sitemap written",
     const html = readFileSync(join(outDir, "index.html"), "utf8");
     assert.match(html, /<title>Home<\/title>/);
     assert.match(html, /Welcome world/);
+    assert.match(html, /data-mado-baked/);
     assert.match(html, /id="bake"/);              // baked data island
     assert.match(html, /"greeting":"hello"/);
     assert.match(html, /href="https:\/\/flags\.example\/"/); // canonical link

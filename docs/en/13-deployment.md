@@ -12,9 +12,11 @@ out/
 ├── assets/                 ← hashed bundles (main-ABC.js, chunk-XYZ.js, …)
 │   ├── *.gz                ← precompressed gzip (gzip_static / Accept-Encoding)
 │   └── *.br                ← precompressed brotli (brotli_static / Accept-Encoding)
-├── baked/                  ← prerendered SEO HTML (mado bake)
+├── baked/                  ← bake output copy for inspection/debugging
 │   ├── <route>/index.html
 │   └── sitemap.xml
+├── <route>/index.html      ← prerendered SEO HTML promoted for static hosts
+├── sitemap.xml             ← sitemap promoted to the site root
 ├── favicon.svg             ← your public/ assets copied verbatim
 ├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
 └── _headers                ← Cloudflare Pages / Netlify cache rules
@@ -31,9 +33,9 @@ mado release
 mado preview      # http://localhost:4173 — serves out/ exactly as a static host would
 ```
 
-`mado preview` mirrors the behavior described below: it picks `.br` over
-`.gz` over raw, prefers baked HTML at `/<route>/`, and falls back to
-`index.html` for unknown paths.
+`mado preview` serves the final `out/` directory like a static host: it picks
+`.br` over `.gz` over raw, serves promoted baked HTML when a route has an
+`index.html`, and falls back to `index.html` for unknown SPA paths.
 
 ---
 
@@ -79,8 +81,9 @@ npx wrangler pages deploy out --project-name=myapp
 - The generated `_redirects` (`/* /index.html 200`) gives you SPA fallback.
 - The generated `_headers` (immutable cache for `/assets/*`, `no-cache` for
   HTML) is honored by CF Pages.
-- Baked routes (`out/baked/<route>/index.html`) take priority over the SPA
-  fallback because CF Pages matches static files first.
+- Baked routes are promoted to real route files (`out/<route>/index.html`),
+  so they take priority over the SPA fallback because CF Pages matches static
+  files first.
 
 For preview branches, set the same build command in the CF Pages project:
 

@@ -70,6 +70,7 @@
     "examples": "node scripts/cli.mjs examples",
     "size": "node scripts/size-budget.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
+    "llm:smoke": "node scripts/llm-zero-history-smoke.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
     "clean": "rm -rf dist out",

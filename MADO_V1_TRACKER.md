@@ -317,7 +317,7 @@ each behavioural removal still needs a test.
   while public paths work; smoke `mado release` in a clean temp app.
 - [x] **B15** Release determinism: two `mado release` runs on the same input →
   byte-identical `out/` (sitemap `lastmod` from git date or dropped).
-- [ ] **B16** Turn the LLM zero-history test (`docs/en/08`) into a CI check: code
+- [x] **B16** Turn the LLM zero-history test (`docs/en/08`) into a CI check: code
   generated from `llms.txt` compiles and passes a smoke run.
 - [ ] **B17** Sync localized docs touched only in English during Phase B before
   the `v0.10` release.

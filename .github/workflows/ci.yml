@@ -44,5 +44,8 @@ jobs:
           node -e "const fs=require('fs');const path=require('path');const roots=['src','scripts','server','templates','examples','.github','test','README.md','AGENTS.md','llms.txt','CONTRIBUTING.md','TODO.md','ROADMAP.md','package.json','nginx.conf','Dockerfile'];const re=/[\u0400-\u04ff]/u;let bad=[];function walk(p){if(!fs.existsSync(p))return;const st=fs.statSync(p);if(st.isDirectory()){for(const e of fs.readdirSync(p))walk(path.join(p,e));return;}const s=fs.readFileSync(p,'utf8');if(re.test(s))bad.push(p)}for(const r of roots)walk(r);if(bad.length){console.error(bad.join('\n'));process.exit(1)}"
           ! grep -RInE 'useState|useEffect|(^|[^?.])(disabled|checked)=' examples starters --include='*.ts' --include='*.html'
 
+      - name: LLM zero-history smoke
+        run: npm run llm:smoke
+
       - name: Package smoke
         run: npm run package:smoke

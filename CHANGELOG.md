@@ -31,6 +31,11 @@
   primitives, or non-evergreen browser support. Browser baseline is pinned to
   Baseline 2023.
 
+- **`resource()` dedupes in-flight requests by key (B6).** Concurrent resources
+  with the same key now share one fetch. If the same in-flight key is used with
+  different fetcher functions, Mado warns once because the cache key is likely
+  too broad. README/docs now spell out resource key discipline.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

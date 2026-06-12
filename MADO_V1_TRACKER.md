@@ -286,7 +286,7 @@ each behavioural removal still needs a test.
 
 ### Fix / harden (cheaper before freeze)
 
-- [ ] **B6** `resource` cache: in-flight dedupe by key (two components, one
+- [x] **B6** `resource` cache: in-flight dedupe by key (two components, one
   network call) + a dev `warnOnce` on key collisions; document key discipline.
   Test: two concurrent `resource()` with the same key → one fetch.
 - [ ] **B7** `each` duplicate-key handling (`bindings.ts` ~319–321): keep the

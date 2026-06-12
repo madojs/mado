@@ -28,7 +28,17 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
+type ResourceFetcher<T> = (key: string, signal: AbortSignal) => Promise<T>;
+
+interface InFlightEntry<T> {
+  controller: AbortController;
+  fetcher: ResourceFetcher<T>;
+  promise: Promise<T>;
+  consumers: number;
+}
+
 const cache = new Map<string, CacheEntry<unknown>>();
+const inFlight = new Map<string, InFlightEntry<unknown>>();
 const invalidators = new Set<(key: string) => void>();
 
 /**
@@ -91,7 +101,7 @@ export interface Resource<T> {
 
 export function resource<T>(
   keyFn: () => string,
-  fetcher: (key: string, signal: AbortSignal) => Promise<T>,
+  fetcher: ResourceFetcher<T>,
   options: ResourceOptions = {},
 ): Resource<T> {
   const data = signal<T | undefined>(options.initialData as T | undefined);
@@ -99,7 +109,8 @@ export function resource<T>(
   const loading = signal(false);
   const keySig = signal<string>("");
 
-  let abort: AbortController | null = null;
+  let releaseInFlight: (() => void) | null = null;
+  let requestSeq = 0;
   let lastKey = "";
   let force = false;
 
@@ -118,9 +129,9 @@ export function resource<T>(
   }
 
   const run = (key: string) => {
-    abort?.abort();
-    const ac = new AbortController();
-    abort = ac;
+    releaseInFlight?.();
+    releaseInFlight = null;
+    const seq = ++requestSeq;
 
     // if there is a fresh cache and not forced — use it
     const cached = cache.get(key) as CacheEntry<T> | undefined;
@@ -137,25 +148,29 @@ export function resource<T>(
 
     loading.set(true);
     error.set(null);
+
+    const retained = retainInFlight(key, fetcher, force);
+    releaseInFlight = retained.release;
     force = false;
 
-    fetcher(key, ac.signal).then(
+    retained.promise.then(
       (result) => {
         // Two-layer staleness check:
-        //   1. ac.signal.aborted — fetcher honored the AbortSignal
-        //      (jsonFetcher does; user fetchers may not).
+        //   1. seq !== requestSeq — this resource has moved to a newer run().
         //   2. key !== lastKey — defensive guard for fetchers that ignore
         //      the AbortSignal and resolve after a newer run() has started.
         //      Without this, a slow stale response can overwrite the data
         //      from a faster newer one when the key changes rapidly.
-        if (ac.signal.aborted) return;
+        retained.release();
+        if (seq !== requestSeq) return;
         if (key !== lastKey) return;
         cache.set(key, { data: result, timestamp: Date.now() });
         data.set(result);
         loading.set(false);
       },
       (err: unknown) => {
-        if (ac.signal.aborted) return;
+        retained.release();
+        if (seq !== requestSeq) return;
         if (key !== lastKey) return;
         error.set(err instanceof Error ? err : new Error(String(err)));
         loading.set(false);
@@ -185,9 +200,11 @@ export function resource<T>(
   // auto-cleanup if inside a component
   if (lifecycle) {
     lifecycle.onDispose(() => {
+      requestSeq++;
       stopKeyEffect();
       invalidators.delete(onInv);
-      abort?.abort();
+      releaseInFlight?.();
+      releaseInFlight = null;
     });
   }
 
@@ -212,6 +229,58 @@ export function resource<T>(
       if (lastKey) cache.set(lastKey, { data: value, timestamp: Date.now() });
     },
   };
+}
+
+function retainInFlight<T>(
+  key: string,
+  fetcher: ResourceFetcher<T>,
+  force: boolean,
+): { promise: Promise<T>; release: () => void } {
+  let entry = (!force ? inFlight.get(key) : undefined) as
+    | InFlightEntry<T>
+    | undefined;
+
+  if (entry && entry.fetcher !== fetcher) {
+    warnOnce(
+      `resource-key-collision-${key}`,
+      `resource key collision for "${key}": multiple in-flight ` +
+        "resource() calls use different fetchers. Resource keys must uniquely " +
+        "identify both the endpoint and the data shape.",
+    );
+  }
+
+  if (!entry) {
+    const controller = new AbortController();
+    entry = {
+      controller,
+      fetcher,
+      consumers: 0,
+      promise: fetcher(key, controller.signal),
+    };
+    entry.promise.then(
+      () => {
+        if (inFlight.get(key) === entry) inFlight.delete(key);
+      },
+      () => {
+        if (inFlight.get(key) === entry) inFlight.delete(key);
+      },
+    );
+    inFlight.set(key, entry as InFlightEntry<unknown>);
+  }
+
+  entry.consumers++;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    entry.consumers--;
+    if (entry.consumers === 0 && inFlight.get(key) === entry) {
+      entry.controller.abort();
+      inFlight.delete(key);
+    }
+  };
+
+  return { promise: entry.promise, release };
 }
 
 // ---------- mutation ----------
@@ -417,5 +486,7 @@ export const _testHooks = {
   },
   clearCache(): void {
     cache.clear();
+    for (const entry of inFlight.values()) entry.controller.abort();
+    inFlight.clear();
   },
 };

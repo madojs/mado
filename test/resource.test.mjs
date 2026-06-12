@@ -63,6 +63,68 @@ test("resource: cache is reused when returning to an old key", async () => {
   assert.equal(calls, 2, "key '1' is already cached; no second request should happen");
 });
 
+test("resource: concurrent resources with the same key share one in-flight fetch", async () => {
+  let calls = 0;
+  let resolveFetch;
+  const fetcher = async (key) => {
+    calls++;
+    return await new Promise((resolve) => {
+      resolveFetch = () => resolve({ key });
+    });
+  };
+
+  const r1 = resource(() => "dedupe/shared", fetcher);
+  const r2 = resource(() => "dedupe/shared", fetcher);
+
+  assert.equal(calls, 1, "same in-flight key should issue one network call");
+  assert.equal(r1.loading(), true);
+  assert.equal(r2.loading(), true);
+
+  resolveFetch();
+  await wait(0);
+
+  assert.deepEqual(r1.data(), { key: "dedupe/shared" });
+  assert.deepEqual(r2.data(), { key: "dedupe/shared" });
+  assert.equal(r1.loading(), false);
+  assert.equal(r2.loading(), false);
+});
+
+test("resource: same in-flight key with a different fetcher warns about a collision", async () => {
+  let resolveFetch;
+  let calls = 0;
+  const firstFetcher = async () => {
+    calls++;
+    return await new Promise((resolve) => {
+      resolveFetch = () => resolve("first");
+    });
+  };
+  const secondFetcher = async () => {
+    calls++;
+    return "second";
+  };
+
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warns.push(args.join(" "));
+  try {
+    const r1 = resource(() => "dedupe/collision", firstFetcher);
+    const r2 = resource(() => "dedupe/collision", secondFetcher);
+    assert.equal(calls, 1, "second resource should join the in-flight request");
+
+    resolveFetch();
+    await wait(0);
+
+    assert.equal(r1.data(), "first");
+    assert.equal(r2.data(), "first");
+    assert.ok(
+      warns.some((m) => m.includes("resource key collision")),
+      "same key with a different fetcher must warn about cache-key discipline",
+    );
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test("resource: refresh forces a request", async () => {
   let calls = 0;
   const r = resource(

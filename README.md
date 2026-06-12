@@ -227,6 +227,10 @@ const save = mutation(api.saveUser, {
 Cache, loading/error state, abort, refresh, optimistic `mutate()`,
 glob-based invalidation. Lifecycle-aware inside components.
 
+Resource keys are the cache identity. Use keys that include the endpoint, params
+and data shape; two resources with the same key share cached data and in-flight
+requests.
+
 ### Forms — schema-based validation
 
 ```ts

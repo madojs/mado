@@ -154,6 +154,11 @@ await save.run(newUser);
 // automatically: user.data() will update if glob matches
 ```
 
+Resource keys are cache identities. Include the endpoint, query params and data
+shape in the key: two live `resource()` calls with the same key share cached
+data and any in-flight request. If two different fetchers use the same in-flight
+key, Mado warns because that usually means the cache key is too broad.
+
 If such an abstraction existed in the Go world for server-side caches — we'd all be crying with joy.
 
 ---

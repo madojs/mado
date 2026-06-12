@@ -22,3 +22,18 @@ test("package self-import blocks internal subpaths", async () => {
       String(err.message).includes("./lifecycle.js"),
   );
 });
+
+test("internal test hooks are stripped from public declarations", () => {
+  const files = [
+    "../dist/src/signal.d.ts",
+    "../dist/src/diagnostics.d.ts",
+    "../dist/src/resource.d.ts",
+    "../dist/src/router/manifest.d.ts",
+    "../dist/src/router.d.ts",
+  ];
+
+  for (const file of files) {
+    const text = readFileSync(new URL(file, import.meta.url), "utf8");
+    assert.equal(text.includes("_testHooks"), false, `${file} leaks _testHooks`);
+  }
+});

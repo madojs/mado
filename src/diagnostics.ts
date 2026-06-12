@@ -18,6 +18,7 @@ export function warnOnce(code: string, message: string): void {
   }
 }
 
+/** @internal */
 export const _testHooks = {
   resetWarnings(): void {
     seen.clear();

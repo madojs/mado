@@ -407,6 +407,7 @@ export function jsonFetcher<T>(
 //
 // Not public API. Used by tests to inspect lifecycle cleanup.
 
+/** @internal */
 export const _testHooks = {
   invalidatorsSize(): number {
     return invalidators.size;

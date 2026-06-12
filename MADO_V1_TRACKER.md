@@ -276,7 +276,7 @@ each behavioural removal still needs a test.
   map (`.`, `./devtools.js`, and at most 3–5 deliberate points). Today `"./*"`
   makes the entire `dist/` public (parser, lifecycle, diagnostics, all
   `_testHooks`), so any internal rename becomes a breaking change post-v1.
-- [ ] **B4** Mark `_testHooks` (`signal`, `diagnostics`, `resource`,
+- [x] **B4** Mark `_testHooks` (`signal`, `diagnostics`, `resource`,
   `router/manifest`) `@internal` and strip them from emitted `.d.ts`; move them
   out of public modules where possible.
 - [ ] **B5** Add the "Things not to build" list to `README.md` as an explicit

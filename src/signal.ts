@@ -452,6 +452,7 @@ interface DebugInfo {
 
 const debugInfo = new WeakMap<object, DebugInfo>();
 
+/** @internal */
 export const _testHooks = {
   subscriberCount(source: object): number {
     return debugInfo.get(source)?.subscribers.size ?? 0;

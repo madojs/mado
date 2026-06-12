@@ -20,6 +20,11 @@
   `@madojs/mado/devtools.js`; internal files such as `lifecycle.js` are no
   longer package subpaths.
 
+- **Internal `_testHooks` are stripped from declarations (B4).** Runtime hooks
+  remain available to the repository's own tests, but emitted `.d.ts` files no
+  longer advertise them as public API; the router barrel also no longer
+  re-exports manifest test hooks.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

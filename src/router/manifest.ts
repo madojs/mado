@@ -645,6 +645,7 @@ function readBaked<T>(): T | undefined {
 
 // ---------- Test hooks ----------
 
+/** @internal */
 export const _testHooks = {
   activeRoutesSize(): number {
     return activeRoutes.size;

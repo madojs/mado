@@ -11,6 +11,7 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "declaration": true,
+    "stripInternal": true,
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

@@ -30,5 +30,4 @@ export {
   routes,
   prefetchPath,
   type RoutesOptions,
-  _testHooks,
 } from "./router/manifest.js";

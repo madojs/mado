@@ -315,7 +315,7 @@ each behavioural removal still needs a test.
 - [x] **B14** Package-level test: `npm pack` → install into a temp app → assert
   `import '@madojs/mado/lifecycle.js'` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`
   while public paths work; smoke `mado release` in a clean temp app.
-- [ ] **B15** Release determinism: two `mado release` runs on the same input →
+- [x] **B15** Release determinism: two `mado release` runs on the same input →
   byte-identical `out/` (sitemap `lastmod` from git date or dropped).
 - [ ] **B16** Turn the LLM zero-history test (`docs/en/08`) into a CI check: code
   generated from `llms.txt` compiles and passes a smoke run.

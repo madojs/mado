@@ -522,7 +522,6 @@ function buildHtml({ template, bodyHtml, head, bakedData, revalidate, canonical 
 
   if (revalidate) {
     setMeta(document, { name: "bake-revalidate", content: String(revalidate) });
-    setMeta(document, { name: "bake-stamp", content: String(Date.now()) });
   }
 
   if (bakedData !== undefined) {

@@ -16,8 +16,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promisify } from "node:util";
-import { mkdtempSync, rmSync, mkdirSync, existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -141,7 +142,39 @@ test("mado release: produces out/ with bundle, baked HTML, public assets, _heade
     // (bundle.mjs uses esbuild splitting; the exact filenames are hashed.)
     const outFiles = readFileSync(join(out, "_redirects"), "utf8"); // smoke
     void outFiles;
+
+    const firstSnapshot = snapshotDir(out);
+    const secondRun = await runCli(app, ["release"]);
+    if (secondRun.code !== 0) {
+      throw new Error(
+        `second mado release exited ${secondRun.code}\nSTDOUT:\n${secondRun.stdout}\nSTDERR:\n${secondRun.stderr}`,
+      );
+    }
+    assert.deepEqual(
+      snapshotDir(out),
+      firstSnapshot,
+      "two mado release runs on the same input must produce byte-identical out/",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+function snapshotDir(dir, prefix = "") {
+  const rows = [];
+  for (const entry of readdirSync(dir).sort()) {
+    const file = join(dir, entry);
+    const rel = prefix ? `${prefix}/${entry}` : entry;
+    const stat = statSync(file);
+    if (stat.isDirectory()) {
+      rows.push(...snapshotDir(file, rel));
+    } else {
+      rows.push([rel, sha256(readFileSync(file))]);
+    }
+  }
+  return rows;
+}
+
+function sha256(buf) {
+  return createHash("sha256").update(buf).digest("hex");
+}

@@ -297,13 +297,15 @@ each behavioural removal still needs a test.
 
 - [x] **B8** Publish the **API freeze map** (a doc + this tracker §6): stable
   public API vs internal/unstable. This is the cheapest, highest-value lockdown.
-- [ ] **B9** `docs/en/19-reactivity-ordering.md` — ordering/teardown/`update()`
+- [x] **B9** `docs/en/19-reactivity-ordering.md` — ordering/teardown/`update()`
   guarantees (depends on C3/C4) + invariant tests.
 - [ ] **B10** `docs/en/20-v1-stability.md` — "what v1 stability means": API +
   reactivity semantics are stable; internals + bundler byte-output are not.
 - [ ] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
   real API: new parser errors (C7), new `mutation` semantics (C6), the
   "layout.view is stateless" contract, and "bake = meta-shell, not SSG".
+  Also sync localized docs touched only in English during Phase B before the
+  `v0.10` release.
 - [ ] **B12** `mado init`: write required devDeps (`typescript`, `esbuild`,
   `linkedom`) into the generated `package.json`; reword marketing to "zero
   **runtime** dependencies; build tooling needs esbuild (optional)".

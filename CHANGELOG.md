@@ -44,6 +44,11 @@
   the stable root API, the public devtools subpath, and the internal modules
   that are not protected by SemVer.
 
+- **Reactivity ordering contract published (B9).** `docs/en/19-reactivity-ordering.md`
+  documents signal/effect/batch ordering, nested-template update reuse and
+  component teardown timing. A new invariant test pins nested-batch effect
+  scheduling.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

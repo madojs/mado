@@ -1,6 +1,6 @@
 {
   "name": "@madojs/mado",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Mado — a calm browser-native SPA framework for internal tools, admin panels and business apps. Routing, forms, state and data fetching without frontend infrastructure overhead.",
   "type": "module",
   "license": "MIT",

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+_No unreleased changes._
+
+## 0.9.0 - 2026-06-12
+
+Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused
+regression tests.
+
 ### Changed
 
 - **`mutation().run()` is concurrent by default (C6).** Previously a `run()`
@@ -16,6 +23,14 @@
   `test/mutation-concurrent.test.mjs`.
 
 ### Fixed
+
+- **Lifecycle/router defect pack is closed (C8).** `onDispose()` registered
+  after a lifecycle was already disposed now runs immediately instead of being
+  dropped. SPA link interception now respects `target="_blank"` and `download`.
+  Same-path `#hash` navigation scrolls to its anchor instead of being swallowed
+  by signal deduplication. Guard redirects now have a per-tick loop detector
+  that reports and halts mutually-redirecting routes. Regression test:
+  `test/lifecycle-router-pack.test.mjs`.
 
 - **Parser fails loudly instead of silently dropping bindings (C7).** A `${}`
   slot inside a RAW_TEXT element (`<textarea>`/`<title>`/`<style>`/`<script>`)

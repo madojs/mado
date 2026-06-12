@@ -312,7 +312,7 @@ each behavioural removal still needs a test.
 
 - [x] **B13** Size budget in CI: gzip of full public API < 16 KiB; full showcase
   app < 42 KiB. Fail the build on regression (numbers in CI, not README).
-- [ ] **B14** Package-level test: `npm pack` → install into a temp app → assert
+- [x] **B14** Package-level test: `npm pack` → install into a temp app → assert
   `import '@madojs/mado/lifecycle.js'` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`
   while public paths work; smoke `mado release` in a clean temp app.
 - [ ] **B15** Release determinism: two `mado release` runs on the same input →

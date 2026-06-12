@@ -274,8 +274,9 @@ export default page({
 
 ## Version
 
-`0.9.0` — pre-1.0 v1-hardening release. API freeze work is in progress;
-SemVer is not guaranteed on minor versions before 1.0.
+`0.10.0` — pre-1.0 API-lock release. Phase B closed the public surface,
+package exports, docs and CI gates. SemVer is not guaranteed on minor versions
+before 1.0.
 
 ## License
 

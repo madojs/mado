@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.10.0 - 2026-06-12
+
+Surface-cleanup and API-lock release from the v1 tracker Phase B: legacy public
+surface is removed, package exports are closed, docs/LLM guidance match the real
+API, and CI now protects package, size, release and LLM-smoke contracts.
+
 ### Fixed
 
 - **Component attribute changes no longer clobber host properties (B1).**
@@ -53,6 +59,40 @@
   defines what SemVer protects after v1 and what remains internal or
   implementation-specific, including bundle byte output and internal module
   layout.
+
+- **Agent and LLM guidance synced to the real API (B11).** `AGENTS.md`,
+  `.clinerules`, `.cursorrules` and `llms.txt` now document C7 parser hard
+  errors, C6 mutation concurrency, stateless `layout.view` wrappers, public
+  package imports and `bake` as a static meta-shell rather than SSR/SSG runtime.
+
+- **`mado init` writes required dev dependencies (B12).** Generated apps now
+  include `typescript`, `esbuild` and `linkedom` as dev dependencies, sourced
+  from the package's own tool versions. README/agent wording now says zero
+  **runtime** dependencies instead of implying no build tooling exists.
+
+- **Size budgets are enforced in CI (B13).** `npm run size` bundles the full
+  public API and the showcase app, then fails on gzip regressions above the
+  current budgets: public API < 16 KiB, showcase app < 42 KiB.
+
+- **Published tarball smoke test added (B14).** `npm run package:smoke` packs
+  the package, installs the tarball in a temp project, checks that public
+  imports work and `@madojs/mado/lifecycle.js` is blocked with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`, then scaffolds a clean app and runs
+  `mado release`.
+
+- **Release output is deterministic (B15).** `bake-stamp` was removed from baked
+  HTML, and the release pipeline test now runs `mado release` twice on the same
+  input and compares the entire `out/` tree byte-for-byte.
+
+- **LLM zero-history test is a CI smoke (B16).** `npm run llm:smoke` validates
+  that `llms.txt` retains the key Mado guidance, checks the committed
+  `examples/tickets` artifact for required APIs and forbidden React-shaped
+  patterns, then builds and runs the tickets smoke test.
+
+- **Localized docs synced for Phase B (B17).** RU/FR/UK docs now include the
+  API freeze map, reactivity ordering and v1 stability pages, plus the Phase B
+  updates for resource key discipline, deterministic bake metadata and the
+  LLM-smoke CI proxy.
 
 ## 0.9.0 - 2026-06-12
 

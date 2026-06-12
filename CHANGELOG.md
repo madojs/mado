@@ -49,6 +49,11 @@
   component teardown timing. A new invariant test pins nested-batch effect
   scheduling.
 
+- **v1 stability contract published (B10).** `docs/en/20-v1-stability.md`
+  defines what SemVer protects after v1 and what remains internal or
+  implementation-specific, including bundle byte output and internal module
+  layout.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

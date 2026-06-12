@@ -24,3 +24,4 @@ English documentation set.
 | Shadow DOM + Forms      | [17-shadow-dom-forms.md](./17-shadow-dom-forms.md)           |
 | API freeze map          | [18-api-freeze-map.md](./18-api-freeze-map.md)               |
 | Reactivity ordering     | [19-reactivity-ordering.md](./19-reactivity-ordering.md)     |
+| v1 stability            | [20-v1-stability.md](./20-v1-stability.md)                   |

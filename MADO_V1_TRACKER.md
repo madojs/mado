@@ -299,7 +299,7 @@ each behavioural removal still needs a test.
   public API vs internal/unstable. This is the cheapest, highest-value lockdown.
 - [x] **B9** `docs/en/19-reactivity-ordering.md` — ordering/teardown/`update()`
   guarantees (depends on C3/C4) + invariant tests.
-- [ ] **B10** `docs/en/20-v1-stability.md` — "what v1 stability means": API +
+- [x] **B10** `docs/en/20-v1-stability.md` — "what v1 stability means": API +
   reactivity semantics are stable; internals + bundler byte-output are not.
 - [ ] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
   real API: new parser errors (C7), new `mutation` semantics (C6), the

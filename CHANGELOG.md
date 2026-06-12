@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-_No unreleased changes._
+### Fixed
+
+- **Component attribute changes no longer clobber host properties (B1).**
+  Legacy `observedAttributes` reflection used to write `this[name] = value`
+  from `attributeChangedCallback`, overwriting `.prop=` bindings and custom
+  host state such as `.value`. Attribute changes now update only `ctx.attr()`
+  signals; `ctx.attr()` is the canonical reactive attribute API.
 
 ## 0.9.0 - 2026-06-12
 

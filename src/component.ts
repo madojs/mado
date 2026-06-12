@@ -37,9 +37,9 @@ export interface ComponentContext {
    *   const variant = ctx.attr("variant", "primary");
    *   return () => html`<div class=${variant()}>…</div>`;
    *
-   * No MutationObserver boilerplate needed — the signal updates via
-   * attributeChangedCallback. The attribute name is automatically added to
-   * observedAttributes if not already listed.
+   * No MutationObserver boilerplate needed. The signal updates via
+   * attributeChangedCallback for known attributes, with a per-instance
+   * MutationObserver fallback for attributes registered during setup().
    */
   attr(name: string, defaultValue?: string): Signal<string>;
 }
@@ -59,12 +59,8 @@ export interface ComponentOptions {
    */
   styles?: StyleInput;
   /**
-   * List of observed attributes.
-   *
-   * Attributes listed here are reflected to host[attr] via
-   * attributeChangedCallback and also power ctx.attr() reactive signals.
-   * You only need to list them here if you use the legacy property reflection
-   * pattern. ctx.attr() automatically registers any attribute it tracks.
+   * List of observed attributes. Prefer ctx.attr(), which automatically
+   * registers any attribute it tracks.
    */
   observedAttributes?: readonly string[];
 }
@@ -128,7 +124,6 @@ export function component(
     #teardownQueued = false;
     #attrSignals = new Map<string, Signal<string>>();
 
-
     constructor() {
       super();
       this.#root = useShadow ? this.attachShadow({ mode: "open" }) : this;
@@ -142,7 +137,6 @@ export function component(
       this.#teardownQueued = false;
       if (this.#connected) return;
       this.#connected = true;
-
 
       if (stylesheets.length > 0) {
         if (useShadow) {
@@ -229,7 +223,6 @@ export function component(
       this.#connected = false;
     }
 
-
     attributeChangedCallback(
       name: string,
       _old: string | null,
@@ -240,8 +233,6 @@ export function component(
       if (s) {
         s.set(value ?? "");
       }
-      // Legacy reflection: reflect attribute to property.
-      (this as unknown as Record<string, unknown>)[name] = value;
     }
   }
 

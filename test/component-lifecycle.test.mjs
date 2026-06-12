@@ -102,17 +102,31 @@ test("component(): light DOM styles adopt once across instances", () => {
   second.disconnectedCallback();
 });
 
-test("component(): observedAttributes reflect into plain properties", () => {
+test("component(): observedAttributes do not clobber host properties", () => {
   component(
-    "x-observed-plain",
+    "x-observed-no-reflect",
     () => () => html`<span></span>`,
-    { observedAttributes: ["status"] },
+    { observedAttributes: ["title", "value"] },
   );
 
-  const el = document.createElement("x-observed-plain");
-  el.attributeChangedCallback("status", null, "open");
+  const el = document.createElement("x-observed-no-reflect");
+  const value = { id: 1 };
+  el.value = value;
+  el.title = "property title";
 
-  assert.equal(el.status, "open");
+  el.attributeChangedCallback("value", null, "attribute value");
+  el.attributeChangedCallback("title", null, "attribute title");
+
+  assert.equal(
+    el.value,
+    value,
+    "attribute changes must not overwrite .value set by .prop= bindings",
+  );
+  assert.equal(
+    el.title,
+    "property title",
+    "attributeChangedCallback must not write through native properties",
+  );
 });
 
 test("ctx.attr(): reads initial value and updates on external setAttribute", async () => {

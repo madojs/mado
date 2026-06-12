@@ -266,7 +266,7 @@ each behavioural removal still needs a test.
 
 ### Remove (cut before freeze)
 
-- [ ] **B1** Remove legacy attribute→property reflection in
+- [x] **B1** Remove legacy attribute→property reflection in
   `src/component.ts` (~215). It clobbers native props and `.prop=` bindings;
   `ctx.attr()` is canonical. Test: setting `title`/`value` attribute no longer
   overwrites the DOM property.

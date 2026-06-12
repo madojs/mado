@@ -301,11 +301,9 @@ each behavioural removal still needs a test.
   guarantees (depends on C3/C4) + invariant tests.
 - [x] **B10** `docs/en/20-v1-stability.md` — "what v1 stability means": API +
   reactivity semantics are stable; internals + bundler byte-output are not.
-- [ ] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
+- [x] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
   real API: new parser errors (C7), new `mutation` semantics (C6), the
   "layout.view is stateless" contract, and "bake = meta-shell, not SSG".
-  Also sync localized docs touched only in English during Phase B before the
-  `v0.10` release.
 - [ ] **B12** `mado init`: write required devDeps (`typescript`, `esbuild`,
   `linkedom`) into the generated `package.json`; reword marketing to "zero
   **runtime** dependencies; build tooling needs esbuild (optional)".
@@ -321,6 +319,8 @@ each behavioural removal still needs a test.
   byte-identical `out/` (sitemap `lastmod` from git date or dropped).
 - [ ] **B16** Turn the LLM zero-history test (`docs/en/08`) into a CI check: code
   generated from `llms.txt` compiles and passes a smoke run.
+- [ ] **B17** Sync localized docs touched only in English during Phase B before
+  the `v0.10` release.
 
 **Phase B gate:** explicit exports map shipped; legacy reflection gone; docs and
 LLM files match reality; CI budgets green; tag `v0.10`.

@@ -183,6 +183,29 @@ html`<ul>
 </ul>`;
 ```
 
+### 7b. Parser hard errors
+
+Mado fails loudly for template shapes that cannot be represented safely.
+
+```ts
+// ❌ NO — slots inside RAW_TEXT elements are a parser error
+html`<textarea>${draft}</textarea>`;
+html`<title>${title}</title>`;
+
+// ✅ YES — use properties or page/head APIs
+html`<textarea .value=${draft}></textarea>`;
+page({ title: ({ id }) => `User ${id}`, view: () => html`<main></main>` });
+
+// ❌ NO — nested SVG-only templates lose namespace context
+html`<svg>${html`<path d=${d}></path>`}</svg>`;
+
+// ✅ YES — keep the SVG in one template or in its own component
+html`<svg viewBox="0 0 10 10"><path d=${d}></path></svg>`;
+```
+
+No dynamic `${...}` child slots inside `<script>`, `<style>`, `<textarea>`,
+or `<title>`. Keep SVG internals in one `<svg>...</svg>` template.
+
 ### 8. Routing — `routes()` + `page()`
 
 ```ts
@@ -205,6 +228,10 @@ export default page<{ id: string }>({
 - Each page is a **separate file** in `pages/` with `export default page({...})`.
 - Import via `() => import("./pages/foo.js")` — this enables code-splitting via ESM.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
+- Layouts are declared in the route manifest via `layout()`. Treat
+  `layout.view({ child })` as a stateless wrapper around `${child}` and shared
+  chrome. Put per-page state in pages/components/resources, not in layout view
+  locals that depend on route identity.
 - **`onDispose`** — cleanup hook for page views. Use for `setInterval`, `WebSocket`, `EventSource`. `resource()` and `effect()` are auto-cleaned.
 - **`untracked()`** — required when reading signals inside async functions called synchronously from `view()`. Without it, the signal subscribes the router's render effect → infinite loop.
 
@@ -249,6 +276,14 @@ const save = mutation<User, User>(
 );
 await save.run(newUser);
 ```
+
+- A resource key is the cache identity. Same key means shared cache and deduped
+  in-flight request; use distinct keys for distinct data or auth scope.
+- `mutation().run()` is concurrent by default. `loading()` stays true while any
+  run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
+  "latest request wins" flows.
+- Invalidation is best-effort after a successful mutation; invalidation errors
+  are logged but do not turn the mutation itself into a failure.
 
 ### 10. Forms — `useForm()`
 
@@ -349,10 +384,24 @@ Rules:
 - Tiny leaf components used everywhere → importing in `main.ts` is acceptable.
 - Do **not** bulk-import every component "just in case".
 
+### 14. Bake — meta shell, not SSR/SSG runtime
+
+`mado bake` is a static meta-shell/prerender pass for SEO and first paint. It is
+not SSR with hydration and not a Next-style SSG runtime.
+
+- Baked HTML must be deterministic from `params`, `bake.data`, and plain values.
+- Do not rely on browser-only effects, timers, relative `fetch`, or keyed
+  runtime directives such as `each()` during bake.
+- Use `page({ head, bake })` for meta/JSON-LD/sitemap data; render dynamic,
+  personalized, real-time, or auth-dependent content in the client SPA.
+
 ## SOFT GUIDELINES — recommended, but not critical
 
 - **TypeScript strict.** Use `noUncheckedIndexedAccess`-aware code (with `!` or a type guard).
 - **Import using `.js`** (not `.ts`) — this is required by ES modules in the browser: `import { foo } from "./bar.js"`.
+- **Public imports only.** App code imports from `@madojs/mado` and, when
+  needed, side-effect `@madojs/mado/devtools.js`. Other package subpaths and
+  `dist/src/*` are internal.
 - **One file = one responsibility.** Don't put 5 components in one file "because they're all small".
 - **Do not add runtime dependencies** (`npm install` in `dependencies`). This violates the framework's principle.
 - **JSDoc on public functions** is required. Comments explain "why", not "what".
@@ -400,6 +449,9 @@ When generating an app, prefer the blessed production shape from
 | How should an app be structured? | `docs/en/10-app-architecture.md` |
 | How should errors be handled?    | `docs/en/15-error-handling.md`   |
 | How should bake be used?         | `docs/en/16-bake-cookbook.md`    |
+| What API is stable?              | `docs/en/18-api-freeze-map.md`   |
+| What ordering is guaranteed?     | `docs/en/19-reactivity-ordering.md` |
+| What does v1 stability mean?     | `docs/en/20-v1-stability.md`     |
 | When something goes wrong        | `docs/en/07-llm-pitfalls.md`     |
 
 ## Before committing

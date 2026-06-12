@@ -16,6 +16,9 @@ Mado is a focused frontend framework for admin panels, internal tools and CRUD-h
 - **Page cleanup via `onDispose`** in view: `view: ({ onDispose }) => { ... onDispose(() => cleanup()); }`. Only needed for raw APIs (setInterval, WebSocket). `resource()`/`effect()` auto-cleanup.
 - **`untracked()` in page view async** — functions called synchronously in `view()` that read signals must wrap reads in `untracked()` to avoid effect cycles with the router.
 - **Reactive attributes via `ctx.attr(name, default?)`** — returns a Signal<string> that auto-updates when the attribute changes via a per-instance `MutationObserver`. No `observedAttributes` option, no boilerplate.
+- **Public imports only.** App code imports from `@madojs/mado` and optionally side-effect `@madojs/mado/devtools.js`. Other package subpaths and `dist/src/*` are internal.
+- **Layouts are stateless wrappers.** Use route-manifest `layout()` and render `${child}` inside shared chrome. Put per-page state in pages/components/resources, not in layout view locals keyed by route identity.
+- **Bake is a static meta-shell/prerender pass.** It is not SSR with hydration and not a Next-style SSG runtime.
 
 ## Critical template rules
 
@@ -45,6 +48,24 @@ Mado is a focused frontend framework for admin panels, internal tools and CRUD-h
    ```ts
    import { each } from "@madojs/mado";
    html`<ul>${() => each(users(), u => u.id, u => html`<li>${u.name}</li>`)}</ul>`
+   ```
+
+4. **Parser hard errors:**
+   - no dynamic `${...}` child slots inside `<script>`, `<style>`, `<textarea>`, or `<title>`;
+   - no nested SVG-only `html` templates inside an outer `<svg>`.
+
+   ```ts
+   // ❌ throws: RAW_TEXT elements cannot host child slots
+   html`<textarea>${draft}</textarea>`;
+
+   // ✅ bind the DOM property instead
+   html`<textarea .value=${draft}></textarea>`;
+
+   // ❌ throws: nested SVG template loses namespace context
+   html`<svg>${html`<circle r="5"></circle>`}</svg>`;
+
+   // ✅ keep SVG internals in one template
+   html`<svg viewBox="0 0 10 10"><circle r="5"></circle></svg>`;
    ```
 
 ## Canonical imports
@@ -113,6 +134,35 @@ const stats = resource(() => "/api/admin/stats", apiFetcher<Stats>());
 
 Unlike `jsonFetcher()`, `apiFetcher()` attaches the Bearer token from memory.
 Use `jsonFetcher()` for public endpoints, `apiFetcher()` for anything behind auth.
+
+## Resource and mutation semantics
+
+- A `resource()` key is the cache identity. Same key means shared cache and
+  deduped in-flight request; use distinct keys for distinct data or auth scope.
+- `mutation().run()` is concurrent by default. `loading()` stays true while any
+  run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
+  "latest request wins" flows.
+- `invalidates` runs after a successful mutation and is best-effort: errors are
+  logged, but the mutation result stays successful.
+
+## Layouts and bake
+
+Use `layout()` in `routes.ts` for shared shells. A layout view should be a pure
+wrapper around `${child}` and shared chrome:
+
+```ts
+export default page({
+  view: ({ child }) => html`<x-app-shell>${child}</x-app-shell>`,
+});
+```
+
+Do not create route-specific state in layout view locals. Put it in pages,
+components, resources, or app-level contexts.
+
+`mado bake` renders selected routes to static HTML for SEO and first paint. It
+does not hydrate server-rendered code. Baked views must be deterministic from
+`params`, `bake.data`, and plain values. Avoid browser-only effects, timers,
+relative `fetch`, and runtime directives like keyed `each()` during bake.
 
 ## Canonical "Hello world"
 
@@ -201,6 +251,9 @@ export default page({
 - docs/en/15-error-handling.md — route/data/action error boundaries
 - docs/en/16-bake-cookbook.md — static bake recipes and failure modes
 - docs/en/17-shadow-dom-forms.md — Shadow DOM + useForm() patterns (proxy properties, form submit bridge)
+- docs/en/18-api-freeze-map.md — stable public API vs internal implementation details
+- docs/en/19-reactivity-ordering.md — signal ordering, batching and teardown guarantees
+- docs/en/20-v1-stability.md — v1 SemVer contract and what remains internal
 - examples/basic/ — minimal API tour
 - examples/tickets/ — LLM zero-history CRUD validation
 - examples/showcase/ — flagship CRM pressure app (auth, nested routes, forms, mutations)
@@ -210,7 +263,7 @@ export default page({
 
 - ❌ JSX → tagged templates instead
 - ❌ Virtual DOM → fine-grained signal updates
-- ❌ SSR with hydration → `bake` (static build) or edge-prerender for SEO
+- ❌ SSR with hydration → `bake` static meta-shell or edge-prerender for SEO
 - ❌ Hooks and rules of hooks → signals
 - ❌ Mandatory Webpack/Vite → only `tsc`
 - ❌ React-Router / TanStack → built-in 500-line `routes()`
@@ -221,8 +274,8 @@ export default page({
 
 ## Version
 
-`0.8.0` — pre-1.0 product-surface release. API may still change before 1.0.
-Semver is not guaranteed on minor versions before 1.0.
+`0.9.0` — pre-1.0 v1-hardening release. API freeze work is in progress;
+SemVer is not guaranteed on minor versions before 1.0.
 
 ## License
 

@@ -7,7 +7,7 @@
 // Result: examples/pages/<name>.ts (or src/pages/, when present)
 // with __name__ / __Name__ placeholders replaced.
 //
-// Zero dependencies.
+// Zero runtime dependencies; generated apps use dev tooling only.
 
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";

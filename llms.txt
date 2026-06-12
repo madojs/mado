@@ -1,7 +1,7 @@
 # Mado
 
 > A calm browser-native SPA framework for internal tools, admin panels and business apps.  
-> Routing, forms, state, data fetching and prerendering. TypeScript-only build (`tsc`), zero runtime dependencies.
+> Routing, forms, state, data fetching and prerendering. Zero runtime dependencies; generated apps use `typescript`, `esbuild` and `linkedom` as dev tooling.
 
 Mado is a focused frontend framework for admin panels, internal tools and CRUD-heavy SPA. It deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and small teams who want a complete app stack without frontend infrastructure overhead.
 

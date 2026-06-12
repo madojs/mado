@@ -304,7 +304,7 @@ each behavioural removal still needs a test.
 - [x] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
   real API: new parser errors (C7), new `mutation` semantics (C6), the
   "layout.view is stateless" contract, and "bake = meta-shell, not SSG".
-- [ ] **B12** `mado init`: write required devDeps (`typescript`, `esbuild`,
+- [x] **B12** `mado init`: write required devDeps (`typescript`, `esbuild`,
   `linkedom`) into the generated `package.json`; reword marketing to "zero
   **runtime** dependencies; build tooling needs esbuild (optional)".
 

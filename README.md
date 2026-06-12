@@ -95,7 +95,7 @@ Mado stays useful by saying no. These are intentionally out of scope:
 
 Routing, forms, state, data fetching and prerendering — without ecosystem tax:
 
-- No dependencies to audit, update or break
+- No runtime dependencies to audit, update or break
 - No bundler required to start (`tsc` is enough)
 - Fewer moving parts to debug
 - Compact API surface you can learn in a day
@@ -106,7 +106,7 @@ Runtime budget:
   bundled/minified: ~32 KB raw, ~11 KB gzip, ~10 KB brotli
   native ESM graph: ~60 KB raw, ~24 KB gzip
 Runtime dependencies: 0
-Required dev dependency: typescript
+Required dev dependencies: typescript, esbuild, linkedom
 ```
 
 ## Quick Start

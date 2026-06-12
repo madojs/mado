@@ -144,6 +144,7 @@ async function runInit(rawArgs) {
   await cp(source, target, { recursive: true, force: true });
   await copyCanonicalAgentFiles(target);
   await ensureStarterGitignore(target);
+  await ensureStarterPackageJson(target);
 
   const packageName = packageNameFromDir(target);
   if (!isValidPackageName(packageName)) {
@@ -329,6 +330,22 @@ async function ensureStarterGitignore(target) {
   const file = join(target, ".gitignore");
   if (existsSync(file)) return;
   await writeFile(file, "node_modules\ndist\nout\n.DS_Store\n*.log\n");
+}
+
+async function ensureStarterPackageJson(target) {
+  const file = join(target, "package.json");
+  if (!existsSync(file)) return;
+
+  const pkg = JSON.parse(await readFile(file, "utf8"));
+  const rootDev = PACKAGE_JSON.devDependencies ?? {};
+  pkg.devDependencies = {
+    ...(pkg.devDependencies ?? {}),
+    typescript: rootDev.typescript ?? "^6.0.3",
+    esbuild: rootDev.esbuild ?? "^0.28.0",
+    linkedom: rootDev.linkedom ?? "^0.18.12",
+  };
+
+  await writeFile(file, `${JSON.stringify(pkg, null, 2)}\n`);
 }
 
 async function runNodeBin(bin, args) {

@@ -40,6 +40,10 @@
   preserved so every item still renders, but duplicate keys now produce a
   `warnOnce` diagnostic because they are almost always a data bug.
 
+- **API freeze map published (B8).** `docs/en/18-api-freeze-map.md` now defines
+  the stable root API, the public devtools subpath, and the internal modules
+  that are not protected by SemVer.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

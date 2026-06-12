@@ -22,3 +22,4 @@ English documentation set.
 | Error handling          | [15-error-handling.md](./15-error-handling.md)               |
 | Bake cookbook           | [16-bake-cookbook.md](./16-bake-cookbook.md)                 |
 | Shadow DOM + Forms      | [17-shadow-dom-forms.md](./17-shadow-dom-forms.md)           |
+| API freeze map          | [18-api-freeze-map.md](./18-api-freeze-map.md)               |

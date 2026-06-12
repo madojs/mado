@@ -295,11 +295,11 @@ each behavioural removal still needs a test.
 
 ### Lock & document the contract
 
-- [ ] **B8** Publish the **API freeze map** (a doc + this tracker §6): stable
+- [x] **B8** Publish the **API freeze map** (a doc + this tracker §6): stable
   public API vs internal/unstable. This is the cheapest, highest-value lockdown.
-- [ ] **B9** `docs/en/18-reactivity-ordering.md` — ordering/teardown/`update()`
+- [ ] **B9** `docs/en/19-reactivity-ordering.md` — ordering/teardown/`update()`
   guarantees (depends on C3/C4) + invariant tests.
-- [ ] **B10** `docs/en/19-v1-stability.md` — "what v1 stability means": API +
+- [ ] **B10** `docs/en/20-v1-stability.md` — "what v1 stability means": API +
   reactivity semantics are stable; internals + bundler byte-output are not.
 - [ ] **B11** Sync `llms.txt`, `AGENTS.md`, `.clinerules`, `.cursorrules` with the
   real API: new parser errors (C7), new `mutation` semantics (C6), the
@@ -347,23 +347,23 @@ open correctness or API-ergonomics blocker.
 
 ## 6. API freeze map (decided in Phase B)
 
-**Stable public API (freeze under SemVer):**
+**Stable public API (freeze under SemVer; published in
+`docs/en/18-api-freeze-map.md`):**
 `signal/computed/effect/untracked/batch/flushSync`;
 `html/render/each/list/unsafeHTML/ref/classMap/styleMap`;
 `component/css/cssVars`;
-`routes/page/layout/nested/navigate/queryParam/prefetchPath`;
+`routes/router/page/layout/nested/navigate/queryParam/prefetchPath`;
 `resource/mutation/invalidate/jsonFetcher/HttpError`;
 `useForm`; `persisted`; `applyHead`; `createContext/provide/inject`; and their
-types.
+types; advanced `createLifecycle/runInLifecycle/getCurrentLifecycle`.
 
 **Internal / unstable (closed via explicit exports):**
-`lifecycle.js` internals (`createLifecycle/runInLifecycle/getCurrentLifecycle` —
-decide: close, or open deliberately as "advanced" with docs),
-`html/parser.js`, `html/bindings.ts` internals (`ChildState`, `EachEntry`),
-`diagnostics.js`, all `_testHooks`, `router/match.js` internals, low-level
-`router()` (document as stable low-level **or** hide — decide consciously).
+subpaths other than `@madojs/mado` and `@madojs/mado/devtools.js`;
+`html/parser.js`, `html/bindings.ts` internals (`ChildState`, `EachEntry`);
+`diagnostics.js`; all `_testHooks`; `router/match.js`, `router/navigation.js`,
+and `router/manifest.js` internals; exact generated bundle text / chunk names.
 
-**Will not survive v1:** `exports "./*"`. Replace with an explicit map (B3).
+**Removed before v1:** `exports "./*"` (B3).
 
 ---
 

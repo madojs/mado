@@ -99,6 +99,9 @@ interface RoutesContext {
  * the corresponding context is removed from the registry.
  */
 const activeRoutes = new Set<RoutesContext>();
+const MAX_GUARD_REDIRECTS_PER_TICK = 10;
+let guardRedirectsThisTick = 0;
+let guardRedirectResetScheduled = false;
 
 /**
  * Create a router from a manifest. Returns the same RouterApi as router().
@@ -502,7 +505,7 @@ function applyGuardVerdict(
   v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
 ): void {
   if (v.kind === "redirect") {
-    navigate(v.to, { replace: v.replace ?? true });
+    navigateFromGuard(v.to, v.replace);
   }
   // "halt" — render nothing; caller already aborted.
 }
@@ -515,9 +518,31 @@ function renderGuardVerdictSync(
   // re-entering router code; queue a microtask so the current render
   // finishes cleanly, then redirect.
   if (v.kind === "redirect") {
-    queueMicrotask(() => navigate(v.to, { replace: v.replace ?? true }));
+    queueMicrotask(() => navigateFromGuard(v.to, v.replace));
   }
   return html``;
+}
+
+function navigateFromGuard(to: string, replace?: boolean): void {
+  if (!guardRedirectResetScheduled) {
+    guardRedirectResetScheduled = true;
+    setTimeout(() => {
+      guardRedirectsThisTick = 0;
+      guardRedirectResetScheduled = false;
+    }, 0);
+  }
+
+  guardRedirectsThisTick++;
+  if (guardRedirectsThisTick > MAX_GUARD_REDIRECTS_PER_TICK) {
+    // eslint-disable-next-line no-console
+    console.error(
+      "[mado] guard redirect loop detected: more than " +
+        `${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}.`,
+    );
+    return;
+  }
+
+  navigate(to, { replace: replace ?? true });
 }
 
 /**

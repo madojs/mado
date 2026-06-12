@@ -122,6 +122,11 @@ export function router(
     if ((e as MouseEvent).button !== 0) return;
     const me = e as MouseEvent;
     if (me.metaKey || me.ctrlKey || me.shiftKey || me.altKey) return;
+    // Respect intentional non-SPA links: opening in a new tab/window or a
+    // download must keep native behaviour. (FABLE_REPORT.md finding #9)
+    const target = a.getAttribute("target");
+    if (target && target !== "_self") return;
+    if (a.hasAttribute("download")) return;
     const url = new URL(a.href, location.href);
     if (url.origin !== location.origin) return;
     e.preventDefault();
@@ -177,9 +182,14 @@ export function router(
         else history.pushState(null, "", to);
         currentScrollKey = locationKey();
         path.set(location.pathname);
-        if (useScrollRestoration) scrollToTop();
+        // An in-page #hash must scroll to its target even when the pathname is
+        // unchanged (signal dedup would otherwise swallow the navigation and
+        // leave anchor links dead). (FABLE_REPORT.md finding #9)
+        if (location.hash) scrollToHash(location.hash);
+        else if (useScrollRestoration) scrollToTop();
         if (useFocusManagement) scheduleFocusReset();
       };
+
       // View Transitions API: smooth crossfade between pages,
       // if the browser supports it. Psychologically removes flashing
       // even if the new page renders in 50-100ms.
@@ -254,7 +264,8 @@ export function navigate(to: string, opts?: { replace?: boolean }): void {
   // popstate is NOT dispatched automatically on pushState/replaceState,
   // so we dispatch it manually — all active routers will hear and update.
   window.dispatchEvent(new PopStateEvent("popstate"));
-  scrollToTop();
+  if (location.hash) scrollToHash(location.hash);
+  else scrollToTop();
   scheduleFocusReset();
 }
 
@@ -288,6 +299,42 @@ function restoreScroll(
 
 function scrollToTop(): void {
   scrollTo({ top: 0, left: 0 });
+}
+
+function scrollToHash(hash: string): void {
+  const scroll = () => {
+    const target = hashTarget(hash);
+    if (!target) return false;
+    try {
+      target.scrollIntoView({ block: "start", inline: "nearest" });
+    } catch {
+      try {
+        target.scrollIntoView();
+      } catch {
+        /* noop */
+      }
+    }
+    return true;
+  };
+
+  if (scroll()) return;
+  // New-route hash targets are often rendered by the reactive route effect
+  // after `path.set()`, so try once more on the next microtask.
+  queueMicrotask(() => {
+    scroll();
+  });
+}
+
+function hashTarget(hash: string): HTMLElement | null {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw) return null;
+  let id = raw;
+  try {
+    id = decodeURIComponent(raw);
+  } catch {
+    /* keep raw hash text */
+  }
+  return document.getElementById(id);
 }
 
 function scrollTo(options: ScrollToOptions): void {

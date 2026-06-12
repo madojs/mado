@@ -229,22 +229,26 @@ predictability and LLM-friendliness (an LLM will naturally write
 
 Small, individually cheap, collectively v1-blocking.
 
-- [ ] **C8.1** `src/lifecycle.ts` (69–80): `onDispose` after `dispose()` silently
+- [x] **C8.1** `src/lifecycle.ts` (69–80): `onDispose` after `dispose()` silently
   drops the callback → async page cleanup registered post-navigation never runs.
   **Fix:** if already disposed, call `fn` immediately (Solid/Vue behaviour).
   **Test:** `dispose()` → `onDispose(spy)` → `spy` called.
-- [ ] **C8.2** `src/router/navigation.ts` (~117–131): `a[data-link]` interception
+- [x] **C8.2** `src/router/navigation.ts` (~117–131): `a[data-link]` interception
   ignores `target="_blank"` and `download` → hijacks intentional new-tab links.
   **Fix:** two guard checks. **Test:** click `data-link target=_blank` → no SPA
   navigation.
-- [ ] **C8.3** Same `navigation.ts`: navigating to the same pathname with a
+- [x] **C8.3** Same `navigation.ts`: navigating to the same pathname with a
   different `#hash` is swallowed by signal dedup (`Object.is`) → anchor links are
   dead. **Fix:** after navigating to the same path, scroll to `location.hash`
   manually. **Test:** same-path hash change scrolls / fires.
-- [ ] **C8.4** Guards have no redirect-loop detector (guard A → /login, guard B →
+- [x] **C8.4** Guards have no redirect-loop detector (guard A → /login, guard B →
   back = infinite navigation). **Fix:** redirect counter per navigation tick
   (e.g. > 10 → `console.error` + halt). **Test:** mutually-redirecting guards
   halt with one error instead of looping.
+
+  Done in `test/lifecycle-router-pack.test.mjs` (6 tests). Verified with
+  `npm run build`, `node --test test/lifecycle-router-pack.test.mjs`,
+  `npm test` (160 pass / 3 skipped), and `npm run typecheck`.
 
 > Note: the legacy attribute→property reflection bug (`src/component.ts:215`,
 > clobbers native `title`/`id`/`value`) is handled as a **removal** in Phase B

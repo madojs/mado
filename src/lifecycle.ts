@@ -62,11 +62,27 @@ export interface LifecycleHandle extends Lifecycle {
 
 export function createLifecycle(): LifecycleHandle {
   const disposers: Disposer[] = [];
+  let disposed = false;
   return {
     onDispose(fn) {
+      // If the lifecycle is already disposed, run the cleanup immediately
+      // rather than dropping it silently. Async page code that registers a
+      // cleanup after navigation (e.g. in a resolved promise) still gets torn
+      // down. Matches Solid/Vue. (FABLE_REPORT.md finding #9)
+      if (disposed) {
+        try {
+          fn();
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("[mado] cleanup threw:", err);
+        }
+        return;
+      }
       disposers.push(fn);
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       // reverse order — LIFO, like a stack
       for (let i = disposers.length - 1; i >= 0; i--) {
         try {

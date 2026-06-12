@@ -129,7 +129,6 @@ out/
     {"@context":"https://schema.org","@type":"Product","..."}
   </script>
   <meta name="bake-revalidate" content="3600" data-mado-head="baked">
-  <meta name="bake-stamp" content="1234567890" data-mado-head="baked">
 </head>
 <body>
   <div id="app">
@@ -212,7 +211,7 @@ export default page<{ slug: string }>({
 
 ## Revalidate / CDN
 
-`bake.revalidate: 3600` пишет в HTML `<meta name="bake-revalidate" content="3600">` и `bake-stamp`. Это **метаданные** — фреймворк сам ничего не перевыпекает. Стратегии:
+`bake.revalidate: 3600` пишет в HTML `<meta name="bake-revalidate" content="3600">`. Это **метаданные** — фреймворк сам ничего не перевыпекает. Стратегии:
 
 1. **Простейший вариант**: cron в CI — `npm run bake && rsync out/ origin:/var/www/`.
 2. **Через CDN** (Cloudflare/Fastly): кладёте HTML с `Cache-Control: max-age=3600`. CDN сам инвалидирует.

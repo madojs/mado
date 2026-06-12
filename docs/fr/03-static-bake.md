@@ -148,7 +148,6 @@ out/
     {"@context":"https://schema.org","@type":"Product","..."}
   </script>
   <meta name="bake-revalidate" content="3600" data-mado-head="baked">
-  <meta name="bake-stamp" content="1234567890" data-mado-head="baked">
 </head>
 <body>
   <div id="app">
@@ -231,7 +230,7 @@ export default page<{ slug: string }>({
 
 ## Revalidate / CDN
 
-`bake.revalidate: 3600` écrit `<meta name="bake-revalidate" content="3600">` et `bake-stamp`
+`bake.revalidate: 3600` écrit `<meta name="bake-revalidate" content="3600">`
 dans le HTML. C'est des **métadonnées** — le framework ne re-bake rien lui-même. Stratégies :
 
 1. **Option la plus simple** : cron dans CI — `npm run bake && rsync out/ origin:/var/www/`.

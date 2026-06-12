@@ -27,5 +27,10 @@ Mado CRUD, не перетворюючи його на React у tagged templates
 resources, mutations, invalidation, `queryParam`, `computed`, `signal` і
 keyed lists.
 
+CI запускає `npm run llm:smoke` як детермінований proxy для цієї задачі:
+перевіряє, що `llms.txt` містить ключові правила, звіряє закомічений артефакт
+`examples/tickets` з потрібною Mado API surface та failure patterns, потім
+збирає проєкт і запускає `test/tickets-smoke.test.mjs`.
+
 Критерій успіху: код виглядає як Mado, а не як React/Vue, переодягнений у
 template strings.

@@ -154,6 +154,12 @@ await save.run(newUser);
 // automatiquement : user.data() se mettra à jour si le glob correspond
 ```
 
+Les clés de `resource()` sont l'identité du cache. Incluez l'endpoint, les query
+params et la forme des données dans la clé : deux `resource()` vivants avec la
+même clé partagent le cache et la requête in-flight. Si la même clé est utilisée
+avec un fetcher différent, Mado avertit, car cela signifie généralement que la
+clé de cache est trop large.
+
 Si une telle abstraction existait dans le monde Go pour les caches côté serveur — on
 pleurerait tous de joie.
 

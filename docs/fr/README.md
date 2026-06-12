@@ -22,3 +22,6 @@ Documentation française.
 | Gestion des erreurs           | [15-error-handling.md](./15-error-handling.md)               |
 | Guide de recettes bake        | [16-bake-cookbook.md](./16-bake-cookbook.md)                 |
 | Shadow DOM + formulaires      | [17-shadow-dom-forms.md](./17-shadow-dom-forms.md)           |
+| Carte de gel de l'API         | [18-api-freeze-map.md](./18-api-freeze-map.md)               |
+| Ordre de la réactivité        | [19-reactivity-ordering.md](./19-reactivity-ordering.md)     |
+| Stabilité v1                  | [20-v1-stability.md](./20-v1-stability.md)                   |

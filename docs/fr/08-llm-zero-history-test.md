@@ -53,6 +53,11 @@ Cherchez ces éléments après l'implémentation :
 L'implémentation actuelle de `examples/tickets` n'a pas nécessité de nouvelles API publiques ni
 de dépendances runtime.
 
+CI exécute `npm run llm:smoke` comme proxy déterministe pour cette tâche :
+il vérifie que `llms.txt` contient toujours les règles clés, compare l'artefact
+commité `examples/tickets` à la surface API Mado requise et aux failure
+patterns, puis build le projet et lance `test/tickets-smoke.test.mjs`.
+
 Le principal point de pression dans la documentation reste le lifecycle : les anciens exemples
 peuvent donner l'impression qu'il est acceptable de créer `resource()` directement dans
 `page.view()`. L'exemple tickets utilise plutôt des composants wrapper au niveau page, de sorte

@@ -22,3 +22,6 @@
 | Обробка помилок         | [15-error-handling.md](./15-error-handling.md)               |
 | Рецепти bake            | [16-bake-cookbook.md](./16-bake-cookbook.md)                 |
 | Shadow DOM + форми      | [17-shadow-dom-forms.md](./17-shadow-dom-forms.md)           |
+| Карта замороження API   | [18-api-freeze-map.md](./18-api-freeze-map.md)               |
+| Порядок reactivity      | [19-reactivity-ordering.md](./19-reactivity-ordering.md)     |
+| Стабільність v1         | [20-v1-stability.md](./20-v1-stability.md)                   |

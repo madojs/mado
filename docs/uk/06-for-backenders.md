@@ -26,6 +26,11 @@ const save = mutation(api.saveUser, {
 });
 ```
 
+Ключі `resource()` — це identity кешу. Додавайте endpoint, query params і форму
+даних у ключ: два живі `resource()` з однаковим ключем ділять cache та
+in-flight request. Якщо той самий ключ використано з іншим fetcher, Mado
+попереджає, бо зазвичай це означає, що ключ кешу занадто широкий.
+
 ## Форми
 
 ```ts

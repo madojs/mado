@@ -319,7 +319,7 @@ each behavioural removal still needs a test.
   byte-identical `out/` (sitemap `lastmod` from git date or dropped).
 - [x] **B16** Turn the LLM zero-history test (`docs/en/08`) into a CI check: code
   generated from `llms.txt` compiles and passes a smoke run.
-- [ ] **B17** Sync localized docs touched only in English during Phase B before
+- [x] **B17** Sync localized docs touched only in English during Phase B before
   the `v0.10` release.
 
 **Phase B gate:** explicit exports map shipped; legacy reflection gone; docs and

@@ -272,7 +272,7 @@ each behavioural removal still needs a test.
   overwrites host properties.
 - [x] **B2** Remove `options.observedAttributes` — a second mechanism for the same
   job as `ctx.attr()`; one contract, not two.
-- [ ] **B3** Replace `exports: "./*"` in `package.json` with an explicit subpath
+- [x] **B3** Replace `exports: "./*"` in `package.json` with an explicit subpath
   map (`.`, `./devtools.js`, and at most 3–5 deliberate points). Today `"./*"`
   makes the entire `dist/` public (parser, lifecycle, diagnostics, all
   `_testHooks`), so any internal rename becomes a breaking change post-v1.

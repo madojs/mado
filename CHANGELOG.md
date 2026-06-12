@@ -15,6 +15,11 @@
   attributes used during setup, so component options no longer carry a second
   attribute mechanism.
 
+- **Package exports are explicit (B3).** The npm package no longer exports
+  `./*`. Public imports are limited to `@madojs/mado` and
+  `@madojs/mado/devtools.js`; internal files such as `lifecycle.js` are no
+  longer package subpaths.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

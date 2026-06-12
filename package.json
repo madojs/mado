@@ -36,8 +36,10 @@
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
     },
-    "./devtools.js": "./dist/src/devtools.js",
-    "./*": "./dist/src/*"
+    "./devtools.js": {
+      "types": "./dist/src/devtools.d.ts",
+      "import": "./dist/src/devtools.js"
+    }
   },
   "files": [
     "dist/src",

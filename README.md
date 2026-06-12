@@ -103,8 +103,7 @@ Routing, forms, state, data fetching and prerendering — without ecosystem tax:
 
 ```txt
 Runtime budget:
-  bundled/minified: ~32 KB raw, ~11 KB gzip, ~10 KB brotli
-  native ESM graph: ~60 KB raw, ~24 KB gzip
+  enforced in CI with npm run size
 Runtime dependencies: 0
 Required dev dependencies: typescript, esbuild, linkedom
 ```

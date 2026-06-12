@@ -34,11 +34,8 @@ jobs:
       - name: Tests
         run: npm test
 
-      - name: Bundle (size check)
-        run: |
-          npm run bundle
-          echo "## Bundle sizes" >> $GITHUB_STEP_SUMMARY
-          ls -lh out/*.js out/*.gz out/*.br 2>/dev/null | awk '{print "- `"$NF"` — "$5}' >> $GITHUB_STEP_SUMMARY || true
+      - name: Size budgets
+        run: npm run size
 
       - name: Repository grep checks
         run: |

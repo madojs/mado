@@ -7,8 +7,9 @@
 
 - **Mado** — a calm browser-native SPA framework for internal tools, admin panels and business apps.
 - Built on Web Components + signals + tagged-template `html`.
-- No build system beyond `tsc`, no runtime dependencies.
-- ~3500 lines of TypeScript in `src/`, ~16 KB gzip.
+- Zero runtime dependencies. Generated apps use dev tooling (`typescript`,
+  `esbuild`, `linkedom`) for build/bundle/bake/release.
+- Small TypeScript core in `src/`; production size budgets are enforced in CI.
 
 ## HARD RULES — violation = bug
 

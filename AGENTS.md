@@ -13,7 +13,7 @@
 - Built on Web Components + signals + tagged-template `html`.
 - Zero runtime dependencies. Generated apps use dev tooling (`typescript`,
   `esbuild`, `linkedom`) for build/bundle/bake/release.
-- Small TypeScript core in `src/`; bundled/minified full API is roughly 11 KB gzip.
+- Small TypeScript core in `src/`; production size budgets are enforced in CI.
 
 ## HARD RULES — violation = bug
 

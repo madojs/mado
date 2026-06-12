@@ -68,6 +68,7 @@
     "test:browser": "node scripts/cli.mjs test browser",
     "new": "node scripts/cli.mjs new",
     "examples": "node scripts/cli.mjs examples",
+    "size": "node scripts/size-budget.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
     "clean": "rm -rf dist out",

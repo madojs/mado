@@ -58,6 +58,19 @@ infrastructure problem**.
 - **Teams uncomfortable with a pre-v1 framework** — Mado is honest about its
   stage.
 
+## What Mado will not build
+
+Mado stays useful by saying no. These are intentionally out of scope:
+
+- SSR with hydration. Use `bake` or edge prerender for SEO-oriented static
+  output.
+- A template compiler, JSX transform, or VDOM compatibility layer.
+- A separate store library. Use `signal()`, `computed()` and `resource()`.
+- Suspense primitives or a router plugin system.
+- Built-in i18n, animation, or virtual-scroll primitives.
+- Non-evergreen browser support. The baseline is modern evergreen browsers with
+  Baseline 2023 platform features.
+
 ## Why teams pick Mado
 
 | What matters to you | Best choice |

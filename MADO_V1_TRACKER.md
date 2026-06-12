@@ -279,7 +279,7 @@ each behavioural removal still needs a test.
 - [x] **B4** Mark `_testHooks` (`signal`, `diagnostics`, `resource`,
   `router/manifest`) `@internal` and strip them from emitted `.d.ts`; move them
   out of public modules where possible.
-- [ ] **B5** Add the "Things not to build" list to `README.md` as an explicit
+- [x] **B5** Add the "Things not to build" list to `README.md` as an explicit
   **No** section: SSR/hydration, template compiler, store library, Suspense,
   router plugin system, i18n/animation/virtual-scroll primitives, non-evergreen
   browsers. Pin a browser baseline (e.g. Baseline 2023).

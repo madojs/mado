@@ -25,6 +25,12 @@
   longer advertise them as public API; the router barrel also no longer
   re-exports manifest test hooks.
 
+- **README now states the explicit No list (B5).** The project boundary is
+  documented: no SSR hydration, template compiler, separate store library,
+  Suspense, router plugin system, built-in i18n/animation/virtual-scroll
+  primitives, or non-evergreen browser support. Browser baseline is pinned to
+  Baseline 2023.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

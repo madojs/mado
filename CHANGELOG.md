@@ -36,6 +36,10 @@
   different fetcher functions, Mado warns once because the cache key is likely
   too broad. README/docs now spell out resource key discipline.
 
+- **`each()` warns on duplicate keys (B7).** The positional-suffix fallback is
+  preserved so every item still renders, but duplicate keys now produce a
+  `warnOnce` diagnostic because they are almost always a data bug.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

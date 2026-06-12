@@ -335,6 +335,12 @@ function applyEach(
     const item = items[i];
     let key = keyOf(item, i);
     if (seen.has(key)) {
+      warnOnce(
+        "each-duplicate-key",
+        `each() received duplicate key "${String(key)}". Duplicate keys ` +
+          "usually mean the list data is not uniquely identifiable; Mado will " +
+          "fall back to a positional suffix for this duplicate.",
+      );
       key = `${String(key)}__dup_${i}`;
     }
     seen.add(key);

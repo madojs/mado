@@ -308,3 +308,36 @@ test("each: switching TemplateResult to each to TemplateResult cleans old state"
   assert.equal(root.querySelectorAll("span").length, 0);
   assert.equal(root.querySelector("strong[data-mode='b']").textContent, "B");
 });
+
+test("each: duplicate keys warn but keep the positional fallback", () => {
+  const root = document.createElement("div");
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warns.push(args.join(" "));
+
+  try {
+    render(
+      html`<ul>${each(
+        [
+          { id: 1, name: "first" },
+          { id: 1, name: "second" },
+        ],
+        (t) => t.id,
+        (t) => html`<li>${t.name}</li>`,
+      )}</ul>`,
+      root,
+    );
+  } finally {
+    console.warn = origWarn;
+  }
+
+  assert.deepEqual(
+    lis(root).map((li) => li.textContent.trim()),
+    ["first", "second"],
+    "duplicate-key fallback should still render every item",
+  );
+  assert.ok(
+    warns.some((m) => m.includes("each() received duplicate key")),
+    "duplicate keys should warn once in development",
+  );
+});

@@ -37,9 +37,8 @@ export interface ComponentContext {
    *   const variant = ctx.attr("variant", "primary");
    *   return () => html`<div class=${variant()}>…</div>`;
    *
-   * No MutationObserver boilerplate needed. The signal updates via
-   * attributeChangedCallback for known attributes, with a per-instance
-   * MutationObserver fallback for attributes registered during setup().
+   * No MutationObserver boilerplate needed. The signal updates via a
+   * per-instance MutationObserver registered during setup().
    */
   attr(name: string, defaultValue?: string): Signal<string>;
 }
@@ -58,11 +57,6 @@ export interface ComponentOptions {
    *   - an array of the above
    */
   styles?: StyleInput;
-  /**
-   * List of observed attributes. Prefer ctx.attr(), which automatically
-   * registers any attribute it tracks.
-   */
-  observedAttributes?: readonly string[];
 }
 
 export function component(
@@ -94,11 +88,6 @@ export function component(
   }
 
   const useShadow = options.shadow !== false;
-  const observed = options.observedAttributes ?? [];
-
-  // Collect attribute names that ctx.attr() will track. These are merged with
-  // options.observedAttributes to form the final static observedAttributes.
-  const attrSignalNames = new Set<string>(observed);
 
   // Normalize styles to an array of CSSStyleSheet once.
   // Sheets are shared across all instances — memory is not duplicated.
@@ -109,10 +98,6 @@ export function component(
   );
 
   class MadoElement extends HTMLElement {
-    static get observedAttributes() {
-      return [...attrSignalNames];
-    }
-
     #root: Element | ShadowRoot;
     #renderer: (() => TemplateResult) | null = null;
     #effectDispose: Disposer | null = null;
@@ -165,9 +150,6 @@ export function component(
           if (!s) {
             s = signal(host.getAttribute(name) ?? defaultValue);
             host.#attrSignals.set(name, s);
-            // Record for future instances (HMR) — helps observedAttributes
-            // on hot-reloaded re-defines.
-            attrSignalNames.add(name);
           }
           return s;
         },
@@ -176,11 +158,7 @@ export function component(
       this.#renderer = runInLifecycle(lifecycle, () => setup(ctx));
 
       // After setup(), install a single MutationObserver for all attrs
-      // registered via ctx.attr(). This is necessary because
-      // observedAttributes is read once at customElements.define() time —
-      // attrs added by ctx.attr() during setup are too late for the
-      // browser's attributeChangedCallback mechanism. The observer bridges
-      // the gap for the current and all future instances.
+      // registered via ctx.attr().
       if (this.#attrSignals.size > 0) {
         const attrNames = [...this.#attrSignals.keys()];
         const obs = new MutationObserver((mutations) => {
@@ -223,17 +201,6 @@ export function component(
       this.#connected = false;
     }
 
-    attributeChangedCallback(
-      name: string,
-      _old: string | null,
-      value: string | null,
-    ) {
-      // Update ctx.attr() signal if it exists for this attribute.
-      const s = this.#attrSignals.get(name);
-      if (s) {
-        s.set(value ?? "");
-      }
-    }
   }
 
   customElements.define(tagName, MadoElement);
@@ -274,10 +241,7 @@ function sameComponentOptions(
 ): boolean {
   if (a.shadow !== b.shadow) return false;
   if (a.styles !== b.styles) return false;
-  const aa = a.observedAttributes ?? [];
-  const bb = b.observedAttributes ?? [];
-  if (aa.length !== bb.length) return false;
-  return aa.every((name, i) => name === bb[i]);
+  return true;
 }
 
 function installGlobalSheets(sheets: CSSResult[]): void {

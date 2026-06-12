@@ -120,11 +120,9 @@ component("x-badge", ({ attr }) => {
 ```
 
 `ctx.attr(name, defaultValue?)` returns a `Signal<string>` that auto-updates.
-Internally Mado uses `observedAttributes` when available and a per-instance
-`MutationObserver` fallback for attributes registered during `setup()`. This is
-necessary because the browser reads `observedAttributes` once at
-`customElements.define()` time — before any instance calls `setup()`. The
-observer auto-disconnects on component removal via lifecycle cleanup.
+Internally Mado uses a per-instance `MutationObserver` for attributes registered
+during `setup()`. The observer auto-disconnects on component removal via
+lifecycle cleanup.
 
 ### 5. Reactive value in template child position = function
 

@@ -268,9 +268,9 @@ each behavioural removal still needs a test.
 
 - [x] **B1** Remove legacy attribute→property reflection in
   `src/component.ts` (~215). It clobbers native props and `.prop=` bindings;
-  `ctx.attr()` is canonical. Test: setting `title`/`value` attribute no longer
-  overwrites the DOM property.
-- [ ] **B2** Remove `options.observedAttributes` — a second mechanism for the same
+  `ctx.attr()` is canonical. Test: setting `value`/custom attributes no longer
+  overwrites host properties.
+- [x] **B2** Remove `options.observedAttributes` — a second mechanism for the same
   job as `ctx.attr()`; one contract, not two.
 - [ ] **B3** Replace `exports: "./*"` in `package.json` with an explicit subpath
   map (`.`, `./devtools.js`, and at most 3–5 deliberate points). Today `"./*"`

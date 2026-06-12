@@ -102,20 +102,20 @@ test("component(): light DOM styles adopt once across instances", () => {
   second.disconnectedCallback();
 });
 
-test("component(): observedAttributes do not clobber host properties", () => {
+test("component(): attributes do not clobber host properties", () => {
   component(
-    "x-observed-no-reflect",
+    "x-attrs-no-reflect",
     () => () => html`<span></span>`,
-    { observedAttributes: ["title", "value"] },
   );
 
-  const el = document.createElement("x-observed-no-reflect");
+  const el = document.createElement("x-attrs-no-reflect");
   const value = { id: 1 };
+  const model = { name: "Ada" };
   el.value = value;
-  el.title = "property title";
+  el.model = model;
 
-  el.attributeChangedCallback("value", null, "attribute value");
-  el.attributeChangedCallback("title", null, "attribute title");
+  el.setAttribute("value", "attribute value");
+  el.setAttribute("model", "attribute model");
 
   assert.equal(
     el.value,
@@ -123,14 +123,13 @@ test("component(): observedAttributes do not clobber host properties", () => {
     "attribute changes must not overwrite .value set by .prop= bindings",
   );
   assert.equal(
-    el.title,
-    "property title",
-    "attributeChangedCallback must not write through native properties",
+    el.model,
+    model,
+    "attribute changes must not overwrite custom host state",
   );
 });
 
 test("ctx.attr(): reads initial value and updates on external setAttribute", async () => {
-  const { signal: sigFn } = await import("../dist/src/signal.js");
   let variantReads = [];
 
   component("x-attr-dynamic", ({ attr }) => {
@@ -158,8 +157,7 @@ test("ctx.attr(): reads initial value and updates on external setAttribute", asy
 
   assert.equal(variantReads.at(-1), "danger",
     "ctx.attr() must react to setAttribute() after connectedCallback — " +
-    "this proves MutationObserver fallback works since observedAttributes " +
-    "was empty at define-time");
+    "this proves the per-instance MutationObserver path works");
 
   el.disconnectedCallback();
   document.body.removeChild(el);

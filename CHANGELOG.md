@@ -10,6 +10,11 @@
   host state such as `.value`. Attribute changes now update only `ctx.attr()`
   signals; `ctx.attr()` is the canonical reactive attribute API.
 
+- **Removed `component(..., { observedAttributes })` (B2).** `ctx.attr()` is now
+  the single reactive-attribute API. It installs a per-instance observer for the
+  attributes used during setup, so component options no longer carry a second
+  attribute mechanism.
+
 ## 0.9.0 - 2026-06-12
 
 Correctness release from the v1 tracker Phase A: C1-C8 are closed with focused

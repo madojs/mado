@@ -2,6 +2,74 @@
 
 ## Unreleased
 
+## 0.11.0 - 2026-06-21
+
+Vite-era release. Mado keeps the browser-native runtime, but generated apps now
+use Vite for dev/build/release instead of Mado maintaining its own app bundler.
+
+### Added
+
+- **Vite plugin subpath.** `@madojs/mado/vite` exports `mado()`, the canonical
+  Vite plugin for app projects. It provides Mado defaults for app builds while
+  leaving runtime code dependency-free.
+
+- **Canonical default starter.** `mado init` now scaffolds the single official
+  starter from `starters/default`: Vite config, `public/`, module-oriented app
+  structure, Shadow DOM-friendly CSS, CLI generator conventions, and no old
+  importmap/dist entry paths.
+
+- **`mado new` generators.** The CLI can scaffold modules, pages, connectors,
+  resources, services, forms, components, guards, and layouts using the default
+  starter conventions.
+
+### Changed
+
+- **`mado dev` runs Vite.** Development now uses Vite's dev server instead of a
+  custom Mado dev server. Mado-specific HMR is intentionally simple full reload.
+
+- **`mado release` is Vite-first.** Release now cleans `out/`, typechecks, runs
+  Vite build, bakes route HTML from the production `out/index.html`, writes
+  static host files, and precompresses assets.
+
+- **Bake uses Vite module loading.** Route manifests are loaded through Vite's
+  module/SSR loader, so TypeScript, aliases, env handling, and plugin resolution
+  match the app build path.
+
+- **Baked route HTML is written directly into `out/<route>/index.html`.**
+  `out/baked/` is no longer part of the default deploy artifact. Use
+  `mado release --keep-bake-dir` only when a debug copy is useful.
+
+- **CLI internals were split into `scripts/cli/`.** The public `mado` binary is
+  unchanged, but command implementation is no longer one large script.
+
+- **Tests are grouped by context.** Test files now live under `test/bake`,
+  `test/cli`, `test/html`, `test/package`, `test/router`, and `test/runtime`.
+
+### Removed
+
+- **Legacy app bundler and server code.** The custom bundle/server path and
+  config-loader compatibility layer were removed in favor of Vite.
+
+- **Bundled examples and old starters.** Large examples were extracted out of
+  the package repository. `starters/admin`, `starters/crud`, and
+  `starters/minimal` were replaced by `starters/default`.
+
+- **Legacy root artifacts.** The Docker/nginx deployment sample moved to
+  `docs/recipes/nginx/`, and archived v1 planning documents were removed from
+  the active repository surface.
+
+- **Core compatibility aliases.** Legacy `src/html.ts` and `src/router.ts`
+  alias files were removed now that the pre-stable public surface has been
+  cleaned up.
+
+### Docs
+
+- Rewrote EN/RU/FR/UK docs around the new model: `index.html` is the Vite
+  entry, `public/` is static copy input, and `out/` is the deploy artifact.
+- Updated architecture, routing, bake, deployment, testing, Shadow DOM/style,
+  LLM guidance, and starter docs to point at the canonical default starter.
+- Synced `TODO.md` into a small backlog instead of a stale roadmap-style list.
+
 ## 0.10.1 - 2026-06-12
 
 Patch release for the production bake/preview path.

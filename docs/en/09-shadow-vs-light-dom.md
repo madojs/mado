@@ -6,18 +6,19 @@ an application.
 
 ## Rule of Thumb
 
-In Mado, layouts are components too. If a file represents a visible reusable
-part of the app tree — app shell, sidebar, modal, table, page section — prefer a
-Web Component registered with `component()`.
+Use Mado route layouts (`page({ view: ({ child }) => ... })`) for app zones:
+auth shells, admin shells, public shells and embedded shells. These live in
+`src/layouts/` and are composed from `src/app.routes.ts`.
 
-Use plain functions only for small inline template helpers:
+Use Web Components registered with `component()` for reusable UI elements and
+widgets. Use plain functions only for small inline template helpers:
 
 ```ts
 const money = (value: number) => html`<span>${formatMoney(value)}</span>`;
 ```
 
-Do not use functions for app shells in public examples. They work, but they
-hide the browser model instead of teaching it.
+Do not hide app shells inside `main.ts` or generic helper functions. The app
+map should show which layout wraps which route group.
 
 Use **Shadow DOM** for leaf widgets:
 
@@ -26,23 +27,14 @@ Use **Shadow DOM** for leaf widgets:
 - embed widgets that should not inherit app CSS accidentally;
 - components whose styling should be owned by the component itself.
 
-Use **Light DOM** (`{ shadow: false }`) for app structure that wants to share
-global CSS utilities:
+Use **Light DOM** for app structure that wants to share global CSS:
 
-- route/page components;
+- route pages and route layouts;
 - admin screens with dense table/form layouts;
 - data-heavy screens with tables and forms;
-- components that intentionally share global layout, form and table utilities;
 - places where children should simply remain normal document DOM.
 
-Use **Shadow DOM** for slot-based layouts:
-
-- app shells that render `<slot>`;
-- sidebar/content wrappers;
-- reusable layout frames that own their own grid/header/sidebar CSS.
-
-`<slot>` is a Shadow DOM feature. In a `shadow: false` component, `<slot>` is
-just a normal element and does not move children into that position.
+Route layouts receive `child` from Mado, so they do not need `<slot>`.
 
 ## The Footgun
 
@@ -96,12 +88,15 @@ Now global utilities and local scoped styles both work.
 ## Recommended App Shape
 
 ```ts
-// root and pages: Light DOM
-component("x-app", setup, { shadow: false });
-component("x-users-page", setup, { shadow: false });
+// app zone: route layout, styled by shared/styles/shell.css
+export default page({
+  view: ({ child }) => html`<main class="app-main">${child}</main>`,
+});
 
-// slot-based layout: Shadow DOM default, because it owns the shell grid
-component("x-app-layout", setup);
+// route page: light DOM, styled by shared/styles/content.css
+export default page({
+  view: () => html`<section><h1>Users</h1></section>`,
+});
 
 // leaf widgets: Shadow DOM default
 component("x-status-badge", setup);
@@ -109,8 +104,8 @@ component("x-stat-card", setup);
 component("x-toast-stack", setup);
 ```
 
-This gives backend-admin screens predictable CSS while preserving encapsulation
-for reusable widgets and slot-based shells.
+This gives admin screens predictable CSS while preserving encapsulation for
+reusable leaf widgets.
 
 The import model is deliberately browser-native:
 
@@ -124,9 +119,8 @@ The import registers the custom element with `customElements.define()`. The
 template creates an `<x-app-layout>` element. The browser connects the two.
 There is no React-style component value being passed around.
 
-If a layout does not need slot projection and should be styled entirely by
-global CSS, `shadow: false` can still be a good choice. If it contains
-`<slot>`, keep Shadow DOM and put the shell styles in that component.
+If you do need a reusable slot-based frame, keep it as a Shadow DOM component
+and put frame styles in that component.
 
 ## Routing and Links
 
@@ -167,16 +161,14 @@ tiny demos, but it hides ownership and defeats lazy route loading. Prefer:
 - feature-owned shared components in the feature entry page;
 - truly global leaf components in `main.ts` only when they are used everywhere.
 
-## Showcase Lesson
+## Starter Lesson
 
-The larger examples use this split deliberately:
+The default starter uses this split deliberately:
 
-- `x-app` and CRM route pages are Light DOM;
-- `x-app-layout` keeps Shadow DOM because it owns a slot-based sidebar/content
-  shell;
-- table/form/page utilities live in `styles/global.ts`;
-- leaf components such as `x-stat-card`, `x-status-badge`, `x-modal`, and
-  `x-toast-stack` keep Shadow DOM.
+- route layouts are `page()` files under `src/layouts/`;
+- `shell.css` owns app-zone chrome;
+- `content.css` owns page-level tables/forms/prose;
+- leaf components such as `x-button`, `x-spinner` and badges keep Shadow DOM.
 
 If a page suddenly looks unstyled, check whether it uses global classes inside a
 Shadow DOM component. That is usually the issue.

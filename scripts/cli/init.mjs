@@ -39,7 +39,7 @@ export async function runInit(ctx, rawArgs) {
 
   await mkdir(target, { recursive: true });
   await cp(source, target, { recursive: true, force: true });
-  await copyCanonicalAgentFiles(ctx, target);
+  await copyCanonicalLLMFiles(ctx, target);
   await ensureStarterGitignore(target);
   await ensureStarterPackageJson(ctx, target);
 
@@ -79,8 +79,8 @@ export async function runInit(ctx, rawArgs) {
   console.log("");
 }
 
-async function copyCanonicalAgentFiles(ctx, target) {
-  for (const file of ["AGENTS.md", "llms.txt"]) {
+async function copyCanonicalLLMFiles(ctx, target) {
+  for (const file of ["llms.txt"]) {
     const source = join(ctx.packageRoot, file);
     const dest = join(target, file);
     if (existsSync(source) && !existsSync(dest)) await copyFile(source, dest);
@@ -110,6 +110,7 @@ async function ensureStarterPackageJson(ctx, target) {
     ...(pkg.devDependencies ?? {}),
     typescript: rootDev.typescript ?? "^6.0.3",
     linkedom: rootDev.linkedom ?? "^0.18.12",
+    lightningcss: rootDev.lightningcss ?? "^1.32.0",
     vite: rootDev.vite ?? "^8.0.16",
   };
 

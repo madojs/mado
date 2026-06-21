@@ -147,8 +147,9 @@ Use `jsonFetcher()` for public endpoints, `apiFetcher()` for anything behind aut
 
 ## Layouts and bake
 
-Use `layout()` in `routes.ts` for shared shells. A layout view should be a pure
-wrapper around `${child}` and shared chrome:
+Use `layout()` in `src/app.routes.ts` for shared shells. Modules export plain
+route maps; app routes decide which layout and guard wrap each zone. A layout
+view should be a pure wrapper around `${child}` and shared chrome:
 
 ```ts
 export default page({
@@ -169,17 +170,18 @@ relative `fetch`, and runtime directives like keyed `each()` during bake.
 ```ts
 // src/main.ts
 import { html, render } from "@madojs/mado";
-import routesApi from "./routes.js";
+import routesApi from "./app.routes.js";
 render(html`${routesApi.view}`, document.getElementById("app")!);
 
-// src/routes.ts
+// src/app.routes.ts
 import { routes } from "@madojs/mado";
-export default routes({
-  "/": () => import("./pages/home.js"),
-  "*": () => import("./pages/not-found.js"),
-});
+export const manifest = {
+  "/": () => import("./modules/home/home.page.js"),
+  "*": () => import("./modules/home/not-found.page.js"),
+};
+export default routes(manifest);
 
-// src/pages/home.ts
+// src/modules/home/home.page.ts
 import { page, component, html, css, signal } from "@madojs/mado";
 
 component("x-counter", () => {
@@ -254,10 +256,7 @@ export default page({
 - docs/en/18-api-freeze-map.md — stable public API vs internal implementation details
 - docs/en/19-reactivity-ordering.md — signal ordering, batching and teardown guarantees
 - docs/en/20-v1-stability.md — v1 SemVer contract and what remains internal
-- examples/basic/ — minimal API tour
-- examples/tickets/ — LLM zero-history CRUD validation
-- examples/showcase/ — flagship CRM pressure app (auth, nested routes, forms, mutations)
-- examples/cloudflare/ — Edge prerender PoC on Cloudflare Workers
+- starters/default/ — canonical generated app shape
 
 ## What Mado does NOT do (intentionally)
 
@@ -265,7 +264,7 @@ export default page({
 - ❌ Virtual DOM → fine-grained signal updates
 - ❌ SSR with hydration → `bake` static meta-shell or edge-prerender for SEO
 - ❌ Hooks and rules of hooks → signals
-- ❌ Mandatory Webpack/Vite → only `tsc`
+- ❌ Runtime framework dependencies → generated apps use Vite as dev/build tooling
 - ❌ React-Router / TanStack → built-in 500-line `routes()`
 - ❌ React-Query / SWR → built-in `resource()`
 - ❌ Formik / RHF → built-in `useForm()` (HTML5 validation)

@@ -1,34 +1,70 @@
-# Auth та API
+# Auth and API
 
-Starter `admin` містить рекомендований рецепт:
+The default starter is the blessed recipe. HTTP mechanics live in
+`src/shared/http/`, auth state lives in `src/modules/auth/`.
 
-- `src/lib/api.ts` — один HTTP-клієнт, `ApiError`, refresh після 401;
-- `src/lib/auth.ts` — `accessToken`, `restoreSession()`, `login()`,
-  `logout()`, `requireAuth`.
+```txt
+src/shared/http/
+  http-client.ts
+  http-error.ts
+  interceptors.ts
 
-Модель:
-
-- access token у пам'яті через `signal`, не в `localStorage`;
-- HttpOnly refresh cookie відновлює сесію;
-- усі запити проходять через API-клієнт;
-- захищені routes використовують group guard.
-
-```ts
-export const requireAuth: Guard = async ({ path }) => {
-  if (accessToken()) return;
-  if (await restoreSession()) return;
-  return { redirect: `/login?return=${encodeURIComponent(path)}`, replace: true };
-};
+src/modules/auth/
+  auth.connector.ts
+  auth.service.ts
+  auth.guard.ts
+  auth.routes.ts
+  auth.public.ts
+  _contracts/
 ```
 
-Dev proxy:
+Business module flow:
 
-```jsonc
-{
-  "dev": {
-    "proxy": { "/api": "http://localhost:3000" }
-  }
+```txt
+connector -> resource/mutation -> page
+```
+
+Pages do not import DTOs and do not call `fetch()` directly. Connectors do not
+import Mado reactivity or UI.
+
+## Auth Service
+
+```ts
+const _user = signal<User | null>(null);
+const _token = signal<string | null>(null);
+
+export const user = () => _user();
+export const isAuthed = computed(() => _user() !== null);
+```
+
+Expose only what other modules need through `auth.public.ts`.
+
+## Guards
+
+```ts
+export function requireAuth(): boolean | string {
+  if (isAuthed()) return true;
+  return "/login";
 }
 ```
 
-Якщо backend має іншу auth-схему, змінюй `api.ts`/`auth.ts`, а не сторінки.
+Use in `src/app.routes.ts`:
+
+```ts
+"/billing": layout({
+  layout: () => import("./layouts/app-shell.layout"),
+  guard: requireAuth,
+  routes: billingRoutes,
+}),
+```
+
+## Dev Proxy
+
+```ts
+export default defineConfig({
+  plugins: [mado()],
+  server: {
+    proxy: { "/api": "http://localhost:3000" },
+  },
+});
+```

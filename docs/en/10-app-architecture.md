@@ -123,6 +123,25 @@ The default starter enforces this with ESLint:
 - no cross-module imports except public surfaces;
 - no `_contracts` imports outside connectors.
 
+## Styles
+
+The starter uses plain CSS plus component-local ``css`...` ``. The split is
+intentional:
+
+| File | Role |
+| ---- | ---- |
+| `src/shared/styles/tokens.css` | design tokens as CSS custom properties |
+| `src/shared/styles/reset.css` | document/light DOM reset |
+| `src/shared/styles/shell.css` | app-zone layouts from `src/layouts/` |
+| `src/shared/styles/content.css` | page-level forms, tables, prose and states |
+
+Reusable leaf components keep their own styles in ``css`...` `` inside
+`component()` options. They should depend on tokens (`var(--color-text)`)
+rather than global classes.
+
+`vite.config.ts` opts into Vite's Lightning CSS transformer. Mado does not own
+prefixing, CSS lowering or minification.
+
 ## Growth
 
 Start flat when a module is small:

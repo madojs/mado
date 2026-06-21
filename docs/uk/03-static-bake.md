@@ -42,8 +42,7 @@ export default page<{ slug: string }, Product>({
 ## Edge prerender
 
 Для великих наборів сторінок можна робити той самий підхід на edge: Cloudflare
-Worker генерує HTML на cache miss, кладе в KV і віддає з TTL. Приклад лежить в
-`examples/cloudflare`.
+Worker генерує HTML на cache miss, кладе в KV і віддає з TTL.
 
 Це не hydration. Клієнтський Mado-застосунок все одно стартує нормально і
 перерендерює сторінку після завантаження.

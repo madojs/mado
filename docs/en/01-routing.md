@@ -1,206 +1,152 @@
 # Routing
 
-> One manifest file. No folder scanners. No special characters.
+> One app map. No folder scanners. No special path syntax.
 
-## Why not file-based
+Mado does not infer routes from files. The browser sees files as files; route
+composition should be readable in one place.
 
-In Next/SvelteKit/SolidStart routes appear "magically" from file names. This has
-advantages (URL structure visible in `pages/`), but in production it means:
+## App Manifest
 
-- An invisible plugin-scanner in the build. Without it the files are just files.
-- Special characters in paths: `[id]`, `(group)`, `_layout`, `+page.svelte`, `...slug`.
-- Server-routes and client-routes get confused.
-- Testing routing is a pain: you need a build-tool emulator.
-
-Mado considers this **too much magic**. We do it differently.
-
-## Manifest
-
-One file — `src/app.routes.ts`. One object. Read top to bottom.
+Use `src/app.routes.ts` as the application map:
 
 ```ts
-// src/app.routes.ts
-import { routes } from '@madojs/mado';
+import { layout, routes } from "@madojs/mado";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
 export const manifest = {
-  '/':              () => import('./modules/home/home.page.js'),
-  '/about':         () => import('./modules/about/about.page.js'),
-  '/users/:id':     () => import('./modules/users/pages/user-profile.page.js'),
-  '/users/:id/edit':() => import('./modules/users/pages/user-edit.page.js'),
-  '*':              () => import('./modules/home/not-found.page.js'),
+  "/": () => import("./modules/home/home.page.js"),
+  "/login": layout({
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
+  }),
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
+    guard: requireAuth,
+    routes: billingRoutes,
+  }),
+  "*": () => import("./modules/home/not-found.page.js"),
 };
 
 export default routes(manifest);
 ```
 
-Want to see all routes? Open `app.routes.ts`. No surprises.
+Open `app.routes.ts` and you can see the whole app: public pages, auth zone,
+protected app zones, guards and shells.
 
-## What goes on the right side of a path
+Exporting `manifest` is important because `mado bake` reads it.
 
-Every entry is **one of three things**:
+## Module Routes
 
-### 1. Lazy import (recommended)
+Modules export plain route maps. They do not call `layout()` and they do not
+decide which shell wraps them.
 
 ```ts
-'/posts': () => import('./modules/posts/pages/posts-list.page.js'),
+// src/modules/billing/billing.routes.ts
+export const billingRoutes = {
+  "/invoices": () => import("./pages/invoices-list.page.js"),
+  "/invoices/:id": () => import("./pages/invoice-detail.page.js"),
+};
 ```
 
-- Vite makes its own chunk when bundling dynamic imports.
-- The module is loaded only when the user visits the route.
-- Subsequent navigations use the cached result.
+The prefix is applied by `src/app.routes.ts` when the module is mounted under
+`"/billing"`.
 
-### 2. Ready Page (eager)
+## What Goes On The Right Side
+
+### Lazy page import
 
 ```ts
-import about from './modules/about/about.page.js';
-
-'/about': about,
+"/users/:id": () => import("./modules/users/pages/user-profile.page.js"),
 ```
 
-In the bundle immediately, no delay. Use for critical pages (home, login).
+Vite creates a separate chunk for dynamic imports in production.
 
-### 3. Nested with layout
+### Eager page
 
 ```ts
-import { routes, nested } from '@madojs/mado';
+import home from "./modules/home/home.page.js";
 
-export default routes({
-  '/': () => import('./modules/home/home.page.js'),
-
-  '/admin/*': nested({
-    layout: () => import('./layouts/app-shell.layout.js'),
-    routes: {
-      '':       () => import('./modules/admin/pages/dashboard.page.js'),
-      'users':  () => import('./modules/admin/pages/users-list.page.js'),
-      'logs':   () => import('./modules/admin/pages/logs-list.page.js'),
-    },
-  }),
-});
+export const manifest = {
+  "/": home,
+};
 ```
 
-A layout is just a regular `page({...})` that renders `ctx.child` wherever it wants:
+Use this only for tiny critical pages.
+
+### Layout group
 
 ```ts
-// src/layouts/admin.ts
-import { page, html, css, component } from '@madojs/mado';
+"/admin": layout({
+  layout: () => import("./layouts/app-shell.layout.js"),
+  guard: requireAuth,
+  routes: adminRoutes,
+}),
+```
+
+A layout is a normal `page({...})` file:
+
+```ts
+import { html, page } from "@madojs/mado";
 
 export default page({
   view: ({ child }) => html`
-    <div class="admin">
-      <aside><nav>...</nav></aside>
-      <main>${child}</main>
+    <div class="layout layout--app">
+      <main class="app-main">${child}</main>
     </div>
   `,
 });
 ```
 
-## Page contract
+Keep layout views stateless. Put page-specific signals, resources and forms in
+pages/components/resources, not in layout locals.
+
+## Page Contract
 
 ```ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { html, page } from "@madojs/mado";
 
-export default page({
-  title: ({ id }) => `User #${id}`,        // string | (params) => string
-  load:  ({ id }) => resource(...),         // optional, returns Resource or data
-  view:  ({ params, data, path, child }) => html`...`,  // REQUIRED
-});
-```
-
-Three slots, that's all. If you export something other than `page({...})`, a plain
-function for instance — `routes()` throws a clear error:
-
-```
-[Mado] Lazy route did not return page({...}) as the default export.
-```
-
-## URL parameters
-
-```ts
-'/users/:id': () => import('./pages/user.js'),
-```
-
-```ts
 export default page<{ id: string }>({
   title: ({ id }) => `User ${id}`,
-  view:  ({ params }) => html`<h1>${params.id}</h1>`,
+  view: ({ params }) => html`<h1>${params.id}</h1>`,
 });
 ```
 
-Types are passed in `page<Params>` — `tsc` verifies that you don't access
-`params.foo` which doesn't exist in the route.
+If a lazy route does not default-export `page({...})`, `routes()` throws a clear
+error.
 
-## Global options
-
-```ts
-export default routes(
-  { '/': home, '/about': about, '*': nf },
-  {
-    titleSuffix: ' · MyApp',                       // → "Home · MyApp"
-    loading: () => html`<x-spinner/>`,             // while module loads
-    error:   (err) => html`<x-fatal-error .err=${err}/>`,
-  },
-);
-```
-
-## Programmatic navigation
+## Navigation
 
 ```ts
-import route from './routes.js';
+import appRoutes from "./app.routes.js";
 
-route.navigate('/posts');
-route.navigate('/posts?page=2');
-route.navigate('/posts', { replace: true });
+appRoutes.navigate("/billing/invoices");
+appRoutes.navigate("/billing/invoices?page=2");
+appRoutes.navigate("/login", { replace: true });
 ```
 
-Clicks on `<a href="/foo" data-link>` are intercepted globally (without the
-attribute — the browser does a full reload, as expected for external links).
+Clicks on `<a href="/foo">` are intercepted for same-origin SPA navigation.
+External links still use normal browser navigation.
 
-## Query parameters
+## Query Parameters
 
 ```ts
-import { queryParam } from '@madojs/mado';
+import { queryParam } from "@madojs/mado";
 
-const page = queryParam('page', '1');
-page();              // '1'
-page.set('2');       // history.replaceState + re-render
-page.set(null);      // delete the parameter
-page.set('3', { push: true });   // history.pushState
+const page = queryParam("page", "1");
+page();
+page.set("2");
+page.set(null);
+page.set("3", { push: true });
 ```
 
-`queryParam` is a normal signal. Use it anywhere: in pages, components, computed.
+`queryParam()` is a signal. Use it in pages or components when URL state is part
+of the UI.
 
-## What is intentionally absent
+## What Is Intentionally Absent
 
-- ❌ Auto-scan of `pages/`. **One explicit manifest file**.
-- ❌ Special characters in paths (`[id]`, `(group)`, `_layout`). **Parameters are
-  `:name` only, nothing else**.
-- ❌ Server-side routing in the same manifest. Mado is a client-side framework.
-- ❌ Auto-prefetch on hover. If you really need it — do it manually:
-  `link.addEventListener('mouseenter', loader)`. Usually unnecessary.
-
-## FAQ
-
-**What if I have 100 routes? Won't the file get huge?**
-It will grow to ~150 lines. That is still **one source of truth** versus a hundred
-files in `pages/` with magic names. In practice even large projects (1000+ pages)
-can split into feature manifests:
-
-```ts
-import { routes } from '@madojs/mado';
-import adminRoutes from './features/admin/routes.js';
-import billingRoutes from './features/billing/routes.js';
-
-export default routes({
-  ...adminRoutes,
-  ...billingRoutes,
-  '*': () => import('./pages/not-found.js'),
-});
-```
-
-**How do I test routing?**
-Import `routes.ts` — it is just an object. Substitute your mock router. No build
-tool emulation needed.
-
-**Does code splitting work?**
-Yes. With Vite production build, every
-`() => import('./pages/x.js')` becomes its own chunk.
+- No auto-scan of page folders.
+- No special filesystem route syntax like `[id]`, `(group)`, `_layout`.
+- No server routes in the client manifest.
+- No hidden layout discovery. App zones are explicit in `app.routes.ts`.

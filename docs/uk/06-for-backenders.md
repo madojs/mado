@@ -7,7 +7,7 @@
 |---|---|
 | router | `routes()` |
 | handler | `page().view` |
-| middleware/layout | `nested()` + layout |
+| middleware/layout | `layout()` route group |
 | cache get-or-set | `resource()` |
 | POST/PUT/DELETE | `mutation()` |
 | cache invalidation | `invalidates` / `invalidate()` |

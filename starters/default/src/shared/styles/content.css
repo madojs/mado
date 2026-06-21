@@ -1,0 +1,70 @@
+/* Light-DOM content styles for pages: forms, tables, prose and simple states.
+ * Shadow DOM leaf components own their styles in component css`` blocks. */
+
+section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+h1,
+p {
+  margin-block-start: 0;
+}
+
+form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+label {
+  display: grid;
+  gap: var(--space-1);
+  font-weight: 500;
+}
+
+input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-bg);
+}
+
+table.data th,
+table.data td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+table.data th {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+}
+
+dt {
+  color: var(--color-text-muted);
+}
+
+dd {
+  margin: 0;
+}
+
+.error {
+  color: var(--color-danger);
+}

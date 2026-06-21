@@ -1,202 +1,120 @@
 # Routage
 
-> Un seul fichier manifeste. Pas de scanners de dossiers. Pas de caractères spéciaux.
+> Une seule app map. Pas de folder scanners. Pas de syntaxe magique.
 
-## Pourquoi pas de routes basées sur les fichiers
+Mado ne déduit pas les routes depuis les fichiers. La composition doit rester
+lisible dans un seul endroit.
 
-Dans Next/SvelteKit/SolidStart, les routes apparaissent "magiquement" à partir des noms de
-fichiers. Cela a des avantages (la structure d'URL visible dans `pages/`), mais en production
-cela signifie :
+## App Manifest
 
-- Un plugin-scanner invisible dans le build. Sans lui, les fichiers ne sont que des fichiers.
-- Des caractères spéciaux dans les chemins : `[id]`, `(group)`, `_layout`, `+page.svelte`, `...slug`.
-- Les routes serveur et les routes client se mélangent.
-- Tester le routage est pénible : vous avez besoin d'un émulateur de build-tool.
-
-Mado considère cela comme **trop de magie**. Nous procédons différemment.
-
-## Manifeste
-
-Un seul fichier — `src/routes.ts`. Un seul objet. Lu de haut en bas.
+Utilisez `src/app.routes.ts` comme carte de l'application :
 
 ```ts
-// src/routes.ts
-import { routes } from '@madojs/mado';
+import { layout, routes } from "@madojs/mado";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
-export default routes({
-  '/':              () => import('./pages/home.js'),
-  '/about':         () => import('./pages/about.js'),
-  '/users/:id':     () => import('./pages/user-profile.js'),
-  '/users/:id/edit':() => import('./pages/user-edit.js'),
-  '*':              () => import('./pages/not-found.js'),
-});
-```
-
-Vous voulez voir toutes les routes ? Ouvrez `routes.ts`. Pas de surprises.
-
-## Ce qui va à droite d'un chemin
-
-Chaque entrée est **l'une de ces trois choses** :
-
-### 1. Import lazy (recommandé)
-
-```ts
-'/posts': () => import('./pages/posts.js'),
-```
-
-- Le navigateur crée son propre chunk lors du bundling (esbuild --bundle --splitting).
-- Le module est chargé uniquement quand l'utilisateur visite la route.
-- Les navigations suivantes utilisent le résultat mis en cache.
-
-### 2. Page prête (eager)
-
-```ts
-import about from './pages/about.js';
-
-'/about': about,
-```
-
-Dans le bundle immédiatement, sans délai. Utilisez pour les pages critiques (accueil, connexion).
-
-### 3. Imbriqué avec layout
-
-```ts
-import { routes, nested } from '@madojs/mado';
-
-export default routes({
-  '/': () => import('./pages/home.js'),
-
-  '/admin/*': nested({
-    layout: () => import('./layouts/admin.js'),
-    routes: {
-      '':       () => import('./pages/admin/dashboard.js'),
-      'users':  () => import('./pages/admin/users.js'),
-      'logs':   () => import('./pages/admin/logs.js'),
-    },
+export const manifest = {
+  "/": () => import("./modules/home/home.page.js"),
+  "/login": layout({
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
   }),
-});
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
+    guard: requireAuth,
+    routes: billingRoutes,
+  }),
+  "*": () => import("./modules/home/not-found.page.js"),
+};
+
+export default routes(manifest);
 ```
 
-Un layout est juste une `page({...})` ordinaire qui rend `ctx.child` où elle le souhaite :
+Ouvrez `app.routes.ts` pour voir les zones de l'app : pages publiques, auth,
+zones protégées, guards et shells.
+
+Exportez `manifest` pour `mado bake`.
+
+## Module Routes
+
+Les modules exportent de simples route maps. Ils n'appellent pas `layout()` et
+ne décident pas quel shell les enveloppe.
 
 ```ts
-// src/layouts/admin.ts
-import { page, html, css, component } from '@madojs/mado';
+export const billingRoutes = {
+  "/invoices": () => import("./pages/invoices-list.page.js"),
+  "/invoices/:id": () => import("./pages/invoice-detail.page.js"),
+};
+```
+
+Le prefix est appliqué par `src/app.routes.ts` quand le module est monté sous
+`"/billing"`.
+
+## Layout Group
+
+```ts
+"/admin": layout({
+  layout: () => import("./layouts/app-shell.layout.js"),
+  guard: requireAuth,
+  routes: adminRoutes,
+}),
+```
+
+Un layout est un fichier `page({...})` ordinaire :
+
+```ts
+import { html, page } from "@madojs/mado";
 
 export default page({
   view: ({ child }) => html`
-    <div class="admin">
-      <aside><nav>...</nav></aside>
-      <main>${child}</main>
+    <div class="layout layout--app">
+      <main class="app-main">${child}</main>
     </div>
   `,
 });
 ```
 
-## Contrat de page
+Gardez les layout views stateless. Les signals, resources et forms spécifiques
+à une page vivent dans les pages/components/resources.
+
+## Page Contract
 
 ```ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { html, page } from "@madojs/mado";
 
-export default page({
-  title: ({ id }) => `Utilisateur #${id}`,        // string | (params) => string
-  load:  ({ id }) => resource(...),                // optionnel, retourne Resource ou data
-  view:  ({ params, data, path, child }) => html`...`,  // OBLIGATOIRE
-});
-```
-
-Trois emplacements, c'est tout. Si vous exportez autre chose que `page({...})`, une simple
-fonction par exemple — `routes()` génère une erreur claire :
-
-```
-[Mado] La route lazy n'a pas retourné page({...}) comme export par défaut.
-```
-
-## Paramètres d'URL
-
-```ts
-'/users/:id': () => import('./pages/user.js'),
-```
-
-```ts
 export default page<{ id: string }>({
-  title: ({ id }) => `Utilisateur ${id}`,
-  view:  ({ params }) => html`<h1>${params.id}</h1>`,
+  title: ({ id }) => `User ${id}`,
+  view: ({ params }) => html`<h1>${params.id}</h1>`,
 });
 ```
 
-Les types sont passés dans `page<Params>` — `tsc` vérifie que vous n'accédez pas à
-`params.foo` qui n'existe pas dans la route.
-
-## Options globales
+## Navigation
 
 ```ts
-export default routes(
-  { '/': home, '/about': about, '*': nf },
-  {
-    titleSuffix: ' · MonApp',                      // → "Accueil · MonApp"
-    loading: () => html`<x-spinner/>`,             // pendant le chargement du module
-    error:   (err) => html`<x-fatal-error .err=${err}/>`,
-  },
-);
+import appRoutes from "./app.routes.js";
+
+appRoutes.navigate("/billing/invoices");
+appRoutes.navigate("/billing/invoices?page=2");
+appRoutes.navigate("/login", { replace: true });
 ```
 
-## Navigation programmatique
+## Query Parameters
 
 ```ts
-import route from './routes.js';
+import { queryParam } from "@madojs/mado";
 
-route.navigate('/posts');
-route.navigate('/posts?page=2');
-route.navigate('/posts', { replace: true });
+const page = queryParam("page", "1");
+page();
+page.set("2");
+page.set(null);
+page.set("3", { push: true });
 ```
 
-Les clics sur `<a href="/foo" data-link>` sont interceptés globalement (sans l'attribut —
-le navigateur effectue un rechargement complet, comme prévu pour les liens externes).
+## Ce qui est absent volontairement
 
-## Paramètres de requête
-
-```ts
-import { queryParam } from '@madojs/mado';
-
-const page = queryParam('page', '1');
-page();              // '1'
-page.set('2');       // history.replaceState + re-rendu
-page.set(null);      // supprimer le paramètre
-page.set('3', { push: true });   // history.pushState
-```
-
-`queryParam` est un signal normal. Utilisez-le n'importe où : dans les pages, les composants,
-les computed.
-
-## Ce qui est intentionnellement absent
-
-- ❌ Auto-scan de `pages/`. **Un seul fichier manifeste explicite**.
-- ❌ Caractères spéciaux dans les chemins (`[id]`, `(group)`, `_layout`). **Les paramètres sont
-  uniquement `:name`, rien d'autre**.
-- ❌ Routage côté serveur dans le même manifeste. Mado est un framework côté client.
-- ❌ Auto-préchargement au survol. Si vous en avez vraiment besoin — faites-le manuellement :
-  `link.addEventListener('mouseenter', loader)`. Généralement inutile.
-
-## FAQ
-
-**Et si j'ai 100 routes ? Le fichier ne deviendra-t-il pas énorme ?**
-Il atteindra ~150 lignes. C'est toujours **une seule source de vérité** contre une centaine
-de fichiers dans `pages/` avec des noms magiques. En pratique, même les grands projets (1000+
-pages) peuvent se diviser en manifestes de fonctionnalités :
-
-```ts
-import { routes } from '@madojs/mado';
-import adminRoutes from './features/admin/routes.js';
-import billingRoutes from './features/billing/routes.js';
-
-export default routes({
-  ...adminRoutes,
-  ...billingRoutes,
-  '*': () => import('./pages/not-found.js'),
-});
-```
-
-**Comment tester le routage ?**
-Importez `routes.ts` — c'est juste un objet. Substituez votre router mock. Pas besoin
-d'émulation de build-tool.
+- Pas d'auto-scan des dossiers de pages.
+- Pas de syntaxe filesystem comme `[id]`, `(group)`, `_layout`.
+- Pas de server routes dans le manifest client.
+- Pas de découverte cachée des layouts.

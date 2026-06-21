@@ -1,4 +1,4 @@
-/* Design tokens. Loaded once from index.html.
+/* Design tokens. Imported once by src/main.ts.
  * Every component reads these via var(--token-name) and can be retargeted
  * here without touching component code. */
 

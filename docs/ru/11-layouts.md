@@ -1,47 +1,47 @@
 # Layouts
 
-В Mado blessed-способ для layout — nested route group в `routes.ts`.
-Не заворачивай каждую страницу вручную и не клади общий shell в `main.ts`,
-если в приложении есть разные зоны вроде public/login/admin.
+Blessed layout способ в Mado — route group в `src/app.routes.ts`.
+Не заворачивайте каждую страницу вручную и не кладите общий shell в `main.ts`,
+если есть разные зоны: public, auth, app, embed.
 
 ```ts
 import { layout, routes } from "@madojs/mado";
-import { requireAuth } from "./lib/auth.js";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
 export const manifest = {
-  "/": () => import("./pages/home.js"),
+  "/": () => import("./modules/home/home.page.js"),
   "/login": layout({
-    layout: () => import("./layouts/auth.js"),
-    routes: { "/": () => import("./pages/login.js") },
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
   }),
-  "/admin": layout({
-    layout: () => import("./layouts/app.js"),
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
     guard: requireAuth,
-    routes: {
-      "/": () => import("./pages/admin/dashboard.js"),
-      "/orders": () => import("./pages/admin/orders.js"),
-    },
+    routes: billingRoutes,
   }),
-  "*": () => import("./pages/not-found.js"),
+  "*": () => import("./modules/home/not-found.page.js"),
 };
 
 export default routes(manifest);
 ```
 
-Layout — это обычная `page({ view })`, которая рендерит `child`:
+Layout — обычный `page({ view })`, который рендерит `child`:
 
 ```ts
 export default page({
-  view: ({ child }) => html`<x-app-shell>${child}</x-app-shell>`,
+  view: ({ child }) => html`
+    <div class="layout layout--app">
+      <main class="app-main">${child}</main>
+    </div>
+  `,
 });
 ```
 
-Правила:
+Rules:
 
-- один shell на группу, не на каждую страницу;
-- outer layouts оборачивают inner layouts;
-- guard на группе защищает всю поддеревянную часть;
-- layout можно lazy-load через `() => import(...)`.
-
-Single-shell wrapper в `main.ts` допустим только для приложений, где абсолютно
-все роуты живут в одной оболочке.
+- one shell per route group, not per page;
+- modules export plain route maps and do not call `layout()`;
+- guard on a group protects the whole subtree;
+- layout view stays stateless; page-local state lives in pages/components/resources.

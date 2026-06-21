@@ -14,7 +14,7 @@ Mado is structured **like an HTTP server**. Seriously:
 | ----------------------------------- | ---------------------------------------------- |
 | HTTP router (chi, axum, mux)        | `routes()` — path manifest                     |
 | Handler `func(req, resp)`           | `page({ view: (ctx) => html\`...\` })`         |
-| Middleware                          | `layout` in `nested()` (wraps the handler)     |
+| Middleware                          | `layout()` route group (wraps the handler)     |
 | Template engine (Jinja, Handlebars) | `html\`\`` tagged template                     |
 | HTTP client with cache              | `resource()` — fetch + cache + invalidation    |
 | Reactive variable / atom            | `signal()` — reactive getter                   |
@@ -370,16 +370,16 @@ export default page({
 
 ```ts
 // src/app.routes.ts
-import { routes, nested } from "@madojs/mado";
+import { layout, routes } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),
 
-  "/app/*": nested({
+  "/app": layout({
     layout: () => import("./layouts/auth-layout.js"),
     routes: {
-      dashboard: () => import("./pages/dashboard.js"),
-      users: () => import("./pages/users.js"),
+      "/dashboard": () => import("./pages/dashboard.js"),
+      "/users": () => import("./pages/users.js"),
     },
   }),
 });

@@ -1,76 +1,70 @@
-# Маршрутизація
+# Routing
 
-Mado використовує явний route manifest: один файл показує весь URL-граф
-застосунку.
+> One app map. No folder scanners. No magic path syntax.
+
+Mado uses an explicit route manifest. Route composition should be readable in
+one place: `src/app.routes.ts`.
 
 ```ts
-import { routes } from "@madojs/mado";
+import { layout, routes } from "@madojs/mado";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
 export const manifest = {
-  "/": () => import("./pages/home.js"),
-  "/users/:id": () => import("./pages/user-detail.js"),
-  "*": () => import("./pages/not-found.js"),
+  "/": () => import("./modules/home/home.page.js"),
+  "/login": layout({
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
+  }),
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
+    guard: requireAuth,
+    routes: billingRoutes,
+  }),
+  "*": () => import("./modules/home/not-found.page.js"),
 };
 
 export default routes(manifest);
 ```
 
-## Сторінка
+Export `manifest` so `mado bake` can read it.
+
+## Module Routes
+
+Modules export plain route maps. They do not call `layout()`.
 
 ```ts
-import { page, html } from "@madojs/mado";
+export const billingRoutes = {
+  "/invoices": () => import("./pages/invoices-list.page.js"),
+  "/invoices/:id": () => import("./pages/invoice-detail.page.js"),
+};
+```
+
+The prefix is applied by `src/app.routes.ts`.
+
+## Page
+
+```ts
+import { html, page } from "@madojs/mado";
 
 export default page<{ id: string }>({
   title: ({ id }) => `User ${id}`,
-  view: ({ params }) => html`<x-user data-id=${params.id}></x-user>`,
+  view: ({ params }) => html`<h1>${params.id}</h1>`,
 });
 ```
 
-Сторінка може мати `title`, `head`, `load`, `view`, `errorView` і `bake`.
-Маршрут може бути lazy import або готовим `page({...})`.
-
-## Nested routes
+## Navigation
 
 ```ts
-import { nested, routes } from "@madojs/mado";
+import appRoutes from "./app.routes.js";
 
-export const manifest = {
-  "/": () => import("./pages/home.js"),
-  "/app": nested({
-    layout: () => import("./layouts/app-layout.js"),
-    routes: {
-      "/dashboard": () => import("./pages/dashboard.js"),
-      "/settings": () => import("./pages/settings.js"),
-    },
-  }),
-};
-
-export default routes(manifest);
+appRoutes.navigate("/billing/invoices");
+appRoutes.navigate("/billing/invoices?page=2");
+appRoutes.navigate("/login", { replace: true });
 ```
 
-Layout отримує дочірній view і може рендерити shell: nav, sidebar, toolbar,
-notifications.
-
-## Навігація
-
-Посилання з `data-link` перехоплюються роутером:
-
-```html
-<a href="/users/42" data-link>Open</a>
-```
-
-Програмна навігація:
-
-```ts
-import { navigate } from "@madojs/mado";
-
-navigate("/users/42");
-```
-
-Router підтримує hover-prefetch, stale async guard, scroll-to-top для нової
-навігації та `dispose()` для тестів/dev overlay.
-
-## Query params
+## Query Params
 
 ```ts
 import { queryParam } from "@madojs/mado";
@@ -79,4 +73,4 @@ const search = queryParam("q", "");
 search.set("mado");
 ```
 
-`queryParam()` повертає signal-like API і синхронізує стан із URL.
+`queryParam()` returns a signal-like API and syncs state with the URL.

@@ -1,7 +1,8 @@
 // App entry point. The ONLY file allowed to import CSS at runtime.
 import "./shared/styles/tokens.css";
 import "./shared/styles/reset.css";
-import "./shared/styles/app.css";
+import "./shared/styles/shell.css";
+import "./shared/styles/content.css";
 
 import { html, render } from "@madojs/mado";
 

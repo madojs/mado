@@ -13,7 +13,7 @@ Mado устроен **как HTTP-сервер**. Серьёзно:
 |---|---|
 | HTTP-роутер (chi, axum, mux) | `routes()` — манифест путей |
 | Handler `func(req, resp)` | `page({ view: (ctx) => html\`...\` })` |
-| Middleware | `layout` в `nested()` (оборачивает handler) |
+| Middleware | route group через `layout()` (оборачивает handler) |
 | Шаблонизатор (Jinja, Handlebars) | `html\`\`` tagged template |
 | HTTP-клиент с кешем | `resource()` — fetch + cache + invalidation |
 | Reactive variable / atom | `signal()` — реактивный геттер |
@@ -350,17 +350,17 @@ export default page({
 ```
 
 ```ts
-// src/routes.ts
-import { routes, nested } from "@madojs/mado";
+// src/app.routes.ts
+import { layout, routes } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),
 
-  "/app/*": nested({
+  "/app": layout({
     layout: () => import("./layouts/auth-layout.js"),
     routes: {
-      "dashboard": () => import("./pages/dashboard.js"),
-      "users": () => import("./pages/users.js"),
+      "/dashboard": () => import("./pages/dashboard.js"),
+      "/users": () => import("./pages/users.js"),
     },
   }),
 });

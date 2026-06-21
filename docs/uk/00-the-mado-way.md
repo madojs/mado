@@ -2,55 +2,81 @@
 
 > Один зрозумілий шлях. Жорсткі контракти. Мінімум магії.
 
-Mado — фреймворк для команд, що будують адмін-панелі, внутрішні інструменти
-та бізнес-SPA — застосунки, які мають бути простими у розробці та нудними в
-підтримці. Для цього він задає **набір домовленостей**. Якщо їх дотримуватись,
-проєкт залишається читабельним навіть тоді, коли в ньому десятки сторінок і
-кілька розробників.
+Mado — framework для команд, що будують admin panels, internal tools і
+business SPA. Такі apps мають бути простими у розробці та нудними в підтримці,
+тому Mado обирає чіткі conventions замість п'яти рівноправних стилів.
 
-## Принципи
+## Principles
 
-1. **Один спосіб.** Для типової задачі має бути один канонічний шлях, а не п’ять
-   рівноправних стилів.
-2. **Явність замість магії.** Немає сканерів файлів, прихованих глобалів і
-   неочевидних side effects.
-3. **Платформа спочатку.** Якщо браузер уже має потрібну можливість, Mado дає
-   тонку обгортку, а не переписує платформу.
-4. **Суворий TypeScript.** `tsc --strict` — базовий контракт.
-5. **Нуль runtime-залежностей.** Кожна залежність — це довгострокове
-   зобов’язання.
+1. **One way.** If code feels unusual, first check whether a canonical helper/API
+   already exists.
+2. **Explicit over magic.** No file-system scanners, implicit globals or hidden
+   side effects.
+3. **Platform first.** Web Components, History API, `<form>`, `fetch` and Shadow
+   DOM stay visible.
+4. **Strict types.** `tsc --strict --noUncheckedIndexedAccess` always.
+5. **No runtime dependencies.** Dev/build tooling is fine; Mado runtime stays
+   native.
 
-## Базова структура
+## Project Structure
 
-```text
+```txt
 src/
-├── routes.ts
-├── main.ts
-├── pages/
-├── components/
-├── layouts/
-├── lib/
-└── styles/
+├── main.ts           ← boot: global CSS/providers + render router
+├── app.routes.ts     ← readable app map, exports `manifest` + default routes()
+├── layouts/          ← app-zone wrappers (`page({ view: ({ child }) => ... })`)
+├── shared/           ← UI bricks, http client, pure lib, global CSS
+└── modules/          ← bounded contexts
+    └── billing/
+        ├── billing.routes.ts
+        ├── billing.public.ts
+        ├── billing.types.ts
+        ├── pages/
+        ├── data/
+        ├── api/
+        └── _contracts/
 ```
 
-Кожна сторінка живе в окремому файлі та експортує `page({...})`.
-Компоненти реєструються через `component()`. Дані читаються через `resource()`,
-зміни виконуються через `mutation()`, списки рендеряться через `each()`.
+The default starter is the canonical version of this shape.
 
-## Імена компонентів
+## One Component = One File
 
-Єдине правило браузера: ім’я custom element має містити дефіс. `x-*` у прикладах
-Mado — це демо-конвенція, а не вимога фреймворку. У production краще брати
-префікс домену: `app-*`, `crm-*`, `ticket-*`, `admin-*`.
+```ts
+import { component, css, html } from "@madojs/mado";
 
-## Чого не робимо
+component("x-user-card", () => () => html`<div class="card"><slot></slot></div>`, {
+  styles: css`
+    .card { padding: 1rem; }
+  `,
+});
+```
 
-- Не пишемо JSX або Vue-шаблони.
-- Не читаємо сигнал через `.value`; сигнал читається як функція: `count()`.
-- Не використовуємо `disabled=${...}` для булевих атрибутів; треба
-  `?disabled=${...}`.
-- Не рендеримо динамічні списки через `.map()` там, де потрібне збереження DOM
-  стану; використовуємо `each()`.
-- Не додаємо runtime-залежності без дуже вагомої причини.
+Importing the component file registers the element. Import it where the tag is
+used.
 
-Коли є сумнів, краще додати рецепт у документацію, ніж новий primitive в core.
+## One Way To Describe A Page
+
+```ts
+import { html, page, resource, jsonFetcher } from "@madojs/mado";
+
+export default page({
+  title: ({ id }) => `User #${id}`,
+  view: ({ params }) => {
+    const user = resource(() => `/api/users/${params.id}`, jsonFetcher());
+    return html`...`;
+  },
+});
+```
+
+Page-local signals, resources and forms live inside `view()`. Module-wide state
+lives in `*.service.ts`.
+
+## What We Do Not Do
+
+- No JSX/Vue/Svelte syntax.
+- No custom elements without a hyphen.
+- No signal `.value`; a signal is a function.
+- No direct `innerHTML`.
+- No runtime packages without discussion.
+
+When in doubt, document one clear recipe instead of adding a new core primitive.

@@ -1,194 +1,119 @@
 # Routing
 
-> Один файл-манифест. Никаких сканеров папок. Никаких спецсимволов.
+> Один app map. Никаких folder scanners. Никаких специальных path symbols.
 
-## Зачем не file-based
+Mado не выводит routes из файлов. Composition должна читаться в одном месте.
 
-В Next/SvelteKit/SolidStart роут возникает «магически» по имени файла. У этого есть плюсы (видно структуру URL по `pages/`), но в проде это означает:
+## App Manifest
 
-- Невидимый плагин-сканер в билде. Без него файлы — просто файлы.
-- Спецсимволы в путях: `[id]`, `(group)`, `_layout`, `+page.svelte`, `...slug`.
-- Server-route vs client-route путаются.
-- Тестировать роутинг — мука: нужен эмулятор сборщика.
-
-Mado считает это **слишком магией**. Мы делаем иначе.
-
-## Манифест
-
-Один файл — `src/routes.ts`. В нём один объект. Читается сверху вниз.
+Используйте `src/app.routes.ts` как карту приложения:
 
 ```ts
-// src/routes.ts
-import { routes } from '@madojs/mado';
+import { layout, routes } from "@madojs/mado";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
-export default routes({
-  '/':              () => import('./pages/home.js'),
-  '/about':         () => import('./pages/about.js'),
-  '/users/:id':     () => import('./pages/user-profile.js'),
-  '/users/:id/edit':() => import('./pages/user-edit.js'),
-  '*':              () => import('./pages/not-found.js'),
-});
-```
-
-Хочешь увидеть все роуты? Открой `routes.ts`. Никаких сюрпризов.
-
-## Что справа от пути
-
-Любая запись — это **одно из трёх**:
-
-### 1. Lazy import (рекомендовано)
-
-```ts
-'/posts': () => import('./pages/posts.js'),
-```
-
-- Vite сделает chunk при production build для dynamic imports.
-- Модуль загрузится только при заходе на роут.
-- Между навигациями результат кэшируется.
-
-### 2. Готовая Page (eager)
-
-```ts
-import about from './pages/about.js';
-
-'/about': about,
-```
-
-Сразу в графе, без задержек. Используй для критичных страниц (home, login).
-
-### 3. Nested с layout
-
-```ts
-import { routes, nested } from '@madojs/mado';
-
-export default routes({
-  '/': () => import('./pages/home.js'),
-
-  '/admin/*': nested({
-    layout: () => import('./layouts/admin.js'),
-    routes: {
-      '':       () => import('./pages/admin/dashboard.js'),
-      'users':  () => import('./pages/admin/users.js'),
-      'logs':   () => import('./pages/admin/logs.js'),
-    },
+export const manifest = {
+  "/": () => import("./modules/home/home.page.js"),
+  "/login": layout({
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
   }),
-});
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
+    guard: requireAuth,
+    routes: billingRoutes,
+  }),
+  "*": () => import("./modules/home/not-found.page.js"),
+};
+
+export default routes(manifest);
 ```
 
-Layout — это **обычный** `page({...})`, который рендерит `ctx.child` куда хочет:
+Открываешь `app.routes.ts` и видишь все зоны приложения: public pages, auth,
+protected app zones, guards и shells.
+
+`manifest` экспортируется отдельно, чтобы `mado bake` мог его прочитать.
+
+## Module Routes
+
+Modules экспортируют plain route maps. Они не вызывают `layout()` и не решают,
+какой shell их оборачивает.
 
 ```ts
-// src/layouts/admin.ts
-import { page, html, css, component } from '@madojs/mado';
+export const billingRoutes = {
+  "/invoices": () => import("./pages/invoices-list.page.js"),
+  "/invoices/:id": () => import("./pages/invoice-detail.page.js"),
+};
+```
+
+Prefix применяет `src/app.routes.ts`, когда module монтируется под
+`"/billing"`.
+
+## Layout Group
+
+```ts
+"/admin": layout({
+  layout: () => import("./layouts/app-shell.layout.js"),
+  guard: requireAuth,
+  routes: adminRoutes,
+}),
+```
+
+Layout — обычный `page({...})` file:
+
+```ts
+import { html, page } from "@madojs/mado";
 
 export default page({
   view: ({ child }) => html`
-    <div class="admin">
-      <aside><nav>...</nav></aside>
-      <main>${child}</main>
+    <div class="layout layout--app">
+      <main class="app-main">${child}</main>
     </div>
   `,
 });
 ```
 
-## Контракт страницы
+Layout view держим stateless. Page-specific signals, resources и forms живут в
+pages/components/resources, не в layout locals.
+
+## Page Contract
 
 ```ts
-import { page, html, resource, jsonFetcher } from '@madojs/mado';
+import { html, page } from "@madojs/mado";
 
-export default page({
-  title: ({ id }) => `User #${id}`,        // string | (params) => string
-  load:  ({ id }) => resource(...),         // опц., возвращает Resource или данные
-  view:  ({ params, data, path, child }) => html`...`,  // ОБЯЗАТЕЛЬНО
-});
-```
-
-Три слота, всё. Если ты экспортируешь не `page({...})`, а просто функцию — `routes()` кинет понятную ошибку:
-
-```
-[Mado] Lazy-роут не вернул page({...}) как default-экспорт.
-```
-
-## Параметры URL
-
-```ts
-'/users/:id': () => import('./pages/user.js'),
-```
-
-```ts
 export default page<{ id: string }>({
   title: ({ id }) => `User ${id}`,
-  view:  ({ params }) => html`<h1>${params.id}</h1>`,
+  view: ({ params }) => html`<h1>${params.id}</h1>`,
 });
 ```
 
-Типы передаются в `page<Params>` — `tsc` проверит что вы не обратились к `params.foo`, которого нет в роуте.
-
-## Глобальные опции
+## Navigation
 
 ```ts
-export default routes(
-  { '/': home, '/about': about, '*': nf },
-  {
-    titleSuffix: ' · MyApp',                       // → "Главная · MyApp"
-    loading: () => html`<x-spinner/>`,             // пока модуль грузится
-    error:   (err) => html`<x-fatal-error .err=${err}/>`,
-  },
-);
+import appRoutes from "./app.routes.js";
+
+appRoutes.navigate("/billing/invoices");
+appRoutes.navigate("/billing/invoices?page=2");
+appRoutes.navigate("/login", { replace: true });
 ```
 
-## Программная навигация
+## Query Parameters
 
 ```ts
-import route from './routes.js';
+import { queryParam } from "@madojs/mado";
 
-route.navigate('/posts');
-route.navigate('/posts?page=2');
-route.navigate('/posts', { replace: true });
+const page = queryParam("page", "1");
+page();
+page.set("2");
+page.set(null);
+page.set("3", { push: true });
 ```
 
-Клики по `<a href="/foo" data-link>` перехватываются глобально (без атрибута — браузер сделает full reload, как и положено для внешних ссылок).
+## Чего нет намеренно
 
-## Query-параметры
-
-```ts
-import { queryParam } from '@madojs/mado';
-
-const page = queryParam('page', '1');
-page();              // '1'
-page.set('2');       // history.replaceState + перерисовка
-page.set(null);      // удалить параметр
-page.set('3', { push: true });   // history.pushState
-```
-
-`queryParam` — обычный сигнал. Использовать можно где угодно: в страницах, компонентах, computed.
-
-## Что осознанно отсутствует
-
-- ❌ Авто-сканирование `pages/`. **Один файл-манифест явный**.
-- ❌ Спецсимволы в путях (`[id]`, `(group)`, `_layout`). **Параметры — только `:name`, ничего больше**.
-- ❌ Server-side роутинг в этом же манифесте. Mado — клиентский фреймворк.
-- ❌ Auto-prefetch при наведении. Если очень нужно — можно сделать вручную: `link.addEventListener('mouseenter', loader)`. Но обычно лишнее.
-
-## FAQ
-
-**А если у меня 100 роутов? Не разрастётся ли файл?**
-Разрастётся до ~150 строк. Это всё ещё **один источник правды** против сотни файлов в `pages/` с магическими именами. На практике даже у больших проектов (1000+ страниц) можно бить на feature-манифесты:
-
-```ts
-import { routes } from '@madojs/mado';
-import adminRoutes from './features/admin/routes.js';
-import billingRoutes from './features/billing/routes.js';
-
-export default routes({
-  ...adminRoutes,
-  ...billingRoutes,
-  '*': () => import('./pages/not-found.js'),
-});
-```
-
-**Как тестировать роутинг?**
-Импортируешь `routes.ts` — это просто объект. Подставляешь свой mock-router. Никакой эмуляции сборщика не нужно.
-
-**Code splitting работает?**
-Да. При Vite production build каждый `() => import('./pages/x.js')` становится отдельным chunk'ом.
+- Auto-scan of page folders.
+- Filesystem syntax вроде `[id]`, `(group)`, `_layout`.
+- Server routes в client manifest.
+- Hidden layout discovery.

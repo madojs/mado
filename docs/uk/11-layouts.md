@@ -1,34 +1,47 @@
 # Layouts
 
-Рекомендований спосіб layout у Mado — вкладена група маршрутів у `routes.ts`.
+The blessed layout recipe in Mado is a route group in `src/app.routes.ts`.
+Do not put a single global shell in `main.ts` when the app has multiple zones:
+public, auth, app, embed.
 
 ```ts
 import { layout, routes } from "@madojs/mado";
-import { requireAuth } from "./lib/auth.js";
+import { requireAuth } from "./modules/auth/auth.public";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { billingRoutes } from "./modules/billing/billing.routes";
 
 export const manifest = {
-  "/": () => import("./pages/home.js"),
+  "/": () => import("./modules/home/home.page.js"),
   "/login": layout({
-    layout: () => import("./layouts/auth.js"),
-    routes: { "/": () => import("./pages/login.js") },
+    layout: () => import("./layouts/auth-shell.layout.js"),
+    routes: authRoutes,
   }),
-  "/admin": layout({
-    layout: () => import("./layouts/app.js"),
+  "/billing": layout({
+    layout: () => import("./layouts/app-shell.layout.js"),
     guard: requireAuth,
-    routes: { "/": () => import("./pages/admin/dashboard.js") },
+    routes: billingRoutes,
   }),
+  "*": () => import("./modules/home/not-found.page.js"),
 };
 
 export default routes(manifest);
 ```
 
-Layout — це `page({ view })`, яка рендерить `child`:
+A layout is a normal `page({ view })` that renders `child`:
 
 ```ts
 export default page({
-  view: ({ child }) => html`<x-app-shell>${child}</x-app-shell>`,
+  view: ({ child }) => html`
+    <div class="layout layout--app">
+      <main class="app-main">${child}</main>
+    </div>
+  `,
 });
 ```
 
-Один shell на групу, не на кожну сторінку. Guard на групі захищає все
-піддерево.
+Rules:
+
+- one shell per route group, not per page;
+- modules export plain route maps and do not call `layout()`;
+- guard on a group protects the whole subtree;
+- layout view stays stateless; page-local state lives in pages/components/resources.

@@ -1,36 +1,34 @@
 # LLM Zero-History Test
 
-Мета тесту: перевірити, чи може LLM без попередньої історії написати ідіоматичний
-Mado CRUD, не перетворюючи його на React у tagged templates.
+This document defines a manual validation test: can a fresh LLM write idiomatic
+Mado without falling back to React-shaped code?
 
-## Дозволений контекст
+## Allowed Context
 
 - `AGENTS.md`
 - `README.md`
-- `docs/uk/07-llm-pitfalls.md` або відповідна англійська версія
-- `examples/basic/README.md`
-- конкретні файли прикладів тільки за потреби
+- `docs/uk/07-llm-pitfalls.md` or the English version
+- files from the external `madojs-examples` workspace only when the agent asks
+  for a larger app pattern
 
-## Що перевіряти
+## Task
 
-- Немає JSX, `useState`, `useEffect`.
-- Немає signal `.value`.
-- Reactive child bindings з `count()` обгорнуті у `() =>`.
-- Boolean attributes пишуться як `?disabled`, `?checked`.
-- Динамічні списки використовують `each()`.
-- Imports мають `.js`.
-- `resource()` створюється в lifecycle-aware контексті.
+Build a small ticket-admin SPA:
 
-## Артефакт
+- routes: `/`, `/tickets`, `/tickets/new`, `/tickets/:id`, `*`;
+- in-memory mock API with realistic async delays;
+- list page with `resource()`, `queryParam()`, `computed()` and keyed `each()`;
+- create/edit flows with `useForm()` + `mutation()` + `invalidates`;
+- local UI state with `signal()`.
 
-`examples/tickets` — маленький ticket-admin SPA з routes, mock API, forms,
-resources, mutations, invalidation, `queryParam`, `computed`, `signal` і
-keyed lists.
+## Failure Checklist
 
-CI запускає `npm run llm:smoke` як детермінований proxy для цієї задачі:
-перевіряє, що `llms.txt` містить ключові правила, звіряє закомічений артефакт
-`examples/tickets` з потрібною Mado API surface та failure patterns, потім
-збирає проєкт і запускає `test/tickets-smoke.test.mjs`.
+- JSX, `useState`, `useEffect`, `ref`, `$state`, class-style components;
+- `${signal()}` where a reactive child thunk is required;
+- `disabled=${...}` instead of `?disabled=${...}`;
+- unkeyed `.map()` for dynamic lists;
+- `resource()` created outside lifecycle-aware context;
+- new runtime dependencies or new public APIs.
 
-Критерій успіху: код виглядає як Mado, а не як React/Vue, переодягнений у
-template strings.
+The historical tickets implementation lives in the external examples workspace.
+The core repository no longer ships that artifact.

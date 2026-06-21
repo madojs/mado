@@ -2,105 +2,83 @@
 
 > Один правильный путь. Жёсткие контракты. Никакой магии.
 
-Mado — фреймворк для команд, которые строят админки, внутренние инструменты
-и бизнес-SPA — приложения, которые должны быть просты в разработке и скучны
-в поддержке. Для этого он задаёт **набор соглашений**. Если ты следуешь им,
-проект остаётся понятным даже когда в нём 200 экранов и 5 разработчиков. Если
-нарушаешь — типы и линтер скажут об этом сразу.
+Mado — фреймворк для команд, которые строят админки, внутренние инструменты и
+business SPA. Такие приложения должны быть простыми в разработке и скучными в
+поддержке. Поэтому Mado задает соглашения, а не предлагает пять равноценных
+стилей.
 
 ## Принципы
 
-1. **Один способ.** Для каждой задачи — один правильный путь, не пять. Если ты пишешь странное — спроси себя, не существует ли уже идиоматичный хелпер.
-2. **Явность над магией.** Никаких сканеров файлов, неявных глобалов, скрытых side-effects. Всё, что делает фреймворк, можно прочитать в одном файле.
-3. **Платформа сначала.** Если в браузере уже есть фича — используем её напрямую. Своих абстракций над `fetch`, `<form>`, History API, Shadow DOM не плодим.
-4. **Жёсткие типы.** `tsc --strict --noUncheckedIndexedAccess` всегда. Если что-то не типизируется — это сигнал что API кривой.
-5. **Никаких рантайм-зависимостей.** Любая зависимость — обязательство на годы; экосистема Web Components этого не требует.
+1. **Один способ.** Если пишешь что-то необычное, сначала проверь, нет ли уже
+   каноничного helper/API.
+2. **Явность над магией.** Никаких file-system scanners, implicit globals и
+   скрытых side effects.
+3. **Платформа сначала.** Web Components, History API, `<form>`, `fetch` и
+   Shadow DOM остаются платформой, а не прячутся под тяжелыми абстракциями.
+4. **Strict types.** `tsc --strict --noUncheckedIndexedAccess` всегда.
+5. **No runtime dependencies.** Dev/build tooling допустим, runtime Mado
+   остается нативным.
 
-## Соглашения
+## Структура проекта
 
-### Структура проекта
-
-```
+```txt
 src/
-├── routes.ts         ← манифест маршрутов, один файл на проект
-├── main.ts           ← точка входа: провайдеры + монтаж <x-app>
-├── pages/            ← одна страница = один файл = `export default page({...})`
-├── components/       ← переиспользуемые компоненты, side-effect-регистрация
-├── lib/              ← контексты, API-клиенты, бизнес-логика без UI
-└── styles/           ← общие стили (если нужны), .ts с css``
+├── main.ts           ← boot: global CSS/providers + render router
+├── app.routes.ts     ← readable app map, exports `manifest` + default routes()
+├── layouts/          ← app-zone wrappers (`page({ view: ({ child }) => ... })`)
+├── shared/           ← UI bricks, http client, pure lib, global CSS
+└── modules/          ← bounded contexts
+    └── billing/
+        ├── billing.routes.ts
+        ├── billing.public.ts
+        ├── billing.types.ts
+        ├── pages/
+        ├── data/
+        ├── api/
+        └── _contracts/
 ```
 
-Это **обязательно**, не "по желанию". Если у проекта будет 10 разработчиков — они все должны писать одинаково.
+Default starter — каноничная версия этой формы. Если docs и старые примеры
+расходятся, starter и `docs/10-app-architecture.md` главнее.
 
-### Один компонент = один файл
-
-```ts
-// src/components/user-card.ts
-import { component, html, css } from "@madojs/mado";
-
-component(
-  "x-user-card",
-  () => {
-    return () => html`<div class="card"><slot /></div>`;
-  },
-  {
-    styles: css`
-      .card {
-        padding: 1rem;
-      }
-    `,
-  },
-);
-```
-
-Импорт `import './components/user-card.js'` **регистрирует** компонент через `customElements.define`. Это side-effect. Где компонент нужен — там и импортируем.
-
-### Один способ загрузки данных
-
-❌ Не зовём `fetch()` напрямую из компонента. Всегда через:
+## Один компонент = один файл
 
 ```ts
-// чтение → resource
-const user = resource(() => `/api/users/${id()}`, jsonFetcher());
+import { component, css, html } from "@madojs/mado";
 
-// запись → mutation
-const save = mutation(api.save, { invalidates: ["/api/users*"] });
-```
-
-Это даёт кеш, отмену, обработку ошибок, авто-инвалидацию.
-
-### Один способ описать страницу
-
-```ts
-// src/pages/user-profile.ts
-import { page, html, resource, jsonFetcher } from "@madojs/mado";
-
-export default page({
-  title: ({ id }) => `User #${id}`,
-  view: ({ params }) => html`...`,
+component("x-user-card", () => () => html`<div class="card"><slot></slot></div>`, {
+  styles: css`
+    .card { padding: 1rem; }
+  `,
 });
 ```
 
-Три слота — `title`, `load`, `view`. Других нет. Хочешь что-то ещё — это уже компонент или хелпер.
+Import component file registers the element. Import it where the tag is used.
 
-### Один способ объявить роуты
+## Один способ описать страницу
 
-См. [`01-routing.md`](./01-routing.md).
+```ts
+import { html, page, resource, jsonFetcher } from "@madojs/mado";
+
+export default page({
+  title: ({ id }) => `User #${id}`,
+  view: ({ params }) => {
+    const user = resource(() => `/api/users/${params.id}`, jsonFetcher());
+    return html`...`;
+  },
+});
+```
+
+Page-local signals, resources and forms live inside `view()`. Module-wide state
+belongs in `*.service.ts`.
 
 ## Чего НЕ делаем
 
-- ❌ Не пишем компоненты без дефиса. Это правило браузера для custom elements: `user-card` ок, `usercard` нет.
-- `x-*` — только convention для примеров и тестов Mado, не брендовый стандарт. В production лучше брать префикс домена: `app-*`, `crm-*`, `ticket-*`, `admin-*`.
-- ❌ Не используем `innerHTML` напрямую. Только через `html\`\``.
-- ❌ Не вызываем `setTimeout`/`setInterval` без cleanup. Только внутри `effect()`.
-- ❌ Не храним глобальный мутируемый state. Используем сигналы и `context`.
-- ❌ Не подключаем pkg без обсуждения. Каждая зависимость — обязательство.
+- Не используем JSX/Vue/Svelte syntax.
+- Не пишем custom elements без дефиса.
+- Не читаем signals через `.value`; signal читается как function.
+- Не используем `innerHTML` напрямую.
+- Не добавляем runtime packages без обсуждения.
 
-## Когда сомневаешься
-
-Если ты задаёшься вопросом "а как тут лучше?" — это сигнал, что:
-
-1. Либо есть встроенный хелпер, который ты не знаешь (загляни в `docs/`).
-2. Либо это новая ситуация — её надо обсудить и **зафиксировать** в этом документе как ещё одно соглашение.
-
-«Лучше единый-окей, чем разный-идеальный.»
+Когда сомневаешься, лучше записать один честный рецепт в docs, чем добавить
+новый primitive в core.

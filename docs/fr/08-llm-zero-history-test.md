@@ -1,65 +1,38 @@
 # Test LLM sans historique
 
-Ce document définit un test de validation pratique pour Mado.
-
-La question n'est pas "un LLM peut-il générer du code frontend ?" Il le peut. La question est :
-un LLM fraîchement initialisé peut-il écrire du Mado idiomatique sans retomber dans du code
-de forme React ?
+Ce document définit un test manuel pour vérifier qu'un LLM fraîchement
+initialisé écrit du Mado idiomatique au lieu de reproduire React dans des
+tagged templates.
 
 ## Contexte autorisé
 
-Pour le premier passage, donnez à l'agent uniquement :
-
 - `AGENTS.md`
 - `README.md`
-- `docs/ru/07-llm-pitfalls.md`
-- `examples/basic/README.md` si un tour minimal de l'API est nécessaire
-- des fichiers `examples/showcase/**` spécifiques uniquement quand l'agent demande un pattern
-  d'application plus grande
-
-L'agent peut rechercher des API ciblées dans `src/` quand il est bloqué, mais ne doit pas
-charger tout le framework dans le context.
+- `docs/fr/07-llm-pitfalls.md` ou la version anglaise
+- fichiers de l'espace externe `madojs-examples` seulement si l'agent demande
+  un pattern d'application plus large
 
 ## Tâche
 
-Construire `examples/tickets` : une petite SPA d'administration de tickets pour un développeur
-solo/backend.
-
-Comportement requis :
+Construire une petite SPA ticket-admin :
 
 - routes : `/`, `/tickets`, `/tickets/new`, `/tickets/:id`, `*` ;
-- API mock en mémoire avec des délais async réalistes ;
-- page de liste avec `resource()`, `queryParam()` filtres de recherche/statut, `computed()`,
-  et des lignes `each()` avec clés ;
-- flux de création et d'édition avec `useForm()` + `mutation()` + `invalidates` ;
-- état UI local avec `signal()` ;
-- composants shell, metric et badge avec slot pour une UI admin plus réaliste ;
-- test de smoke important le build de l'exemple.
+- mock API en mémoire avec délais async réalistes ;
+- liste avec `resource()`, `queryParam()`, `computed()` et `each()` keyed ;
+- create/edit avec `useForm()` + `mutation()` + `invalidates` ;
+- état UI local avec `signal()`.
 
-## Liste de contrôle des échecs
+## Checklist d'échec
 
-Cherchez ces éléments après l'implémentation :
-
-- JSX, `useState`, `useEffect`, `ref`, `$state`, ou composants de style classe ;
-- `${signal()}` ou `${signal() + 1}` là où un thunk enfant réactif est requis ;
+- JSX, `useState`, `useEffect`, `ref`, `$state`, classes custom elements ;
+- `${signal()}` là où un child thunk réactif est nécessaire ;
 - `disabled=${...}` au lieu de `?disabled=${...}` ;
-- listes dynamiques rendues avec un mapping de tableau sans clé au lieu de `each()` ;
-- imports ESM navigateur sans `.js` ;
-- `resource()` créé en dehors du setup du composant ;
-- nouvelles dépendances runtime ou nouvelles API publiques du framework.
+- `.map()` non-keyed pour des listes dynamiques ;
+- `resource()` créé hors contexte lifecycle-aware ;
+- nouvelles dépendances runtime ou nouvelles API publiques.
 
-## Notes de résultats
+## Notes
 
-L'implémentation actuelle de `examples/tickets` n'a pas nécessité de nouvelles API publiques ni
-de dépendances runtime.
-
-CI exécute `npm run llm:smoke` comme proxy déterministe pour cette tâche :
-il vérifie que `llms.txt` contient toujours les règles clés, compare l'artefact
-commité `examples/tickets` à la surface API Mado requise et aux failure
-patterns, puis build le projet et lance `test/tickets-smoke.test.mjs`.
-
-Le principal point de pression dans la documentation reste le lifecycle : les anciens exemples
-peuvent donner l'impression qu'il est acceptable de créer `resource()` directement dans
-`page.view()`. L'exemple tickets utilise plutôt des composants wrapper au niveau page, de sorte
-que les resources sont enregistrées à l'intérieur du setup du composant et se nettoient avec
-le composant.
+L'implémentation historique tickets vit dans l'espace externe d'exemples. Le
+core repository ne livre plus cet artefact ; utilisez cette page comme script
+d'évaluation manuel quand vous mettez à jour les règles LLM.

@@ -1,53 +1,75 @@
 # Auth and API
 
-Mado не навязывает auth, но starter `admin` дает blessed recipe:
+Default starter — blessed recipe. HTTP mechanics живут в `src/shared/http/`,
+auth state — в `src/modules/auth/`.
 
-- `src/lib/api.ts` — один HTTP boundary, `ApiError`, refresh-on-401;
-- `src/lib/auth.ts` — `accessToken`, `restoreSession()`, `login()`,
-  `logout()`, `requireAuth` guard.
+```txt
+src/shared/http/
+  http-client.ts
+  http-error.ts
+  interceptors.ts
 
-Модель:
-
-- access token хранится в памяти через `signal`, не в `localStorage`;
-- HttpOnly refresh cookie восстанавливает сессию после reload;
-- все запросы идут через один API-клиент;
-- protected routes закрываются group guard.
-
-```ts
-export const requireAuth: Guard = async ({ path }) => {
-  if (accessToken()) return;
-  if (await restoreSession()) return;
-  return { redirect: `/login?return=${encodeURIComponent(path)}`, replace: true };
-};
+src/modules/auth/
+  auth.connector.ts
+  auth.service.ts
+  auth.guard.ts
+  auth.routes.ts
+  auth.public.ts
+  _contracts/
 ```
 
-В route manifest:
+Flow для business module:
 
-```ts
-"/admin": layout({
-  layout: () => import("./layouts/app.js"),
-  guard: requireAuth,
-  routes: { "/": () => import("./pages/admin/dashboard.js") },
-}),
+```txt
+connector -> resource/mutation -> page
 ```
 
-Backend contract по умолчанию:
+Pages не импортируют DTOs и не вызывают `fetch()` напрямую. Connectors не
+импортируют Mado reactivity или UI.
 
-| Endpoint | Response | Notes |
-|---|---|---|
-| `POST /api/auth/login` | `{ accessToken }` | ставит HttpOnly refresh cookie |
-| `POST /api/auth/refresh` | `{ accessToken }` | читает refresh cookie |
-| `POST /api/auth/logout` | `204` | очищает cookie |
+## Auth Service
 
-Для dev proxy:
+Auth state — ES module singleton:
 
-```jsonc
-{
-  "dev": {
-    "proxy": { "/api": "http://localhost:3000" }
-  }
+```ts
+const _user = signal<User | null>(null);
+const _token = signal<string | null>(null);
+
+export const user = () => _user();
+export const isAuthed = computed(() => _user() !== null);
+```
+
+Expose only what other modules need through `auth.public.ts`.
+
+## Guards
+
+```ts
+export function requireAuth(): boolean | string {
+  if (isAuthed()) return true;
+  return "/login";
 }
 ```
 
-Если backend использует другую схему auth, меняй только `api.ts`/`auth.ts`.
-Страницы должны оставаться невинными.
+Use in `src/app.routes.ts`:
+
+```ts
+"/billing": layout({
+  layout: () => import("./layouts/app-shell.layout"),
+  guard: requireAuth,
+  routes: billingRoutes,
+}),
+```
+
+## Dev Proxy
+
+```ts
+export default defineConfig({
+  plugins: [mado()],
+  server: {
+    proxy: { "/api": "http://localhost:3000" },
+  },
+});
+```
+
+Rule: `shared/http` knows HTTP, connectors know one external system, resources
+know cache keys, pages know UI, `*.public.ts` is the cross-module surface.

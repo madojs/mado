@@ -70,6 +70,8 @@ See `docs/en/13-deployment.md` for full recipes.
 | Public module surface               | `src/modules/<module>/<module>.public.ts`            |
 | Pure function with no UI            | `src/shared/lib/<name>.ts`                           |
 | Static image / favicon              | `public/<file>`                                      |
+| App-zone shell CSS                  | `src/shared/styles/shell.css`                       |
+| Page-level table/form/prose CSS      | `src/shared/styles/content.css`                     |
 
 If you don't know where — that is a signal that **the architecture is
 suffering**. Ask the team and **record** the answer in `docs/`. Don't invent a
@@ -95,11 +97,18 @@ import { mado } from "@madojs/mado/vite";
 
 export default defineConfig({
   plugins: [mado()],
+  css: {
+    transformer: "lightningcss",
+  },
   server: {
     proxy: { "/api": "http://localhost:3000" },
   },
 });
 ```
+
+The default starter opts into Vite's Lightning CSS transformer. CSS
+minification is already handled by Vite; the explicit transformer keeps
+prefixing and modern CSS lowering in Vite instead of in Mado.
 
 `mado bake` uses conventions by default: `src/app.routes.ts` first,
 then `src/routes.ts`, `index.html` as the template, and `out/` as output.
@@ -109,7 +118,7 @@ values that are specific to prerendering.
 ## What does NOT go in `src/`
 
 - ❌ Extra build tool configs — use `vite.config.ts` with `mado()` when needed.
-- ❌ `.env` files — read env in `src/lib/config.ts` from `import.meta.env` /
+- ❌ `.env` files — read env in `src/shared/lib/config.ts` from `import.meta.env` /
   `process.env` and import that one module everywhere.
 - ❌ Tests mixed with code — put them in `test/`.
 - ❌ `examples/` folder — keep large demos outside the app repo.

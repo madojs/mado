@@ -208,13 +208,14 @@ or `<title>`. Keep SVG internals in one `<svg>...</svg>` template.
 ### 8. Routing — `routes()` + `page()`
 
 ```ts
-// routes.ts — manifest
+// app.routes.ts — app manifest
 import { routes } from "@madojs/mado";
-export default routes({
-  "/": () => import("./pages/home.js"),
-  "/users/:id": () => import("./pages/user.js"),
-  "*": () => import("./pages/not-found.js"),
-});
+export const manifest = {
+  "/": () => import("./modules/home/home.page.js"),
+  "/users/:id": () => import("./modules/users/pages/user.page.js"),
+  "*": () => import("./modules/home/not-found.page.js"),
+};
+export default routes(manifest);
 
 // page file
 import { page, html } from "@madojs/mado";
@@ -224,8 +225,8 @@ export default page<{ id: string }>({
 });
 ```
 
-- Each page is a **separate file** in `pages/` with `export default page({...})`.
-- Import via `() => import("./pages/foo.js")` — this enables code-splitting via ESM.
+- Each page is a **separate file** under `src/modules/<module>/` with `export default page({...})`.
+- Import via `() => import("./modules/<module>/pages/foo.page.js")` — this enables code-splitting via ESM.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
 - Layouts are declared in the route manifest via `layout()`. Treat
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared

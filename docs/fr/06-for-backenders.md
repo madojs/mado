@@ -13,7 +13,7 @@ Mado est structuré **comme un serveur HTTP**. Sérieusement :
 |---|---|
 | Routeur HTTP (chi, axum, mux) | `routes()` — manifeste de chemins |
 | Handler `func(req, resp)` | `page({ view: (ctx) => html\`...\` })` |
-| Middleware | `layout` dans `nested()` (enveloppe le handler) |
+| Middleware | route group via `layout()` (enveloppe le handler) |
 | Moteur de template (Jinja, Handlebars) | tagged template `html\`\`` |
 | Client HTTP avec cache | `resource()` — fetch + cache + invalidation |
 | Variable réactive / atom | `signal()` — getter réactif |
@@ -360,17 +360,17 @@ export default page({
 ```
 
 ```ts
-// src/routes.ts
-import { routes, nested } from "@madojs/mado";
+// src/app.routes.ts
+import { layout, routes } from "@madojs/mado";
 
 export default routes({
   "/login": () => import("./pages/login.js"),
 
-  "/app/*": nested({
+  "/app": layout({
     layout: () => import("./layouts/auth-layout.js"),
     routes: {
-      "dashboard": () => import("./pages/dashboard.js"),
-      "users": () => import("./pages/users.js"),
+      "/dashboard": () => import("./pages/dashboard.js"),
+      "/users": () => import("./pages/users.js"),
     },
   }),
 });
@@ -433,6 +433,6 @@ Tout le reste — navigateur standard + TypeScript.
 - **[`01-routing.md`](./01-routing.md)** — le router en détail.
 - **[`02-project-layout.md`](./02-project-layout.md)** — structure du projet.
 - **[`03-static-bake.md`](./03-static-bake.md)** — SEO sans SSR.
-- **[`examples/showcase/`](../../examples/showcase/)** — exemple complet (landing + admin).
+- **[`10-app-architecture.md`](./10-app-architecture.md)** — forme canonique du starter.
 
 Si quelque chose n'est pas clair — ouvrez une issue, ou ouvrez simplement le source. Il est vraiment lisible en une soirée.

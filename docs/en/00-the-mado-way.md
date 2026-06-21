@@ -51,7 +51,7 @@ reference when docs and examples disagree.
 ### One component = one file
 
 ```ts
-// src/components/user-card.ts
+// src/shared/ui/x-user-card.component.ts
 import { component, html, css } from "@madojs/mado";
 
 component(
@@ -69,7 +69,7 @@ component(
 );
 ```
 
-`import './components/user-card.js'` **registers** the component via
+`import "./shared/ui/x-user-card.component.js"` **registers** the component via
 `customElements.define`. This is a side effect. Import where the component is needed.
 
 ### One way to load data

@@ -1,4 +1,4 @@
-name: Browser Regression
+name: Weekly Smoke
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: "23 4 * * 1"
 
 jobs:
-  browser:
+  smoke:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +22,11 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install chromium
+      - name: Publish gate
+        run: npm run prepublishOnly
 
-      - name: Build
-        run: npm run build
+      - name: Size budgets
+        run: npm run size
 
-      - name: Browser test
-        run: npm run test:browser
+      - name: Package smoke
+        run: npm run package:smoke

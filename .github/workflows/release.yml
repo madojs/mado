@@ -32,14 +32,14 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Publish gate
+        run: npm run prepublishOnly
 
-      - name: Build
-        run: npm run build
+      - name: Size budgets
+        run: npm run size
 
-      - name: Test
-        run: npm test
+      - name: Package smoke
+        run: npm run package:smoke
 
       - name: Package dry-run
         run: npm pack --dry-run

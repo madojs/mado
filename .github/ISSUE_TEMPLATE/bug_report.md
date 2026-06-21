@@ -14,7 +14,7 @@ This is the most important part. Without it, a bug is very hard to fix.
 
 Good options:
 - a link to a small GitHub repository;
-- an inline snippet that can be pasted into `examples/basic/main.ts`;
+- an inline snippet that can be pasted into a fresh `mado init` app;
 - a StackBlitz/CodePen link.
 
 If you cannot minimize it, include:

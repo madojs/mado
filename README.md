@@ -308,11 +308,13 @@ so the core repo stays focused on runtime, tooling, starter and tests.
 npm run typecheck
 npm run build
 npm test
-npm run test:browser
+npm run size
+npm run package:smoke
 ```
 
 Covers signals, computed, effects, html parser, keyed reconciliation, resources,
-mutations, forms, router isolation, component lifecycle and example smoke tests.
+mutations, forms, router isolation, component lifecycle, release output and
+package smoke tests.
 
 ## Contributing
 

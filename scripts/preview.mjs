@@ -3,11 +3,10 @@
 //   mado preview
 //
 // What it does:
-//   1. Reads `mado.config.json` to discover OUT (default `out/`) and PORT.
+//   1. Serves OUT_DIR or `out/`.
 //   2. If `out/` is missing AND we are in a project root, refuses to run and
-//      points the user at `mado release`. (Old auto-build behavior is opt-in
-//      via PREVIEW_AUTOBUILD=1 to stay backward-compatible for the framework
-//      repo.)
+//      points the user at `mado release`. Auto-build is opt-in via
+//      PREVIEW_AUTOBUILD=1.
 //   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
 //        - SPA fallback to index.html;
@@ -21,8 +20,6 @@ import { createServer } from "node:http";
 import { readFile, stat, access } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
-
-import { loadConfig } from "./_config.mjs";
 
 // Tiny argv parser. Supports --flag, --flag=value, --flag value.
 function parsePreviewArgs(argv) {
@@ -51,22 +48,10 @@ function parsePreviewArgs(argv) {
 
 const PREVIEW_FLAGS = parsePreviewArgs(process.argv.slice(2));
 
-const cfg = loadConfig({});
-const ROOT = cfg.projectRoot;
-const OUT = resolve(
-  ROOT,
-  process.env.OUT_DIR ?? cfg.build.out ?? "out",
-);
-// Baked HTML lives in <out>/baked/ by default (see scripts/bake.mjs and
-// mado.config.json bake.outDir). `mado release` promotes those HTML files into
-// real route paths inside <out>/, so preview can serve exactly what a static
-// host sees instead of applying a preview-only virtual mapping.
-const BAKED = resolve(
-  ROOT,
-  process.env.BAKED_DIR ?? cfg.bake?.outDir ?? join(cfg.build.out ?? "out", "baked"),
-);
-const PORT = Number(PREVIEW_FLAGS.port ?? process.env.PORT ?? cfg.dev?.port ?? 4173);
-const HOST = String(PREVIEW_FLAGS.host ?? process.env.HOST ?? cfg.dev?.host ?? "localhost");
+const ROOT = resolve(process.cwd());
+const OUT = resolve(ROOT, process.env.OUT_DIR ?? "out");
+const PORT = Number(PREVIEW_FLAGS.port ?? process.env.PORT ?? 4173);
+const HOST = String(PREVIEW_FLAGS.host ?? process.env.HOST ?? "localhost");
 const AUTOBUILD = process.env.PREVIEW_AUTOBUILD === "1";
 const SKIP_BUILD = process.env.SKIP_BUILD === "1" || !AUTOBUILD;
 
@@ -87,23 +72,16 @@ const MIME = {
   ".map": "application/json; charset=utf-8",
 };
 
-// ---------- 1-3) Full build ----------
+// ---------- Optional release ----------
 
 if (!SKIP_BUILD) {
-  console.log("[preview] step 1/3 — tsc");
-  run("npx", ["tsc"]);
-
-  // bake is optional (only when there are pages with bake config)
-  console.log("[preview] step 2/3 — bake (optional)");
-  run("node", ["scripts/bake.mjs"], { allowFail: true });
-
-  console.log("[preview] step 3/3 — bundle");
-  run("node", ["scripts/bundle.mjs"]);
+  console.log("[preview] PREVIEW_AUTOBUILD=1 — running mado release");
+  run("node", ["scripts/cli.mjs", "release"]);
 }
 
 if (!(await exists(OUT))) {
   console.error(
-    `[preview] missing ${OUT}/ — run \`mado release\` (or \`mado bundle\`) first.`,
+    `[preview] missing ${OUT}/ — run \`mado release\` first.`,
   );
   process.exit(1);
 }
@@ -111,7 +89,7 @@ if (!(await exists(OUT))) {
 const spaShell = join(OUT, "index.html");
 if (!(await exists(spaShell))) {
   console.error(
-    `[preview] missing ${spaShell} — \`mado bundle\` did not produce an HTML entry.\n` +
+    `[preview] missing ${spaShell} — \`mado release\` did not produce an HTML entry.\n` +
       `[preview] Without it any non-baked route will 404 instead of falling back to the SPA.`,
   );
   process.exit(1);
@@ -120,7 +98,7 @@ if (!(await exists(spaShell))) {
 // ---------- 4) Server ----------
 
 const isImmutable = (filename) =>
-  /^(main|chunk|asset)-[A-Z0-9]+\.js$/i.test(filename);
+  /\.[A-Za-z0-9_-]{6,}\.(js|css|png|jpg|jpeg|webp|svg|woff2?)$/i.test(filename);
 
 const server = createServer(async (req, res) => {
   try {
@@ -178,12 +156,10 @@ server.on("error", (err) => {
 
 server.listen(PORT, HOST, async () => {
   const urlHost = HOST === "0.0.0.0" || HOST === "::" ? "localhost" : HOST;
-  const bakedReady = await exists(BAKED);
   console.log("");
   console.log("Mado preview (production-like)");
   console.log(`  url:    http://${urlHost}:${PORT}/`);
   console.log(`  out:    ${OUT}`);
-  console.log(`  baked:  ${bakedReady ? BAKED : "(none — SPA-only)"}`);
   console.log("  (Ctrl-C to stop)");
   console.log("");
 });

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 const API_ENTRY = "src/index.ts";
-const SAMPLE_ENTRY = "examples/showcase/main.ts";
+const SAMPLE_ENTRY = "starters/default/src/main.ts";
 const API_GZIP_LIMIT = readLimit("MADO_SIZE_API_GZIP_LIMIT", 16 * 1024);
 const SAMPLE_GZIP_LIMIT = readLimit("MADO_SIZE_SAMPLE_GZIP_LIMIT", 42 * 1024);
 
@@ -17,7 +17,7 @@ const api = await bundlePublicApi();
 report("public API", api.gzip, API_GZIP_LIMIT);
 
 const sample = await bundleSampleApp();
-report("showcase app", sample.gzip, SAMPLE_GZIP_LIMIT);
+report("starter app", sample.gzip, SAMPLE_GZIP_LIMIT);
 
 if (failed) process.exit(1);
 
@@ -49,6 +49,9 @@ async function bundleSampleApp() {
       platform: "browser",
       splitting: true,
       outdir,
+      alias: {
+        "@madojs/mado": "./src/index.ts",
+      },
       legalComments: "none",
     });
 

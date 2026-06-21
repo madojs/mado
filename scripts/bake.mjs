@@ -2,14 +2,16 @@
 //
 // Usage:
 //   mado bake
-//   mado bake --entry src/routes.ts --template index.html --out out/baked
+//   mado bake --entry src/routes.ts --template index.html --out out
 //   mado bake --base-url https://example.com
 //
-// Configuration precedence (low → high):
-//   built-in defaults  <  mado.config.json (bake.*)  <  CLI flags  <  env vars
+// Defaults:
+//   entry:    src/app.routes.ts, then src/routes.ts
+//   template: index.html
+//   out:      out/
 //
 // What it does:
-//   1. Bundles `entry` (routes module) with esbuild for Node consumption.
+//   1. Loads `entry` (routes module) through Vite SSR/module loading.
 //   2. For every route whose page has `bake`:
 //      a) gets params via `bake.paths()`,
 //      b) gets data per params via `bake.data(params)`,
@@ -25,36 +27,32 @@
 //   - In repo-mode (the framework repository itself) it aliases
 //     `@madojs/mado` → ./src/index.ts so the framework can dogfood itself.
 //
-// Required dev deps: linkedom, esbuild. We print a clear error if missing.
+// Required dev deps: linkedom, vite. We print a clear error if missing.
 
-import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, writeSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { tmpdir } from "node:os";
 
-import { loadConfig, parseFlags, resolveProjectPath } from "./_config.mjs";
+import { detectContext, parseFlags, resolveProjectPath } from "./_config.mjs";
 
 // ---------- Resolve options from config + flags + env ----------
 
 const { flags } = parseFlags(process.argv.slice(2));
-const cfg = loadConfig({
-  overrides: {
-    bake: {
-      entry: typeof flags.entry === "string" ? flags.entry : undefined,
-      template: typeof flags.template === "string" ? flags.template : undefined,
-      baseUrl: typeof flags["base-url"] === "string" ? flags["base-url"] : undefined,
-      outDir: typeof flags.out === "string" ? flags.out : undefined,
-    },
-  },
-});
-
-// Env vars are legacy escape hatches (kept so old CI keeps working).
-const ENTRY = process.env.ENTRY ?? resolveProjectPath(cfg, cfg.bake.entry);
-const TEMPLATE = process.env.TEMPLATE ?? resolveProjectPath(cfg, cfg.bake.template);
-const BASE_URL = process.env.BASE_URL ?? cfg.bake.baseUrl;
-const OUT_DIR = process.env.OUT_DIR
-  ?? resolveProjectPath(cfg, cfg.bake.outDir ?? join(cfg.build.out, "baked"));
+const PROJECT_ROOT = resolve(process.cwd());
+const CONTEXT = detectContext(PROJECT_ROOT);
+const ENTRY = resolveProjectPath(
+  PROJECT_ROOT,
+  typeof flags.entry === "string" ? flags.entry : pickDefaultEntry(PROJECT_ROOT),
+);
+const TEMPLATE = resolveProjectPath(
+  PROJECT_ROOT,
+  typeof flags.template === "string" ? flags.template : "index.html",
+);
+const BASE_URL = typeof flags["base-url"] === "string" ? flags["base-url"] : "https://example.com";
+const OUT_DIR = resolveProjectPath(
+  PROJECT_ROOT,
+  typeof flags.out === "string" ? flags.out : "out",
+);
 
 /** Write message to stderr and exit. Sync write keeps CI/execFile output reliable. */
 function fatal(...msgs) {
@@ -69,13 +67,13 @@ function error(...msgs) {
 if (!existsSync(ENTRY)) {
   fatal(
     `[bake] entry not found: ${ENTRY}`,
-    `[bake] set bake.entry in mado.config.json or pass --entry <file>`,
+    `[bake] expected src/app.routes.ts or src/routes.ts; pass --entry <file> to override`,
   );
 }
 if (!existsSync(TEMPLATE)) {
   fatal(
     `[bake] template not found: ${TEMPLATE}`,
-    `[bake] set bake.template in mado.config.json or pass --template <file>`,
+    `[bake] expected index.html; pass --template <file> to override`,
   );
 }
 
@@ -88,22 +86,22 @@ try {
   fatal(
     "[bake] package 'linkedom' is required.",
     "[bake] Install it as a dev dependency in this project:",
-    "[bake]   npm i -D linkedom esbuild",
-    "[bake] (esbuild is also required, see next check).",
+    "[bake]   npm i -D linkedom vite",
+    "[bake] (vite is also required, see next check).",
     "[bake] These are not bundled into @madojs/mado on purpose: bake is an",
     "[bake] optional build step and we don't want to add transitive deps to",
     "[bake] every Mado install.",
   );
 }
 
-let esbuild;
+let createViteServer;
 try {
-  esbuild = await import("esbuild");
+  ({ createServer: createViteServer } = await import("vite"));
 } catch {
   fatal(
-    "[bake] package 'esbuild' is required.",
+    "[bake] package 'vite' is required.",
     "[bake] Install it as a dev dependency in this project:",
-    "[bake]   npm i -D esbuild linkedom",
+    "[bake]   npm i -D vite linkedom",
   );
 }
 
@@ -139,46 +137,40 @@ if (!globalThis.queueMicrotask) {
   globalThis.queueMicrotask = (fn) => Promise.resolve().then(fn);
 }
 
-// ---------- Bundle the routes module for Node ----------
+// ---------- Load the routes module through Vite ----------
 //
 // In repo-mode the framework dogfoods its own source; alias `@madojs/mado`
 // to ./src/index.ts. In app-mode the package is resolved from node_modules.
 
-const tmpFile = join(tmpdir(), `mado-bake-${Date.now()}.mjs`);
-const aliases = cfg.context === "repo"
-  ? { "@madojs/mado": resolve(cfg.projectRoot, "src/index.ts") }
+const aliases = CONTEXT === "repo"
+  ? { "@madojs/mado": resolve(PROJECT_ROOT, "src/index.ts") }
   : {};
 
-const tsconfigCandidate = join(cfg.projectRoot, "tsconfig.json");
-const tsconfig = existsSync(tsconfigCandidate) ? tsconfigCandidate : undefined;
-
-await esbuild.build({
-  entryPoints: [ENTRY],
-  bundle: true,
-  format: "esm",
-  platform: "node",
-  target: "es2022",
-  outfile: tmpFile,
-  absWorkingDir: cfg.projectRoot,
-  tsconfig,
-  alias: aliases,
+const viteServer = await createViteServer({
+  root: PROJECT_ROOT,
   logLevel: "error",
+  server: { middlewareMode: true },
+  appType: "custom",
+  resolve: { alias: aliases },
 });
 
-const routesUrl = pathToFileURL(tmpFile).href;
-const routesModule = await import(routesUrl);
-await rm(tmpFile).catch(() => { });
+let routesModule;
+try {
+  routesModule = await viteServer.ssrLoadModule(toViteId(ENTRY));
+} catch (err) {
+  await closeAndFatal(`[bake] failed to load ${ENTRY}: ${err.message}`);
+}
 const routeApi = routesModule.default;
 
 if (!routeApi) {
-  fatal(`[bake] ${ENTRY} must default-export routes({...})`);
+  await closeAndFatal(`[bake] ${ENTRY} must default-export routes({...})`);
 }
 
 // Bake needs the source manifest (not the runtime RouterApi).
 // routes.ts must therefore also `export const manifest = {...}`.
 const manifest = routesModule.manifest;
 if (!manifest) {
-  fatal(
+  await closeAndFatal(
     `[bake] ${ENTRY} must also \`export const manifest = {...}\` ` +
     "(the same object passed to routes()).",
   );
@@ -290,7 +282,7 @@ await writeFile(join(OUT_DIR, "sitemap.xml"), sitemap);
 
 console.log(`[bake] done: ${total} pages + sitemap.xml → ${OUT_DIR}`);
 if (bakedErrors > 0) {
-  fatal(`[bake] ${bakedErrors} route(s) failed; see errors above.`);
+  await closeAndFatal(`[bake] ${bakedErrors} route(s) failed; see errors above.`);
 }
 // Loud diagnostic when the manifest exists but no page declares `bake`.
 // Previously bake silently produced 0 pages + an empty sitemap and exited
@@ -319,9 +311,12 @@ if (bakeablePages === 0) {
   // it. If you intentionally have an SPA-only deploy, drop `mado bake` from
   // the release pipeline (or set MADO_BAKE_ALLOW_EMPTY=1).
   if (process.env.MADO_BAKE_ALLOW_EMPTY !== "1") {
+    await viteServer.close();
     process.exit(1);
   }
 }
+
+await viteServer.close();
 
 // ---------- Helpers ----------
 
@@ -337,6 +332,21 @@ async function resolvePage(entry) {
     }
   }
   return null;
+}
+
+function toViteId(path) {
+  return path.split("\\").join("/");
+}
+
+function pickDefaultEntry(projectRoot) {
+  const appRoutes = "src/app.routes.ts";
+  if (existsSync(resolve(projectRoot, appRoutes))) return appRoutes;
+  return "src/routes.ts";
+}
+
+async function closeAndFatal(...msgs) {
+  await viteServer.close().catch(() => { });
+  fatal(...msgs);
 }
 
 function applyParams(pattern, params) {

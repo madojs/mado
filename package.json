@@ -11,7 +11,7 @@
     "signals",
     "tagged-templates",
     "router",
-    "no-build",
+    "vite",
     "tsc",
     "minimal",
     "lit-alternative",
@@ -39,19 +39,20 @@
     "./devtools.js": {
       "types": "./dist/src/devtools.d.ts",
       "import": "./dist/src/devtools.js"
+    },
+    "./vite": {
+      "types": "./dist/src/vite/index.d.ts",
+      "import": "./dist/src/vite/index.js"
     }
   },
   "files": [
     "dist/src",
     "scripts",
-    "server",
     "templates",
     "starters",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "MADO_V1_PLAN.md",
-    "ROADMAP.md",
     "TODO.md",
     "AGENTS.md",
     "llms.txt",
@@ -60,27 +61,32 @@
   "scripts": {
     "build": "node scripts/cli.mjs build",
     "watch": "node scripts/cli.mjs watch",
-    "serve": "node scripts/cli.mjs serve",
     "dev": "node scripts/cli.mjs dev",
-    "bundle": "node scripts/cli.mjs bundle",
     "bake": "node scripts/cli.mjs bake",
     "preview": "node scripts/cli.mjs preview",
-    "test:browser": "node scripts/cli.mjs test browser",
     "new": "node scripts/cli.mjs new",
-    "examples": "node scripts/cli.mjs examples",
     "size": "node scripts/size-budget.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
-    "llm:smoke": "node scripts/llm-zero-history-smoke.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
     "clean": "rm -rf dist out",
     "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "esbuild": "^0.28.0",
     "linkedom": "^0.18.12",
     "playwright-core": "^1.47.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=20"

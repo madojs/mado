@@ -20,17 +20,17 @@
     "verbatimModuleSyntax": false,
     "paths": {
       "@madojs/mado": ["./src/index.ts"],
+      "@madojs/mado/vite": ["./src/vite/index.ts"],
       "@madojs/mado/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "examples/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",
     "server",
     "templates",
     "out",
-    "scripts",
-    "examples/cloudflare"
+    "scripts"
   ]
 }

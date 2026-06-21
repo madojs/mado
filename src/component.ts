@@ -108,6 +108,7 @@ export function component(
     // re-inserted in the same tick (a keyed move via insertBefore).
     #teardownQueued = false;
     #attrSignals = new Map<string, Signal<string>>();
+    #attrDefaults = new Map<string, string>();
 
     constructor() {
       super();
@@ -148,6 +149,7 @@ export function component(
         attr(name: string, defaultValue = ""): Signal<string> {
           let s = host.#attrSignals.get(name);
           if (!s) {
+            host.#attrDefaults.set(name, defaultValue);
             s = signal(host.getAttribute(name) ?? defaultValue);
             host.#attrSignals.set(name, s);
           }
@@ -164,7 +166,8 @@ export function component(
         const obs = new MutationObserver((mutations) => {
           for (const m of mutations) {
             const s = this.#attrSignals.get(m.attributeName!);
-            if (s) s.set(this.getAttribute(m.attributeName!) ?? "");
+            const fallback = this.#attrDefaults.get(m.attributeName!) ?? "";
+            if (s) s.set(this.getAttribute(m.attributeName!) ?? fallback);
           }
         });
         obs.observe(this, { attributes: true, attributeFilter: attrNames });

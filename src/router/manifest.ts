@@ -16,7 +16,7 @@
 import { signal } from "../signal.js";
 import { html } from "../html/template.js";
 import type { TemplateResult } from "../html/template-types.js";
-import type { Guard, Page, PageContext } from "../page.js";
+import type { Guard, GuardResult, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
   createLifecycle,
@@ -454,9 +454,9 @@ async function runGuards(
       console.error("[mado] guard threw:", err);
       return { kind: "halt" };
     }
-    if (!v) continue;
-    if ("redirect" in v) return { kind: "redirect", to: v.redirect, replace: v.replace };
-    if (v.halt) return { kind: "halt" };
+    const verdict = normalizeGuardResult(v);
+    if (!verdict) continue;
+    return verdict;
   }
   return null;
 }
@@ -487,17 +487,23 @@ function trySyncGuards(
       return { kind: "halt" };
     }
     if (v && typeof (v as Promise<unknown>).then === "function") return undefined;
-    const verdict = v as
-      | void
-      | undefined
-      | { halt: true }
-      | { redirect: string; replace?: boolean };
+    const verdict = normalizeGuardResult(v as GuardResult);
     if (!verdict) continue;
-    if ("redirect" in verdict) {
-      return { kind: "redirect", to: verdict.redirect, replace: verdict.replace };
-    }
-    if (verdict.halt) return { kind: "halt" };
+    return verdict;
   }
+  return null;
+}
+
+function normalizeGuardResult(
+  verdict: GuardResult,
+): { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" } | null {
+  if (verdict === undefined || verdict === true) return null;
+  if (verdict === false) return { kind: "halt" };
+  if (typeof verdict === "string") return { kind: "redirect", to: verdict };
+  if ("redirect" in verdict) {
+    return { kind: "redirect", to: verdict.redirect, replace: verdict.replace };
+  }
+  if (verdict.halt) return { kind: "halt" };
   return null;
 }
 

@@ -29,9 +29,11 @@ try {
       `
         import { html, signal } from "@madojs/mado";
         import "@madojs/mado/devtools.js";
+        import { mado } from "@madojs/mado/vite";
         if (typeof html !== "function" || typeof signal !== "function") {
           throw new Error("public root import failed");
         }
+        if (typeof mado !== "function") throw new Error("vite plugin import failed");
         try {
           await import("@madojs/mado/lifecycle.js");
           throw new Error("internal lifecycle subpath unexpectedly resolved");
@@ -43,13 +45,14 @@ try {
     { cwd: installRoot },
   );
 
-  await run("npx", ["mado", "init", "smoke-app", "--starter", "minimal"], {
+  await run("npx", ["mado", "init", "smoke-app"], {
     cwd: installRoot,
     env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
   });
 
   const appRoot = join(installRoot, "smoke-app");
   await run("npm", ["install"], { cwd: appRoot });
+  await run("npm", ["run", "new", "--", "module", "smoke"], { cwd: appRoot });
   await run("npm", ["run", "release"], { cwd: appRoot });
 
   console.log(`[package-smoke] ok ${basename(tarball)}`);

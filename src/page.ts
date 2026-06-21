@@ -121,13 +121,16 @@ export interface BakeConfig<P extends RouteParams, D> {
 /**
  * Guard verdict.
  *
- *   undefined / void   → pass: continue to the next guard or render the page.
- *   { halt: true }     → stop: the guard already navigated/handled it, render nothing.
- *   { redirect: url }  → navigate to `url` (preserves a `?return=` if missing).
+ *   undefined / void / true → pass: continue to the next guard or render the page.
+ *   false / { halt: true }  → stop: render nothing.
+ *   string                  → redirect to that path.
+ *   { redirect: url }       → navigate to `url`.
  */
 export type GuardResult =
   | void
   | undefined
+  | boolean
+  | string
   | { halt: true }
   | { redirect: string; replace?: boolean };
 

@@ -1,0 +1,57 @@
+/* App-shell-only styles. Anything component-specific belongs inside the
+ * component file (css`...`). */
+
+.layout--app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-header .brand {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.app-header nav {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.app-header .who {
+  color: var(--color-text-muted);
+}
+
+.app-main {
+  padding: var(--space-5);
+}
+
+.layout--auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.layout--auth .brand {
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.auth-main {
+  width: min(360px, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}

@@ -40,7 +40,7 @@ If your case does not fall into the last point — Mado is most likely not the b
 | Data fetching  | none, you need to assemble it                                  | `resource()` + `mutation()` + glob invalidation        |
 | Forms          | none                                                           | `useForm()` with HTML-like constraints                 |
 | SEO / static   | complex (`@lit-labs/ssr`)                                      | `bake` (linkedom) + edge-prerender                     |
-| Build          | needs esbuild/rollup/webpack                                   | `tsc` is enough                                        |
+| Build          | needs framework-specific build plugins                         | Vite transport + native runtime                         |
 | Code style     | classes + decorators                                           | functions + tagged templates                           |
 | Ecosystem      | real (Shoelace, Material Web, etc.)                            | none                                                   |
 | When to choose | writing a design system / Web Components library for embedding | writing a full application, want everything in one box |

@@ -26,7 +26,7 @@ Après v1, Mado considère comme protégés par SemVer :
   `ctx.onDispose`.
 - Les contrats router/page/resource/form documentés dans les docs anglaises.
 - Les noms de commandes CLI et leur intention générale (`build`, `dev`,
-  `release`, `bake`, `bundle`, `preview`, `init`, `new`).
+  `release`, `bake`, `preview`, `init`, `new`).
 
 Casser cela nécessite une version majeure.
 

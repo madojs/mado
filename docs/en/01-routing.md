@@ -16,22 +16,24 @@ Mado considers this **too much magic**. We do it differently.
 
 ## Manifest
 
-One file — `src/routes.ts`. One object. Read top to bottom.
+One file — `src/app.routes.ts`. One object. Read top to bottom.
 
 ```ts
-// src/routes.ts
+// src/app.routes.ts
 import { routes } from '@madojs/mado';
 
-export default routes({
-  '/':              () => import('./pages/home.js'),
-  '/about':         () => import('./pages/about.js'),
-  '/users/:id':     () => import('./pages/user-profile.js'),
-  '/users/:id/edit':() => import('./pages/user-edit.js'),
-  '*':              () => import('./pages/not-found.js'),
-});
+export const manifest = {
+  '/':              () => import('./modules/home/home.page.js'),
+  '/about':         () => import('./modules/about/about.page.js'),
+  '/users/:id':     () => import('./modules/users/pages/user-profile.page.js'),
+  '/users/:id/edit':() => import('./modules/users/pages/user-edit.page.js'),
+  '*':              () => import('./modules/home/not-found.page.js'),
+};
+
+export default routes(manifest);
 ```
 
-Want to see all routes? Open `routes.ts`. No surprises.
+Want to see all routes? Open `app.routes.ts`. No surprises.
 
 ## What goes on the right side of a path
 
@@ -40,17 +42,17 @@ Every entry is **one of three things**:
 ### 1. Lazy import (recommended)
 
 ```ts
-'/posts': () => import('./pages/posts.js'),
+'/posts': () => import('./modules/posts/pages/posts-list.page.js'),
 ```
 
-- The browser makes its own chunk when bundling (esbuild --bundle --splitting).
+- Vite makes its own chunk when bundling dynamic imports.
 - The module is loaded only when the user visits the route.
 - Subsequent navigations use the cached result.
 
 ### 2. Ready Page (eager)
 
 ```ts
-import about from './pages/about.js';
+import about from './modules/about/about.page.js';
 
 '/about': about,
 ```
@@ -63,14 +65,14 @@ In the bundle immediately, no delay. Use for critical pages (home, login).
 import { routes, nested } from '@madojs/mado';
 
 export default routes({
-  '/': () => import('./pages/home.js'),
+  '/': () => import('./modules/home/home.page.js'),
 
   '/admin/*': nested({
-    layout: () => import('./layouts/admin.js'),
+    layout: () => import('./layouts/app-shell.layout.js'),
     routes: {
-      '':       () => import('./pages/admin/dashboard.js'),
-      'users':  () => import('./pages/admin/users.js'),
-      'logs':   () => import('./pages/admin/logs.js'),
+      '':       () => import('./modules/admin/pages/dashboard.page.js'),
+      'users':  () => import('./modules/admin/pages/users-list.page.js'),
+      'logs':   () => import('./modules/admin/pages/logs-list.page.js'),
     },
   }),
 });
@@ -200,5 +202,5 @@ Import `routes.ts` — it is just an object. Substitute your mock router. No bui
 tool emulation needed.
 
 **Does code splitting work?**
-Yes. With `esbuild --bundle --splitting --format=esm` every
+Yes. With Vite production build, every
 `() => import('./pages/x.js')` becomes its own chunk.

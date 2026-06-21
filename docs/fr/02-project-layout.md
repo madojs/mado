@@ -6,7 +6,7 @@ Chaque nouveau projet Mado a la même structure. C'est une convention **obligato
 my-app/
 ├── package.json              # runtime dep: @madojs/mado
 ├── tsconfig.json             # strict TS, ES2022, Bundler resolution
-├── mado.config.json          # configuration dev/build/bake/bundle
+├── vite.config.ts            # configuration dev/build
 ├── index.html                # shell SPA et template pour bake
 ├── public/                   # assets statiques (favicon, images, robots.txt)
 └── src/
@@ -31,9 +31,9 @@ my-app/
 | `public/` | assets statiques écrits par vous | vous | via `out/` |
 | `out/` | artefact déployable : shell SPA + bundles + HTML baked promu | `mado release` | oui |
 
-`mado release` = `typecheck` + `build` (`dist/`) + `bundle`
-(`out/assets/`) + `bake` (`out/baked/`) + promotion du HTML baked et de
-`sitemap.xml` dans les chemins déployables de `out/` + copie de `public/*`.
+`mado release` = `typecheck` + Vite build (`out/assets/`) + `bake`
+(HTML directement dans `out/<route>/index.html`) + `sitemap.xml` + copie de
+`public/*`.
 
 ## Où mettre un nouveau fichier ?
 

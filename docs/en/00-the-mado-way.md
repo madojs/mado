@@ -27,16 +27,26 @@ break them — types and the linter will tell you immediately.
 
 ```
 src/
-├── routes.ts         ← route manifest, one file per project
-├── main.ts           ← entry point: providers + mount <x-app>
-├── pages/            ← one page = one file = `export default page({...})`
-├── components/       ← reusable components, side-effect registration
-├── lib/              ← contexts, API clients, business logic without UI
-└── styles/           ← shared styles (if needed), .ts files with css``
+├── main.ts           ← boot: global CSS/providers + render router
+├── app.routes.ts     ← one readable app map, exports `manifest` + default routes()
+├── layouts/          ← app-zone wrappers (`page({ view: ({ child }) => ... })`)
+├── shared/           ← UI bricks, http client, pure lib, global CSS
+└── modules/          ← bounded contexts
+    └── billing/
+        ├── billing.routes.ts
+        ├── billing.public.ts
+        ├── billing.types.ts
+        ├── pages/
+        ├── data/
+        ├── api/
+        └── _contracts/
 ```
 
 This is **mandatory**, not optional. If a project has 10 developers — they must
 all write the same way.
+
+The default starter is the canonical version of this shape. Use it as the
+reference when docs and examples disagree.
 
 ### One component = one file
 
@@ -79,17 +89,20 @@ This provides caching, cancellation, error handling, and auto-invalidation.
 ### One way to describe a page
 
 ```ts
-// src/pages/user-profile.ts
+// src/modules/users/pages/user-profile.page.ts
 import { page, html, resource, jsonFetcher } from "@madojs/mado";
 
 export default page({
   title: ({ id }) => `User #${id}`,
-  view: ({ params }) => html`...`,
+  view: ({ params }) => {
+    const user = resource(() => `/api/users/${params.id}`, jsonFetcher());
+    return html`...`;
+  },
 });
 ```
 
-Three slots — `title`, `load`, `view`. No others. Want something else — that is
-a component or a helper.
+Keep page-local signals, resources and forms inside `view()`. Module-wide state
+belongs in `*.service.ts`.
 
 ### One way to declare routes
 

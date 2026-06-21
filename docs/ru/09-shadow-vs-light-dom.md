@@ -183,9 +183,9 @@ demo это работает, но прячет ownership и ломает lazy r
 - truly global leaf components импортировать в `main.ts` только если они реально
   используются везде.
 
-## Урок из showcase
+## Урок из больших примеров
 
-`examples/showcase` использует это разделение намеренно:
+Большие примеры используют это разделение намеренно:
 
 - `x-app` и CRM route pages — Light DOM;
 - `x-app-layout` остаётся в Shadow DOM, потому что владеет slot-based

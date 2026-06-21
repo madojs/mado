@@ -2,33 +2,31 @@
 
 > **One blessed path.** Layouts in Mado are nested-route groups with a shared
 > shell. There is exactly one canonical place to declare a layout — your
-> `routes.ts` manifest. Putting layout code anywhere else (in `main.ts`, in a
+> `app.routes.ts` manifest. Putting layout code anywhere else (in `main.ts`, in a
 > page view, in a global custom-element wrapper) is a bug pattern: the LLM and
 > the human both produce visually broken UI when they guess differently.
 
 ## The canonical recipe
 
 ```ts
-// src/routes.ts
+// src/app.routes.ts
 import { layout, routes } from "@madojs/mado";
-import { requireAuth } from "./lib/auth.js";
+import { requireAuth } from "./modules/auth/auth.public.js";
+import { authRoutes } from "./modules/auth/auth.routes.js";
+import { billingRoutes } from "./modules/billing/billing.routes.js";
 
 export const manifest = {
-  "/":       () => import("./pages/home.js"),       // no layout
+  "/":       () => import("./modules/home/home.page.js"),
   "/login": layout({
-    layout:  () => import("./layouts/auth.js"),     // centered card
-    routes:  { "/": () => import("./pages/login.js") },
+    layout:  () => import("./layouts/auth-shell.layout.js"),
+    routes:  authRoutes,
   }),
-  "/admin": layout({
-    layout:  () => import("./layouts/app.js"),      // admin shell
-    guard:   requireAuth,                           // ← see 12-auth-and-api.md
-    routes: {
-      "/":           () => import("./pages/admin/dashboard.js"),
-      "/orders":     () => import("./pages/admin/orders.js"),
-      "/orders/:id": () => import("./pages/admin/order-detail.js"),
-    },
+  "/billing": layout({
+    layout:  () => import("./layouts/app-shell.layout.js"),
+    guard:   requireAuth,
+    routes:  billingRoutes,
   }),
-  "*": () => import("./pages/not-found.js"),
+  "*": () => import("./modules/home/not-found.page.js"),
 };
 
 export default routes(manifest);
@@ -107,8 +105,8 @@ place. **Do not start with this.**
 - `src/page.ts` defines `layout()`, `page()`, `Guard` and `NestedRoutes`.
 - `src/router/manifest.ts` flattens the nested manifest and applies guards
   outer → inner before the page renders.
-- The `admin` starter (`mado init my-app --starter admin`) ships with three
-  groups (`/`, `/login`, `/admin`) and is the reference implementation.
+- The default starter (`mado init my-app`) ships with public, auth and
+  authenticated app zones and is the reference implementation.
 
 If you ever feel tempted to invent a fourth pattern, write it down in your
 project `docs/` first and discuss it with the team. The cost of inconsistency

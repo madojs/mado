@@ -423,6 +423,6 @@ export const api = new ApiClient("/api");
 - **[`01-routing.md`](./01-routing.md)** — детально про роутер.
 - **[`02-project-layout.md`](./02-project-layout.md)** — структура проекта.
 - **[`03-static-bake.md`](./03-static-bake.md)** — SEO без SSR.
-- **[`examples/showcase/`](../../examples/showcase/)** — полный пример (landing + admin).
+- **Внешний workspace `madojs-examples`** — полные демо (landing + admin).
 
 Если что-то непонятно — open issue, или просто открой исходник. Это правда читается за вечер.

@@ -25,7 +25,7 @@ starter copy або diagnostic string заморожені назавжди.
   deferred teardown для same-tick moves, cleanup через `ctx.onDispose`.
 - Router/page/resource/form contracts, описані в English docs.
 - Імена CLI commands і широкий сенс команд (`build`, `dev`, `release`, `bake`,
-  `bundle`, `preview`, `init`, `new`).
+  `preview`, `init`, `new`).
 
 Ламати це можна тільки в major version.
 

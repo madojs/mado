@@ -1,25 +1,16 @@
 # TODO
 
-> The v0.6 product-surface push is complete. The closed tracker is archived in
-> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md). The items below are ideas for later
-> releases and are not part of any active contract.
->
-> The active road to v1 (correctness → surface lockdown → proof) is tracked in
-> [`MADO_V1_TRACKER.md`](./MADO_V1_TRACKER.md); product-surface milestones live
-> in `ROADMAP.md`. Anything that the v1 tracker now owns has been moved out of
-> the "ideas" list below.
-
 Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
 
 
 ## DX
 
 - [ ] `npx mado create my-app` scaffold.
-- [ ] `mado page <name>` / `mado component <name>` wrappers around templates.
-- [ ] Split `scripts/cli.mjs` into small internal modules (`cli/init`,
-  `cli/run`, `cli/dev`, `cli/static-server`) before it becomes hard to read.
-- [ ] Make `mado preview` and `mado bundle` work naturally inside generated
-  apps, not only inside the framework repository.
+- [ ] Add focused tests for every `mado new` generator template.
+- [ ] Consider short aliases over `mado new` only after real usage shows they
+  save enough typing (`mado page`, `mado component`, etc.).
+- [ ] Split preview/static-server internals if `scripts/preview.mjs` grows.
+- [ ] Keep `mado preview` boring and reliable inside generated apps.
 - [ ] Typed navigation inferred from route patterns.
 - [ ] Optional VS Code extension for `html`` / `css`` highlighting.
 

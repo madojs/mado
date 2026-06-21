@@ -12,15 +12,15 @@ For the first pass, give the agent only:
 - `AGENTS.md`
 - `README.md`
 - `docs/en/07-llm-pitfalls.md`
-- `examples/basic/README.md` if a minimal API tour is needed
-- specific `examples/showcase/**` files only when the agent asks for a larger app pattern
+- files from the external `madojs-examples` workspace only when the agent asks
+  for a larger app pattern
 
 The agent may search targeted APIs in `src/` when blocked, but should not load
 the whole framework into context.
 
 ## Task
 
-Build `examples/tickets`: a small ticket-admin SPA for a solo/backend developer.
+Build a small ticket-admin SPA for a solo/backend developer.
 
 Required behavior:
 
@@ -47,15 +47,10 @@ Look for these after implementation:
 
 ## Result notes
 
-The current `examples/tickets` implementation did not require new public APIs or
-runtime dependencies.
+The historical tickets implementation lives in the external examples workspace.
+The core repository no longer ships that artifact or a dedicated smoke command;
+use this document as a manual evaluation script when updating LLM guidance.
 
-CI runs `npm run llm:smoke` as a deterministic proxy for this task: it verifies
-that `llms.txt` still contains the key guidance, checks the committed
-`examples/tickets` artifact against the required Mado API surface and failure
-patterns, then builds and runs `test/tickets-smoke.test.mjs`.
-
-The main documentation pressure point remains lifecycle: older examples can make
-it look acceptable to create `resource()` directly in `page.view()`. The tickets
-example uses page-level wrapper components instead, so resources are registered
-inside component setup and clean up with the component.
+The main documentation pressure point remains lifecycle: examples should not
+make it look acceptable to create long-lived `resource()` instances accidentally
+at module scope or in route code that never cleans up.

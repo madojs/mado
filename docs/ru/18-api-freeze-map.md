@@ -9,10 +9,11 @@
 import { component, html, resource, routes, signal } from "@madojs/mado";
 ```
 
-Единственный публичный subpath — side-effect модуль devtools:
+Публичные subpaths — side-effect модуль devtools и Vite integration:
 
 ```ts
 import "@madojs/mado/devtools.js";
+import { mado } from "@madojs/mado/vite";
 ```
 
 Все остальное под `dist/src/` — деталь реализации, даже если файл виден в
@@ -41,7 +42,8 @@ import "@madojs/mado/devtools.js";
 
 Это не публичный API:
 
-- Package subpaths кроме `@madojs/mado` и `@madojs/mado/devtools.js`.
+- Package subpaths кроме `@madojs/mado`, `@madojs/mado/devtools.js` и
+  `@madojs/mado/vite`.
 - Internals парсера/биндингов: `html/parser.js`, `html/bindings.js`,
   `ChildState`, `EachEntry`.
 - Internals роутера: `router/match.js`, `router/navigation.js`,

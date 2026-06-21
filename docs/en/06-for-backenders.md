@@ -61,7 +61,7 @@ http.ListenAndServe(":8080", r)
 ### Mado — the same thing
 
 ```ts
-// src/routes.ts
+// src/app.routes.ts
 import { routes } from "@madojs/mado";
 
 export default routes({
@@ -71,7 +71,7 @@ export default routes({
 ```
 
 ```ts
-// src/pages/home.ts
+// src/modules/<module>/pages/home.ts
 import { page, html } from "@madojs/mado";
 export default page({
   view: () => html`<h1>Hello</h1>`,
@@ -79,7 +79,7 @@ export default page({
 ```
 
 ```ts
-// src/pages/user.ts
+// src/modules/<module>/pages/user.ts
 import { page, html } from "@madojs/mado";
 export default page<{ id: string }>({
   view: ({ params }) => html`<h1>User ${params.id}</h1>`,
@@ -266,7 +266,7 @@ This is like `context.WithValue` / `ctx.Value` in Go, but reactive.
 If you're used to server-side rendering for SEO, in Mado this is solved differently: **prerender at build time**.
 
 ```ts
-// src/pages/product.ts
+// src/modules/<module>/pages/product.ts
 export default page({
   bake: {
     paths: () => api.allProductSlugs(), // build-time fetch
@@ -369,7 +369,7 @@ export default page({
 ```
 
 ```ts
-// src/routes.ts
+// src/app.routes.ts
 import { routes, nested } from "@madojs/mado";
 
 export default routes({
@@ -385,21 +385,17 @@ export default routes({
 });
 ```
 
-### Global API client (like a singleton in Go)
+### Shared HTTP client (like a small transport package in Go)
 
 ```ts
-// src/lib/api.ts
-export class ApiClient {
-  constructor(private base: string) {}
-  get<T>(path: string): Promise<T> {
-    return fetch(this.base + path).then((r) => r.json());
-  }
-}
-
-export const api = new ApiClient("/api");
+// src/shared/http/http-client.ts
+export const httpClient = {
+  get: <T>(path: string): Promise<T> =>
+    fetch(path).then((r) => r.json() as Promise<T>),
+};
 ```
 
-Used directly via `import { api } from '...'` or through `createContext` for testability.
+Module connectors build on this transport and map DTOs to domain types.
 
 ---
 
@@ -442,6 +438,6 @@ Everything else — standard browser + TypeScript.
 - **[`01-routing.md`](./01-routing.md)** — the router in detail.
 - **[`02-project-layout.md`](./02-project-layout.md)** — project structure.
 - **[`03-static-bake.md`](./03-static-bake.md)** — SEO without SSR.
-- **[`examples/showcase/`](../../examples/showcase/)** — full example (landing + admin).
+- **External `madojs-examples` workspace** — full demos (landing + admin).
 
 If something is unclear — open an issue, or just open the source. It really is readable in an evening.

@@ -55,10 +55,9 @@ export default routes(manifest);
 
 ## Output
 
-By default standalone `mado bake` writes baked pages under `out/baked/`.
-`mado release` uses the bundled production shell, keeps that `out/baked/` copy
-for inspection, promotes baked HTML into real route paths inside `out/`, and
-copies the generated sitemap to `out/sitemap.xml`:
+By default standalone `mado bake` writes baked pages directly into `out/`.
+`mado release` first lets Vite build the production shell and assets, then bake
+replaces route HTML in place and writes `out/sitemap.xml`:
 
 ```bash
 mado release
@@ -66,6 +65,9 @@ tree out
 ```
 
 The deployable folder is `out/`, not `dist/`.
+
+Use `mado release --keep-bake-dir` only when you want an extra `out/baked/`
+inspection copy during debugging.
 
 ## Client boot
 
@@ -84,15 +86,12 @@ view throws an unsupported directive error:
 
 ## Canonical links
 
-Pass `--base-url` or set `bake.baseUrl` in `mado.config.json` so generated
-canonical links and sitemap entries point to production.
+Pass `--base-url` so generated canonical links and sitemap entries point to
+production.
 
-```json
-{
-  "bake": {
-    "baseUrl": "https://example.com"
-  }
-}
+```bash
+mado bake --base-url https://example.com
+mado release --base-url https://example.com
 ```
 
 ## When not to bake

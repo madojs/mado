@@ -10,21 +10,18 @@ mado release
 
 ```txt
 out/
-├── index.html              ← SPA shell или promoted baked HTML для /
-├── assets/                 ← hashed bundles (main-ABC.js, chunk-XYZ.js, ...)
+├── index.html              ← SPA shell или baked HTML для /
+├── assets/                 ← Vite hashed assets
 │   ├── *.gz                ← precompressed gzip
 │   └── *.br                ← precompressed brotli
-├── baked/                  ← копия результата bake для inspection/debugging
-│   ├── <route>/index.html
-│   └── sitemap.xml
-├── <route>/index.html      ← promoted baked HTML для static hosts
+├── <route>/index.html      ← baked HTML для static hosts
 ├── sitemap.xml             ← sitemap в root сайта
 ├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
 └── _headers                ← cache rules
 ```
 
 `out/` можно деплоить на nginx, Cloudflare Pages, Netlify, S3/CloudFront или
-GitHub Pages. Не деплой `dist/`: это внутренний output для dev/build.
+GitHub Pages. Деплоится только `out/`.
 
 ## Preview
 
@@ -35,8 +32,7 @@ mado preview
 
 `mado preview` сервит финальный `out/` как обычный static host: сначала реальные
 файлы (`/<route>/index.html`, если route был baked), потом SPA fallback в
-`index.html`. Preview больше не делает отдельную виртуальную подстановку из
-`out/baked/`, поэтому он проверяет ровно то, что будет загружено на хостинг.
+`index.html`. Preview проверяет ровно то, что будет загружено на хостинг.
 
 ## VPS + nginx
 

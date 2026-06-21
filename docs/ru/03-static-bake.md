@@ -100,7 +100,7 @@ export default routes(manifest, { titleSuffix: " · MyShop" });
 ## Запуск
 
 ```bash
-npm install -D linkedom esbuild
+npm install -D linkedom vite
 npm run build
 npm run bake
 ```
@@ -144,7 +144,7 @@ out/
     {"slug":"mado-mug","name":"Mado-кружка","price":12,"..."}
   </script>
 
-  <script type="module" src="/dist/examples/main.js"></script>
+  <script type="module" src="/assets/index-HASH.js"></script>
 </body>
 ```
 

@@ -169,7 +169,7 @@ tiny demos, but it hides ownership and defeats lazy route loading. Prefer:
 
 ## Showcase Lesson
 
-`examples/showcase` uses this split deliberately:
+The larger examples use this split deliberately:
 
 - `x-app` and CRM route pages are Light DOM;
 - `x-app-layout` keeps Shadow DOM because it owns a slot-based sidebar/content

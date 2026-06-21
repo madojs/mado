@@ -8,15 +8,12 @@
 
 ```
 out/
-├── index.html              ← SPA shell (loads the bundle + boots the router)
-├── assets/                 ← hashed bundles (main-ABC.js, chunk-XYZ.js, …)
+├── index.html              ← SPA shell or baked HTML for /
+├── assets/                 ← Vite hashed assets
 │   ├── *.gz                ← precompressed gzip (gzip_static / Accept-Encoding)
 │   └── *.br                ← precompressed brotli (brotli_static / Accept-Encoding)
-├── baked/                  ← bake output copy for inspection/debugging
-│   ├── <route>/index.html
-│   └── sitemap.xml
-├── <route>/index.html      ← prerendered SEO HTML promoted for static hosts
-├── sitemap.xml             ← sitemap promoted to the site root
+├── <route>/index.html      ← prerendered SEO HTML for baked routes
+├── sitemap.xml             ← generated sitemap
 ├── favicon.svg             ← your public/ assets copied verbatim
 ├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
 └── _headers                ← Cloudflare Pages / Netlify cache rules
@@ -61,9 +58,8 @@ sudo nginx -t && sudo systemctl reload nginx
 Key lines of the shipped `nginx.conf`:
 
 - `gzip_static on;` — serves the precompressed `.gz` files written by
-  `mado bundle`. Zero CPU at request time.
-- `location ~* "^/(main|chunk|asset)-[A-Z0-9]+\.js$" { … immutable; }` —
-  hashed bundles get a one-year cache.
+  `mado release`. Zero CPU at request time.
+- `/assets/*` should be cached immutable; Vite filenames are content hashed.
 - `try_files $uri $uri/ /index.html;` — SPA fallback so deep links work
   after a hard refresh.
 
@@ -92,9 +88,8 @@ Build command:    npm ci && npx mado release
 Output directory: out
 ```
 
-There is also a small **edge prerender PoC** in
-[`examples/cloudflare`](../../examples/cloudflare/) for catalogs too big to
-bake at build time.
+For catalogs too big to bake at build time, keep edge prerender experiments in
+the external examples workspace rather than in the core package.
 
 ---
 
@@ -184,12 +179,12 @@ jobs:
   `Cache-Control: public, max-age=...` or you are sitting behind a CDN that
   ignores `no-cache`. Add an explicit rule mirroring the matrix above.
 - **`/assets/*` files change but the browser keeps the old one.** They
-  should not — the filename is hashed by `mado bundle`. If you bypassed
-  bundle and shipped your own `dist/main.js`, give it a hash or short cache.
+  should not — the filename is hashed by Vite during `mado release`. If you bypassed
+  build and shipped your own unhashed JS, give it a hash or short cache.
 - **Baked SEO page shows `[object Object]`.** Should never happen after the
   v1 bake update — bake now raises a loud error in that case. If you see it,
   upgrade `@madojs/mado` and re-run `mado bake`.
 
 See also: [`02-project-layout.md`](./02-project-layout.md) for the
-`src/`/`dist/`/`public/`/`out/` model and [`03-static-bake.md`](./03-static-bake.md)
+`src/`/`public/`/`out/` model and [`03-static-bake.md`](./03-static-bake.md)
 for the SEO bake mechanics.

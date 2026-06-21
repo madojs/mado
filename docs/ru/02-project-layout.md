@@ -6,8 +6,8 @@
 my-app/
 ├── package.json              # runtime dep: @madojs/mado
 ├── tsconfig.json             # strict TS, ES2022, Bundler resolution
-├── mado.config.json          # dev/build/bake/bundle config
-├── index.html                # SPA shell и template для bake
+├── vite.config.ts            # optional; mado() from @madojs/mado/vite
+├── index.html                # Vite entry и SPA shell
 ├── public/                   # статика (favicon, images, robots.txt)
 └── src/
     ├── main.ts               # точка входа: mount router в #app
@@ -27,13 +27,11 @@ my-app/
 | Folder | Что это | Кто пишет | Deploy? |
 |---|---|---|---|
 | `src/` | исходники TypeScript | ты | no |
-| `dist/` | output `tsc`, native ESM для dev | `mado build` | no |
-| `public/` | авторская статика | ты | через `out/` |
-| `out/` | deploy artifact: SPA shell + bundles + promoted baked HTML | `mado release` | yes |
+| `public/` | статика, копируется как есть | Vite build | через `out/` |
+| `out/` | deploy artifact: SPA shell + assets + baked HTML | `mado release` | yes |
 
-`mado release` = `typecheck` + `build` (`dist/`) + `bundle`
-(`out/assets/`) + `bake` (`out/baked/`) + promote baked HTML и
-`sitemap.xml` в deployable `out/` paths + copy `public/*`.
+`mado release` = `typecheck` + Vite build (`out/index.html`, `out/assets/`,
+`public/*`) + `bake` прямо в route paths + `sitemap.xml` + precompression.
 
 ## Куда положить новый файл?
 
@@ -59,6 +57,6 @@ my-app/
 
 ## Что НЕ кладём в src/
 
-- ❌ Конфиги билдеров (webpack, rollup, vite) — у нас их нет.
+- ❌ Лишние конфиги билдеров — для Vite используй `vite.config.ts` с `mado()`.
 - ❌ `.env`-файлы — env читается из `process.env`/`import.meta.env` в `lib/config.ts`.
 - ❌ Тесты вперемешку с кодом — все в `test/`.

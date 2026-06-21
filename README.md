@@ -23,6 +23,7 @@
 [![CI](https://github.com/madojs/mado/actions/workflows/ci.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/ci.yml)
 [![Browser Regression](https://github.com/madojs/mado/actions/workflows/browser.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/browser.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Donate: PayPal](https://img.shields.io/badge/Donate-PayPal-ff3f59.svg)](https://www.paypal.com/paypalme/tsekhmister)
 
 Mado is a browser-native SPA framework for teams that want routing, forms,
 data fetching and state management — without turning their frontend into an
@@ -85,8 +86,8 @@ Mado stays useful by saying no. These are intentionally out of scope:
 
 - **vs Lit** — Lit is better for design systems. Mado is for whole apps:
   router, data, forms and prerender in one package, no assembly required.
-- **vs Solid** — Solid is faster and more mature. It also requires Vite + a
-  babel plugin. Mado requires nothing but `tsc`.
+- **vs Solid** — Solid is faster and more mature. Mado keeps a smaller runtime
+  and uses Vite only as the development/build transport layer.
 - **vs htmx** — htmx is excellent when your backend owns HTML. Mado is for
   cases where you want a real SPA: local state, optimistic updates, cached
   resources, lazy modules and persisted UI state.
@@ -96,8 +97,8 @@ Mado stays useful by saying no. These are intentionally out of scope:
 Routing, forms, state, data fetching and prerendering — without ecosystem tax:
 
 - No runtime dependencies to audit, update or break
-- No bundler required to start (`tsc` is enough)
-- Fewer moving parts to debug
+- Vite-powered dev/build without a framework-specific bundler to maintain
+- Fewer Mado-specific moving parts to debug
 - Compact API surface you can learn in a day
 - Lower long-term cognitive load
 
@@ -105,7 +106,7 @@ Routing, forms, state, data fetching and prerendering — without ecosystem tax:
 Runtime budget:
   enforced in CI with npm run size
 Runtime dependencies: 0
-Required dev dependencies: typescript, esbuild, linkedom
+Required dev dependencies: typescript, vite, linkedom
 ```
 
 ## Quick Start
@@ -119,34 +120,10 @@ npm install
 npm run dev
 ```
 
-The admin starter gives you the blessed production shape: layouts, guards,
-auth/API client, forms and a small admin shell.
-
-```bash
-npm exec --package @madojs/mado@latest -- mado init dashboard --starter admin
-cd dashboard
-npm install
-npm run dev
-```
-
-The CRUD starter is a compact resource/mutation/forms example:
-
-```bash
-npm exec --package @madojs/mado@latest -- mado init my-app --starter crud
-```
-
-### Try the flagship example
-
-```bash
-git clone https://github.com/madojs/mado.git
-cd mado
-npm install
-npm run build
-npm run serve -- showcase
-```
-
-The showcase is a CRM-shaped pressure app with auth, tables, filters, nested
-routes, context services, forms and real data patterns.
+The default starter is the blessed production shape: app-zone layouts, guards,
+module boundaries, API connectors, resources, forms and a small admin shell.
+Larger demos live outside this package in the separate `madojs-examples`
+workspace/repository.
 
 ## How it works
 
@@ -266,13 +243,12 @@ mado release
 ```
 
 Build-time prerender of routes into static HTML with meta tags and JSON-LD.
-No hydration runtime. For dynamic content, see the Cloudflare edge-prerender
-PoC in [`examples/cloudflare`](./examples/cloudflare/).
+No hydration runtime. Keep personalized or real-time content in the client SPA.
 
 ## Production
 
 ```bash
-mado release    # typecheck + build + bundle + bake + promote baked HTML + copy public -> out/
+mado release    # typecheck + vite build + bake + static deploy files -> out/
 mado preview    # serve out/ like a static host
 ```
 
@@ -283,11 +259,11 @@ any static CDN.
 
 ```bash
 mado init my-app              # scaffold new app
-mado init dashboard --starter admin
-mado dev                      # dev server with hot reload
-mado build                    # tsc compile
+mado dev                      # Vite dev server
+mado build                    # tsc compile (framework/package work)
 mado typecheck                # type check without emit
 mado test                     # run test suite
+mado new module billing       # scaffold canonical app files
 mado release                  # full production build
 mado preview                  # serve production build locally
 ```
@@ -313,11 +289,8 @@ AI-agent entrypoints: [AGENTS.md](./AGENTS.md) · [llms.txt](./llms.txt)
 
 ## Examples
 
-- [`examples/showcase`](./examples/showcase/) — flagship CRM pressure app
-  (auth, tables, filters, forms, nested routes, context services).
-- [`examples/tickets`](./examples/tickets/) — CRUD validation app.
-- [`examples/basic`](./examples/basic/) — minimal API tour.
-- [`examples/cloudflare`](./examples/cloudflare/) — edge prerender PoC.
+The large examples are kept outside the framework package in `madojs-examples`
+so the core repo stays focused on runtime, tooling, starter and tests.
 
 ## Known Limits
 

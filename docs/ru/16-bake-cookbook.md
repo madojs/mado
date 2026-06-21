@@ -55,10 +55,9 @@ export default routes(manifest);
 
 ## Output
 
-Standalone `mado bake` по умолчанию пишет baked pages в `out/baked/`.
-`mado release` использует bundled production shell, оставляет копию в
-`out/baked/` для inspection, промотирует HTML в реальные route paths внутри
-`out/` и копирует sitemap в `out/sitemap.xml`.
+Standalone `mado bake` по умолчанию пишет baked pages прямо в `out/`.
+`mado release` сначала запускает Vite build, затем bake заменяет route HTML
+на месте и пишет sitemap в `out/sitemap.xml`.
 
 ```bash
 mado release
@@ -66,6 +65,9 @@ tree out
 ```
 
 Deployable folder — `out/`, не `dist/`.
+
+`mado release --keep-bake-dir` оставляет дополнительную копию `out/baked/`
+только для debugging/inspection.
 
 ## Client Boot
 
@@ -85,5 +87,9 @@ Bake намеренно падает громко вместо записи `[ob
 
 ## Canonical Links
 
-Передай `--base-url` или задай `bake.baseUrl` в `mado.config.json`, чтобы
-canonical links и sitemap указывали на production.
+Передай `--base-url`, чтобы canonical links и sitemap указывали на production.
+
+```bash
+mado bake --base-url https://example.com
+mado release --base-url https://example.com
+```

@@ -40,7 +40,7 @@ The `npm run bake` command traverses all `page` entries with `bake`, generates H
 ## Example
 
 ```ts
-// src/pages/product.ts
+// src/modules/<module>/pages/product.ts
 import { page, component, html } from "@madojs/mado";
 import { findProduct, products, type Product } from "../lib/products.js";
 
@@ -84,7 +84,7 @@ export default page<{ slug: string }, Product | undefined>({
 ```
 
 ```ts
-// src/routes.ts
+// src/app.routes.ts
 import { routes, type RoutesMap } from "@madojs/mado";
 
 // Export BOTH default (RouterApi for runtime) AND manifest (for the bake script).
@@ -100,8 +100,7 @@ export default routes(manifest, { titleSuffix: " · MyShop" });
 ## Running
 
 ```bash
-npm install -D linkedom esbuild
-npm run build
+npm install -D linkedom vite
 npm run bake
 ```
 
@@ -144,7 +143,7 @@ out/
     {"slug":"mado-mug","name":"Mado Mug","price":12,"..."}
   </script>
 
-  <script type="module" src="/dist/examples/main.js"></script>
+  <script type="module" src="/assets/index-HASH.js"></script>
 </body>
 ```
 
@@ -174,7 +173,7 @@ export const allPosts = () =>
 ```
 
 ```ts
-// src/pages/blog-post.ts
+// src/modules/<module>/pages/blog-post.ts
 import { page, html } from "@madojs/mado";
 import { allPosts } from "../lib/posts.js";
 

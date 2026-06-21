@@ -3,8 +3,6 @@
 > This file is read by AI agents in IDEs (Cursor, Cline, Copilot, Continue, etc.).
 > Goal: prevent them from generating React-like code where Mado should be used.
 >
-> The v0.6 product-surface push is archived in
-> [`MADO_V1_PLAN.md`](./MADO_V1_PLAN.md). New work should follow `ROADMAP.md`
 > / `TODO.md` unless the user explicitly resumes that tracker.
 
 ## Project at a glance
@@ -12,7 +10,7 @@
 - **Mado** — a calm browser-native SPA framework for internal tools, admin panels and business apps.
 - Built on Web Components + signals + tagged-template `html`.
 - Zero runtime dependencies. Generated apps use dev tooling (`typescript`,
-  `esbuild`, `linkedom`) for build/bundle/bake/release.
+`vite`, `linkedom`) for dev/build/bake/release.
 - Small TypeScript core in `src/`; production size budgets are enforced in CI.
 
 ## HARD RULES — violation = bug
@@ -399,7 +397,8 @@ not SSR with hydration and not a Next-style SSG runtime.
 ## SOFT GUIDELINES — recommended, but not critical
 
 - **TypeScript strict.** Use `noUncheckedIndexedAccess`-aware code (with `!` or a type guard).
-- **Import using `.js`** (not `.ts`) — this is required by ES modules in the browser: `import { foo } from "./bar.js"`.
+- **Imports:** generated Vite apps may use extensionless local imports. Browser-native
+  package examples that run without Vite should use `.js` specifiers.
 - **Public imports only.** App code imports from `@madojs/mado` and, when
   needed, side-effect `@madojs/mado/devtools.js`. Other package subpaths and
   `dist/src/*` are internal.
@@ -411,32 +410,30 @@ not SSR with hydration and not a Next-style SSG runtime.
 
 ```
 src/
-├── routes.ts         ← route manifest, ONE file
 ├── main.ts           ← entry: mount to #app
-├── pages/            ← one page = one file
-├── components/       ← reusable x-* components
-├── layouts/          ← optional route layout modules (`page({ child })`)
-└── lib/              ← API client, contexts, pure logic
+├── app.routes.ts     ← app map, exports `manifest` + default routes(...)
+├── layouts/          ← app-zone layout modules (`page({ child })`)
+├── shared/           ← ui, http, lib, styles
+└── modules/          ← bounded contexts with pages/data/api/services
 ```
 
 ## App architecture for LLM
 
 When generating an app, prefer the blessed production shape from
-`docs/en/10-app-architecture.md` and the `starters/admin/` example:
+`docs/en/10-app-architecture.md` and the `starters/default/` example:
 
 - `src/main.ts` mounts `routesApi.view` and imports only global styles,
   providers, and tiny shared components.
-- `src/routes.ts` exports both `manifest` and `default routes(manifest, ...)`.
+- `src/app.routes.ts` exports both `manifest` and `default routes(manifest, ...)`.
 - Put route wrappers in `src/layouts/` via `layout()`, not ad-hoc shell logic
   inside every page.
-- Put backend access in `src/lib/api.ts` and auth/session logic in
-  `src/lib/auth.ts`; guards call auth helpers, pages call API helpers.
-- Put one page per file under `src/pages/`; a page imports the feature
-  components it renders.
+- Put backend access in module `*.connector.ts` files over `shared/http`.
+- Put one page per file under the starter's module/page convention; a page imports
+  the feature components it renders.
 - Use `resource()` for reads, `mutation(..., { invalidates })` for writes,
   and `useForm()` for form state/validation.
 - Use `mado release` as the production path. `out/` is the only deploy
-  artifact; `dist/` is internal build output.
+  artifact for apps; framework package tests still build `dist/src`.
 
 ## Where to find specific answers
 

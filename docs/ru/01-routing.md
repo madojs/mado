@@ -42,7 +42,7 @@ export default routes({
 '/posts': () => import('./pages/posts.js'),
 ```
 
-- Браузер сам сделает chunk при бандлинге (esbuild --bundle --splitting).
+- Vite сделает chunk при production build для dynamic imports.
 - Модуль загрузится только при заходе на роут.
 - Между навигациями результат кэшируется.
 
@@ -191,4 +191,4 @@ export default routes({
 Импортируешь `routes.ts` — это просто объект. Подставляешь свой mock-router. Никакой эмуляции сборщика не нужно.
 
 **Code splitting работает?**
-Да. При `esbuild --bundle --splitting --format=esm` каждый `() => import('./pages/x.js')` становится отдельным chunk'ом.
+Да. При Vite production build каждый `() => import('./pages/x.js')` становится отдельным chunk'ом.

@@ -35,7 +35,7 @@ Mado — не «убийца» React/Vue/Svelte. Это узкоспециали
 | Data fetching | нет, нужно собирать | `resource()` + `mutation()` + glob-инвалидация |
 | Формы | нет | `useForm()` с HTML-like constraints |
 | SEO / static | сложно (`@lit-labs/ssr`) | `bake` (linkedom) + edge-prerender |
-| Билд | нужен esbuild/rollup/webpack | хватает `tsc` |
+| Билд | нужны framework-specific build plugins | Vite transport + native runtime |
 | Стиль кода | классы + декораторы | функции + tagged templates |
 | Экосистема | реальная (Shoelace, Material Web, и т.д.) | нет |
 | Когда выбрать | пишете дизайн-систему / Web-Components-библиотеку для встраивания | пишете приложение целиком, хотите всё в одной коробке |

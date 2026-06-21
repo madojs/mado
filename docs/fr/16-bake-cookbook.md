@@ -84,5 +84,5 @@ signale une directive non supportée :
 
 ## Canonical Links
 
-Passe `--base-url` ou configure `bake.baseUrl` dans `mado.config.json` pour que
-les liens canonical et le sitemap pointent vers la production.
+Passe `--base-url` pour que les liens canonical et le sitemap pointent vers la
+production.

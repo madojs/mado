@@ -9,10 +9,12 @@ package root:
 import { component, html, resource, routes, signal } from "@madojs/mado";
 ```
 
-The only public package subpath is the side-effect devtools module:
+The public package subpaths are the side-effect devtools module and the Vite
+tooling integration:
 
 ```ts
 import "@madojs/mado/devtools.js";
+import { mado } from "@madojs/mado/vite";
 ```
 
 Everything else under `dist/src/` is an implementation detail, even when it is
@@ -41,8 +43,8 @@ These names are public and protected by SemVer once v1 ships:
 
 These are not public API:
 
-- Package subpaths other than `@madojs/mado` and
-  `@madojs/mado/devtools.js`.
+- Package subpaths other than `@madojs/mado`, `@madojs/mado/devtools.js`,
+  and `@madojs/mado/vite`.
 - Template parser/binding internals such as `html/parser.js`,
   `html/bindings.js`, `ChildState`, and `EachEntry`.
 - Router implementation modules such as `router/match.js`,

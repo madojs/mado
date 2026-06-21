@@ -25,7 +25,7 @@ After v1, Mado treats these as SemVer-protected:
   teardown for same-tick moves, cleanup via `ctx.onDispose`.
 - Router/page/resource/form contracts documented in the English docs.
 - CLI command names and broad command intent (`build`, `dev`, `release`,
-  `bake`, `bundle`, `preview`, `init`, `new`).
+  `bake`, `preview`, `init`, `new`).
 
 Breaking these requires a major version.
 

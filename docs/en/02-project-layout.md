@@ -8,40 +8,42 @@ things live.
 my-app/
 ├── package.json              # exactly one runtime dep: @madojs/mado
 ├── tsconfig.json             # strict TS, ES2022, Bundler resolution
-├── mado.config.json          # single config file (dev/build/bake/bundle)
-├── index.html                # SPA shell (also the template for `mado bake`)
+├── vite.config.ts            # optional; use mado() from @madojs/mado/vite
+├── index.html                # Vite entry + SPA shell
 ├── public/                   # static assets (favicons, images, robots.txt)
 └── src/
     ├── main.ts               # entry: mount router into #app
-    ├── routes.ts             # route manifest (default + named `manifest`)
-    ├── layouts/              # `page({ child })` layouts for nested routes
-    ├── pages/                # one page = one file
-    ├── components/           # reusable x-* Web Components
-    └── lib/
-        ├── api.ts            # API client + error type
-        ├── auth.ts           # auth recipe (token + guard)
-        └── ...               # contexts, helpers, business rules
+    ├── app.routes.ts         # one app map (default + named `manifest`)
+    ├── layouts/              # app-zone layouts, not domain modules
+    ├── shared/               # ui, http, lib, styles
+    └── modules/              # bounded contexts
+        └── billing/
+            ├── billing.routes.ts
+            ├── billing.public.ts
+            ├── billing.types.ts
+            ├── pages/
+            ├── data/
+            ├── api/
+            └── _contracts/
 ```
 
 ## The three artifact states (read this once, never wonder again)
 
 | Folder      | What it is                                                     | Who writes        | Who reads                  | Deploy?           |
 |-------------|----------------------------------------------------------------|-------------------|----------------------------|-------------------|
-| `src/`      | your source (TypeScript)                                       | you               | `tsc`, `esbuild`           | ❌ no             |
-| `dist/`     | `tsc` output — native ESM `.js` for the browser                | `mado build`      | `mado dev` (during dev)    | ❌ no (internal)  |
-| `public/`   | static assets you authored (favicon, images, robots.txt)       | you               | `mado release` copies it   | ✅ via `out/`     |
-| `out/`      | **the deploy artifact**: SPA shell + bundles + baked HTML      | `mado release`    | nginx / CDN / Cloudflare   | ✅ **yes**        |
+| `src/`      | your source (TypeScript)                                       | you               | Vite, `tsc --noEmit`       | ❌ no             |
+| `public/`   | static assets copied as-is (favicon, images, robots.txt)       | you               | Vite build                 | ✅ via `out/`     |
+| `out/`      | **the deploy artifact**: SPA shell + assets + baked HTML       | `mado release`    | nginx / CDN / Cloudflare   | ✅ **yes**        |
 
 One-liner to remember:
 > Develop with `mado dev`. To ship: run `mado release`, then upload `out/`.
 
-`mado release` = `typecheck` + `build` (tsc → `dist/`) + `bundle` (esbuild
-→ `out/assets/`) + `bake` (HTML → `out/baked/`) + promote baked HTML and
-`sitemap.xml` into deployable `out/` paths + copy `public/*` → `out/`.
+`mado release` = `typecheck` + Vite build (`out/index.html`, `out/assets/`,
+`public/*`) + `bake` directly into deployable route paths + `sitemap.xml` +
+precompressed assets and CDN helper files.
 
-You almost never need to look inside `dist/`. It exists so the dev browser can
-load native ESM modules without a bundler during development. In production
-the equivalent code is bundled and hashed into `out/assets/`.
+`index.html` belongs at the project root because Vite treats it as an entry
+template, not as a static public file. Put only copy-as-is files in `public/`.
 
 ### Quick deployment matrix
 
@@ -57,13 +59,16 @@ See `docs/en/13-deployment.md` for full recipes.
 
 | What                                | Where                                                |
 |-------------------------------------|------------------------------------------------------|
-| Page for a new URL                  | `src/pages/<name>.ts` + add to `src/routes.ts`       |
-| Layout for a group of routes        | `src/layouts/<name>.ts` (referenced from `routes.ts`)|
-| Reusable UI widget                  | `src/components/<x-name>.ts`                         |
-| API call                            | `src/lib/api.ts` (add a method)                      |
-| Auth/session                        | `src/lib/auth.ts`                                    |
-| Global context (theme, user, i18n)  | `src/lib/<name>.ts`                                  |
-| Pure function with no UI            | `src/lib/util/<name>.ts`                             |
+| Page for a new URL                  | `src/modules/<module>/pages/<name>.page.ts` + module routes |
+| Module route map                    | `src/modules/<module>/<module>.routes.ts`            |
+| App shell/layout                    | `src/layouts/<zone>.layout.ts`                       |
+| Reusable shared UI widget           | `src/shared/ui/<x-name>.component.ts`                |
+| Module-only UI widget               | `src/modules/<module>/components/<name>.component.ts` |
+| API connector                       | `src/modules/<module>/api/<provider>.connector.ts`   |
+| Data resource/mutation              | `src/modules/<module>/data/<name>.resource.ts`       |
+| Auth/session                        | `src/modules/auth/`                                  |
+| Public module surface               | `src/modules/<module>/<module>.public.ts`            |
+| Pure function with no UI            | `src/shared/lib/<name>.ts`                           |
 | Static image / favicon              | `public/<file>`                                      |
 
 If you don't know where — that is a signal that **the architecture is
@@ -80,39 +85,31 @@ new top-level folder.
 | Signal                              | camelCase            | `userId`, `isLoggedIn` |
 | Page-internal element               | `x-<route>-page`     | `<x-posts-page>`       |
 
-## `mado.config.json` in one screen
+## Vite config
 
-```jsonc
-{
-  "dev": {
-    "port": 5173,
-    "proxy": { "/api": "http://localhost:3000" }   // dev → backend
+App/dev/build settings live in `vite.config.ts`.
+
+```ts
+import { defineConfig } from "vite";
+import { mado } from "@madojs/mado/vite";
+
+export default defineConfig({
+  plugins: [mado()],
+  server: {
+    proxy: { "/api": "http://localhost:3000" },
   },
-  "build": {
-    "out": "out",
-    "dist": "dist",
-    "publicDir": "public"
-  },
-  "bake": {
-    "entry": "src/routes.ts",
-    "template": "index.html",
-    "baseUrl": "https://example.com"
-  },
-  "bundle": {
-    "splitting": true,
-    "compress": ["gz", "br"]
-  }
-}
+});
 ```
 
-Precedence: built-in defaults < `mado.config.json` < CLI flags
-(< legacy env vars). All keys are optional.
+`mado bake` uses conventions by default: `src/app.routes.ts` first,
+then `src/routes.ts`, `index.html` as the template, and `out/` as output.
+Use CLI flags (`--entry`, `--template`, `--out`, `--base-url`) for the few
+values that are specific to prerendering.
 
 ## What does NOT go in `src/`
 
-- ❌ Build tool configs (webpack, rollup, vite) — we don't have any.
+- ❌ Extra build tool configs — use `vite.config.ts` with `mado()` when needed.
 - ❌ `.env` files — read env in `src/lib/config.ts` from `import.meta.env` /
   `process.env` and import that one module everywhere.
 - ❌ Tests mixed with code — put them in `test/`.
-- ❌ `examples/` folder — the framework repository has examples, your app
-  does not need one.
+- ❌ `examples/` folder — keep large demos outside the app repo.

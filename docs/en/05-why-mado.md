@@ -60,14 +60,14 @@ If your case does not fall into the last point — Mado is most likely not the b
 | Reactivity      | signals (same class of ideas)                               | signals                                              |
 | Templates       | JSX (compiled to reactive expressions)                      | tagged template `html\`\``                           |
 | Component model | functions, Solid virtual nodes                              | Web Components                                       |
-| Build           | Vite + babel-plugin-solid required                          | `tsc` only                                           |
+| Build           | Vite + babel-plugin-solid required                          | Vite for dev/build, no runtime dependencies          |
 | Router          | `@solidjs/router`                                           | included                                             |
 | Data            | `createResource`                                            | `resource()`                                         |
 | SSR             | seriously supported (SolidStart)                            | intentionally none                                   |
 | Ecosystem       | growing, ~50 packages                                       | none                                                 |
-| When to choose  | need top performance + JSX + willing to configure the build | want to run without a build / minimal infrastructure |
+| When to choose  | need top performance + JSX + willing to configure the build | want browser-native runtime with simple tooling      |
 
-**Honest pitch:** _"Solid is technically faster and more mature. But Solid requires Vite + a babel plugin. Mado requires nothing but `tsc` — it's 'open VS Code, F5, and work'. If that difference isn't critical — go with Solid."_
+**Honest pitch:** _"Solid is technically faster and more mature. Mado is smaller in concept: browser-native runtime, Web Components, tagged templates, and Vite doing the boring dev/build work. If you want JSX and a larger ecosystem, go with Solid."_
 
 ---
 

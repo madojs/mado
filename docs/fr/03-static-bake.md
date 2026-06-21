@@ -163,7 +163,7 @@ out/
     {"slug":"mado-mug","name":"Mado Mug","price":12,"..."}
   </script>
 
-  <script type="module" src="/dist/examples/main.js"></script>
+  <script type="module" src="/assets/main-abc123.js"></script>
 </body>
 ```
 

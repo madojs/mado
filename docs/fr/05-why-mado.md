@@ -55,14 +55,14 @@ Si votre cas ne tombe pas dans le dernier point — Mado n'est probablement pas 
 | Réactivité | signals (même classe d'idées) | signals |
 | Templates | JSX (compilé en expressions réactives) | tagged template `html\`\`` |
 | Modèle de composant | fonctions, nœuds virtuels Solid | Web Components |
-| Build | Vite + babel-plugin-solid requis | `tsc` uniquement |
+| Build | Vite + babel-plugin-solid requis | Vite pour dev/build, aucune dépendance runtime |
 | Router | `@solidjs/router` | inclus |
 | Données | `createResource` | `resource()` |
 | SSR | sérieusement supporté (SolidStart) | intentionnellement absent |
 | Écosystème | en croissance, ~50 packages | aucun |
-| Quand choisir | besoin de top performance + JSX + prêt à configurer le build | vouloir tourner sans build / infrastructure minimale |
+| Quand choisir | besoin de top performance + JSX + prêt à configurer le build | vouloir un runtime browser-native avec tooling simple |
 
-**Pitch honnête :** *"Solid est techniquement plus rapide et plus mature. Mais Solid nécessite Vite + un plugin babel. Mado ne nécessite rien d'autre que `tsc` — c'est 'ouvrir VS Code, F5, et travailler'. Si cette différence n'est pas critique — allez avec Solid."*
+**Pitch honnête :** *"Solid est techniquement plus rapide et plus mature. Mado est plus simple dans son idée : runtime browser-native, Web Components, tagged templates, et Vite fait le travail dev/build ennuyeux. Si vous voulez JSX et un écosystème plus large, allez avec Solid."*
 
 ---
 

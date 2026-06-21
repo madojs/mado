@@ -6,7 +6,7 @@ export function printHelp(ctx) {
     mado init <name> [--starter default] [--force]
                            scaffold a new app
     mado dev               Vite dev server
-    mado build             tsc (writes dist/)
+    mado build             tsc package compile (writes internal dist/)
     mado typecheck         tsc --noEmit
     mado test              run unit tests
 

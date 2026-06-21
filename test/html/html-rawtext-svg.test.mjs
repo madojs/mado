@@ -26,7 +26,7 @@ globalThis.Comment = w.Comment ?? class {};
 globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 
-const { html, render } = await import("../../dist/src/html.js");
+const { html, render } = await import("../../dist/src/html/template.js");
 
 function renderIn(tpl) {
   const div = document.createElement("div");

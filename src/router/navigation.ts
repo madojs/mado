@@ -7,7 +7,7 @@
  */
 
 import { signal, type Signal } from "./../signal.js";
-import { html } from "../html.js";
+import { html } from "../html/template.js";
 import {
   compile,
   matchRoute,

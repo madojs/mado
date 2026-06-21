@@ -19,7 +19,8 @@
  *   html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.text}</li>`)}</ul>`
  */
 
-import { html, type TemplateResult } from "./html.js";
+import { html } from "./html/template.js";
+import type { TemplateResult } from "./html/template-types.js";
 
 export type EachKey = string | number;
 

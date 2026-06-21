@@ -1,7 +1,7 @@
 // Resource lifecycle tests:
 //   - resource() created inside a component should automatically clean up its
 //     effect, abort controller, and invalidator subscription on disconnectedCallback;
-//   - outside a component it keeps legacy behavior, but prints a dev warning.
+//   - outside a component it still works, but prints a dev warning.
 //
 // These tests were failing before the v0.3/v0.4 hardening work.
 
@@ -32,7 +32,7 @@ globalThis.customElements = w.customElements ?? {
 };
 
 const { component } = await import("../../dist/src/component.js");
-const { html } = await import("../../dist/src/html.js");
+const { html } = await import("../../dist/src/html/template.js");
 const { resource, _testHooks } = await import("../../dist/src/resource.js");
 const { signal, flushSync } = await import("../../dist/src/signal.js");
 

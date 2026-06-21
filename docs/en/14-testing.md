@@ -27,7 +27,7 @@ globalThis.document = window.document;
 globalThis.Node = window.Node;
 globalThis.HTMLElement = window.HTMLElement;
 
-const { html, render } = await import("../dist/src/html.js");
+const { html, render } = await import("../dist/src/html/template.js");
 
 test("renders a value", () => {
   const root = document.createElement("div");

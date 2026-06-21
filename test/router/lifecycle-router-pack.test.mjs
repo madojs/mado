@@ -61,8 +61,9 @@ w.addEventListener?.("popstate", () => {});
 
 
 const { createLifecycle } = await import("../../dist/src/lifecycle.js");
-const { router, routes } = await import("../../dist/src/router.js");
-const { html, render } = await import("../../dist/src/html.js");
+const { routes } = await import("../../dist/src/router/manifest.js");
+const { router } = await import("../../dist/src/router/navigation.js");
+const { html, render } = await import("../../dist/src/html/template.js");
 const { page } = await import("../../dist/src/page.js");
 
 

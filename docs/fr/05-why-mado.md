@@ -31,11 +31,11 @@ Si votre cas ne tombe pas dans le dernier point — Mado n'est probablement pas 
 | Taille | ~6 Ko | ~16 Ko |
 | Âge / support | ~10 ans, Google | 6 mois, auteur unique |
 | Réactivité | décorateurs `@property` + `requestUpdate` manuel | signals (`signal`/`computed`/`effect`) intégrés |
-| Router | aucun, vous devez en trouver un (`@lit-labs/router`, etc.) | inclus : `routes()` + nested + prefetch + sync-cache |
+| Router | aucun, vous devez en trouver un (`@lit-labs/router`, etc.) | inclus : `routes()` + layout groups + prefetch |
 | Chargement de données | aucun, vous devez l'assembler | `resource()` + `mutation()` + invalidation glob |
 | Forms | aucun | `useForm()` avec contraintes proches du HTML |
 | SEO / statique | complexe (`@lit-labs/ssr`) | `bake` (linkedom) + edge-prerender |
-| Build | nécessite esbuild/rollup/webpack | `tsc` suffit |
+| Build | nécessite des plugins spécifiques au framework | Vite transport + runtime natif |
 | Style de code | classes + décorateurs | fonctions + tagged templates |
 | Écosystème | réel (Shoelace, Material Web, etc.) | aucun |
 | Quand choisir | écrire un design system / bibliothèque Web Components pour l'intégration | écrire une application complète, vouloir tout dans une boîte |
@@ -153,7 +153,7 @@ Je ne vais pas m'étendre là-dessus longtemps, car React est dans une **catégo
 
 Pas la taille, pas la performance, pas les signals — tout a de meilleurs concurrents.
 
-> **"Ouvrez le source et lisez-le en une soirée. ~3500 lignes, 12 modules. Si quelque chose casse — vous n'allez pas sur une issue avec 3000 commentaires. Vous allez dans `src/router.ts` et lisez 500 lignes."**
+> **"Ouvrez le source et lisez-le en une soirée. ~3500 lignes, petits modules. Si quelque chose casse — vous n'allez pas sur une issue avec 3000 commentaires. Vous allez dans `src/router/` et lisez le code."**
 
 C'est ce qu'on appelle la **propriété** — vous possédez le code, plutôt que de dépendre de celui de quelqu'un d'autre.
 

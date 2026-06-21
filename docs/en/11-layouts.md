@@ -1,6 +1,6 @@
 # Layouts
 
-> **One blessed path.** Layouts in Mado are nested-route groups with a shared
+> **One blessed path.** Layouts in Mado are route groups with a shared
 > shell. There is exactly one canonical place to declare a layout — your
 > `app.routes.ts` manifest. Putting layout code anywhere else (in `main.ts`, in a
 > page view, in a global custom-element wrapper) is a bug pattern: the LLM and
@@ -60,14 +60,14 @@ That is the whole API.
 Without this convention, every page accumulates `<x-app-shell>${...}</x-app-shell>`
 boilerplate, the LLM eventually puts the shell wrapper into `main.ts` "to make
 it consistent", and the next refactor produces the classic
-*"navigation appears below the page content"* screenshot. The nested-routes
+*"navigation appears below the page content"* screenshot. The layout-group
 recipe makes the shell the **outer frame** structurally; there is no way to
 re-order it by accident.
 
 ## Two acceptable alternatives (with caveats)
 
-These exist for completeness. Reach for them only if you cannot use nested
-routes.
+These exist for completeness. Reach for them only if you cannot use layout
+groups.
 
 ### a) A single shell with the router slot in `main.ts`
 
@@ -102,8 +102,8 @@ place. **Do not start with this.**
 
 ## Where to find more
 
-- `src/page.ts` defines `layout()`, `page()`, `Guard` and `NestedRoutes`.
-- `src/router/manifest.ts` flattens the nested manifest and applies guards
+- `src/page.ts` defines `layout()`, `page()`, `Guard` and `LayoutRoutes`.
+- `src/router/manifest.ts` flattens the layout manifest and applies guards
   outer → inner before the page renders.
 - The default starter (`mado init my-app`) ships with public, auth and
   authenticated app zones and is the reference implementation.

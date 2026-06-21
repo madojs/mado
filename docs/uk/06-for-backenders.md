@@ -44,8 +44,8 @@ Mado використовує schema-based validation, близьку до HTML 
 
 ## Auth
 
-Auth зазвичай живе в `lib/auth.ts` як signal/context. Protected area зручно
-робити через nested layout, який перевіряє session і показує dashboard або
+Auth зазвичай живе в `modules/auth` як signal/context. Protected area зручно
+робити через `layout()` group, який перевіряє session і показує dashboard або
 redirect/login.
 
 ## Правило

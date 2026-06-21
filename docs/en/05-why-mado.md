@@ -36,7 +36,7 @@ If your case does not fall into the last point — Mado is most likely not the b
 | Size           | ~6 KB                                                          | ~16 KB                                                 |
 | Age / support  | ~10 years, Google                                              | 6 months, single author                                |
 | Reactivity     | `@property` decorators + manual `requestUpdate`                | signals (`signal`/`computed`/`effect`) out of the box  |
-| Router         | none, you need to find one (`@lit-labs/router`, etc)           | included: `routes()` + nested + prefetch + sync-cache  |
+| Router         | none, you need to find one (`@lit-labs/router`, etc)           | included: `routes()` + layout groups + prefetch        |
 | Data fetching  | none, you need to assemble it                                  | `resource()` + `mutation()` + glob invalidation        |
 | Forms          | none                                                           | `useForm()` with HTML-like constraints                 |
 | SEO / static   | complex (`@lit-labs/ssr`)                                      | `bake` (linkedom) + edge-prerender                     |
@@ -162,7 +162,7 @@ I won't dwell on this for long, because React is in a **different weight class**
 
 Not size, not performance, not signals — everything has better competitors.
 
-> **"Open the source and read it in an evening. ~3500 lines, 12 modules. If something breaks — you don't go to an issue with 3000 comments. You go to `src/router.ts` and read 500 lines."**
+> **"Open the source and read it in an evening. ~3500 lines, small modules. If something breaks — you don't go to an issue with 3000 comments. You go to `src/router/` and read the code."**
 
 This is called **ownership** — you own the code, rather than depending on someone else's.
 

@@ -21,7 +21,7 @@ globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 globalThis.customElements = w.customElements;
 
-const { html, render } = await import("../../dist/src/html.js");
+const { html, render } = await import("../../dist/src/html/template.js");
 const { signal, flushSync } = await import("../../dist/src/signal.js");
 
 /** Render a template into a fresh div and return it. */

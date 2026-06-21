@@ -14,14 +14,13 @@ globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 globalThis.customElements = w.customElements;
 
+const { html, render } = await import("../../dist/src/html/template.js");
 const {
-  html,
-  render,
   unsafeHTML,
   ref,
   classMap,
   styleMap,
-} = await import("../../dist/src/html.js");
+} = await import("../../dist/src/html/bindings.js");
 const { signal, flushSync } = await import("../../dist/src/signal.js");
 
 function renderIn(tpl) {

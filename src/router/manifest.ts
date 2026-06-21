@@ -4,7 +4,7 @@
  *
  * On top of the raw router() from navigation.ts this adds:
  *   - dynamic-import loaders (code splitting via `() => import(...)`),
- *   - nested routes with layouts (via page.ts: nested({ layout, routes })),
+ *   - route groups with layouts (via page.ts: layout({ layout, routes })),
  *   - per-instance module cache (not global — two routes() calls
  *     in the same process do NOT interfere),
  *   - hover prefetch and programmatic prefetchPath(),
@@ -553,7 +553,7 @@ function navigateFromGuard(to: string, replace?: boolean): void {
 
 /**
  * Wrap a page's view in layouts (from inner to outer).
- * Each layout receives `child` = TemplateResult of the nested page or
+ * Each layout receives `child` = TemplateResult of the child page or
  * next layout — composes like a matryoshka.
  */
 function renderWithLayouts(

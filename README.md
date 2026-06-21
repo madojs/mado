@@ -181,7 +181,7 @@ export default routes({
 });
 ```
 
-Lazy loading, nested routes, query params, guards, hover prefetch, scroll
+Lazy loading, layout groups, query params, guards, hover prefetch, scroll
 restoration, error boundary, View Transitions.
 
 ### Data — resource + mutation

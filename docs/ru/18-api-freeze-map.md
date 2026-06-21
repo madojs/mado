@@ -28,7 +28,7 @@ import { mado } from "@madojs/mado/vite";
 - Templates и directives: `html`, `render`, `each`, `list`, `unsafeHTML`,
   `ref`, `classMap`, `styleMap`.
 - Components и CSS: `component`, `css`, `cssVars`.
-- Routing и pages: `routes`, `router`, `page`, `layout`, `nested`,
+- Routing и pages: `routes`, `router`, `page`, `layout`,
   `navigate`, `queryParam`, `prefetchPath`.
 - Data: `resource`, `mutation`, `invalidate`, `jsonFetcher`, `HttpError`.
 - Forms: `useForm`.

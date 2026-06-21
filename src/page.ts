@@ -12,11 +12,11 @@
  *     `,
  *   });
  *
- *   // routes.ts
+ *   // app.routes.ts
  *   import { routes } from '@madojs/mado';
  *
  *   export default routes({
- *     '/users/:id': () => import('./pages/user-profile.js'),
+ *     '/users/:id': () => import('./modules/users/pages/user-profile.page.js'),
  *   });
  *
  * The contract is strict: exactly three slots — title / load / view.
@@ -24,7 +24,7 @@
  * "One right way" — as in Rust: fewer branches, fewer bugs.
  */
 
-import type { TemplateResult } from "./html.js";
+import type { TemplateResult } from "./html/template-types.js";
 
 /** Route params (values from :placeholders). */
 export type RouteParams = Record<string, string>;
@@ -135,7 +135,7 @@ export type GuardResult =
   | { redirect: string; replace?: boolean };
 
 /**
- * Guard function. Runs before a page (or any page in a nested group) is rendered.
+ * Guard function. Runs before a page (or any page in a layout group) is rendered.
  *
  *   const requireAuth: Guard = ({ path }) => {
  *     if (isLoggedIn()) return;
@@ -173,7 +173,7 @@ export interface Page<P extends RouteParams = RouteParams, D = unknown> {
   errorView?: (err: Error, params: P) => TemplateResult;
   /**
    * Route guards for this page. Evaluated after any guards from the
-   * enclosing nested groups. See `Guard` for the verdict contract.
+   * enclosing layout groups. See `Guard` for the verdict contract.
    */
   guard?: Guard | Guard[];
 }
@@ -197,7 +197,7 @@ export const isPage = (v: unknown): v is Page =>
  * Manifest entry — what should respond to a path.
  *   - Page                          → serve immediately, without import (for eager pages)
  *   - () => Promise<{default:Page}> → lazy via dynamic import
- *   - NestedRoutes                  → a group with a shared layout
+ *   - LayoutRoutes                  → a route group with a shared layout
  *
  * Using Page<any, any> so that user-defined page<{slug:string}>
  * can be assigned here (TS disallows Page<{slug:string}> → Page<RouteParams>
@@ -209,10 +209,10 @@ export type AnyPage = Page<any, any>;
 export type RouteEntry =
   | AnyPage
   | (() => Promise<{ default: AnyPage }>)
-  | NestedRoutes;
+  | LayoutRoutes;
 
-export interface NestedRoutes {
-  readonly _nested: true;
+export interface LayoutRoutes {
+  readonly _layout: true;
   /** Layout page wrapping children. Will receive child=TemplateResult. */
   layout?: AnyPage | (() => Promise<{ default: AnyPage }>);
   /** Sub-routes. Keys are relative ("" , "users", "users/:id"). */
@@ -224,14 +224,8 @@ export interface NestedRoutes {
   guard?: Guard | Guard[];
 }
 
-export function nested(spec: Omit<NestedRoutes, "_nested">): NestedRoutes {
-  return { _nested: true, ...spec };
-}
-
 /**
- * `layout()` is the recommended factory for a nested route group with a
- * shared shell. It is the same shape as `nested()` — kept under a clearer
- * name so that app code reads as:
+ * `layout()` creates a route group with a shared shell:
  *
  *   "/admin": layout({
  *     layout: () => import("./layouts/admin.js"),
@@ -241,10 +235,10 @@ export function nested(spec: Omit<NestedRoutes, "_nested">): NestedRoutes {
  *       "/orders":  () => import("./pages/admin/orders.js"),
  *     },
  *   })
- *
- * Prefer `layout()` over `nested()` in new code.
  */
-export const layout = nested;
+export function layout(spec: Omit<LayoutRoutes, "_layout">): LayoutRoutes {
+  return { _layout: true, ...spec };
+}
 
-export const isNested = (v: unknown): v is NestedRoutes =>
-  typeof v === "object" && v !== null && (v as NestedRoutes)._nested === true;
+export const isLayoutGroup = (v: unknown): v is LayoutRoutes =>
+  typeof v === "object" && v !== null && (v as LayoutRoutes)._layout === true;

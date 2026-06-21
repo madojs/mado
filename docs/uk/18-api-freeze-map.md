@@ -27,7 +27,7 @@ import "@madojs/mado/devtools.js";
 - Templates і directives: `html`, `render`, `each`, `list`, `unsafeHTML`,
   `ref`, `classMap`, `styleMap`.
 - Components і CSS: `component`, `css`, `cssVars`.
-- Routing і pages: `routes`, `router`, `page`, `layout`, `nested`,
+- Routing і pages: `routes`, `router`, `page`, `layout`,
   `navigate`, `queryParam`, `prefetchPath`.
 - Data: `resource`, `mutation`, `invalidate`, `jsonFetcher`, `HttpError`.
 - Forms: `useForm`.

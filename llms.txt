@@ -79,7 +79,7 @@ import {
   component,
   css, cssVars,
   routes, router, navigate, queryParam, prefetchPath,
-  page, nested,
+  page, layout,
   resource, mutation, invalidate, jsonFetcher,
   useForm,
   createContext, provide, inject,

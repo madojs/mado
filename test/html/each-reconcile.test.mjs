@@ -33,7 +33,7 @@ globalThis.Comment = w.Comment ?? class {};
 globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 
-const { html, render } = await import("../../dist/src/html.js");
+const { html, render } = await import("../../dist/src/html/template.js");
 const { each } = await import("../../dist/src/each.js");
 const { signal, flushSync } = await import("../../dist/src/signal.js");
 

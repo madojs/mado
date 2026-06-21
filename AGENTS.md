@@ -441,8 +441,8 @@ When generating an app, prefer the blessed production shape from
 | Question                         | File                             |
 | -------------------------------- | -------------------------------- |
 | How does reactivity work?        | `src/signal.ts` (283 lines)      |
-| How are templates parsed?        | `src/html.ts` (1013 lines)       |
-| How does the router work?        | `src/router.ts` (~530 lines)     |
+| How are templates parsed?        | `src/html/`                      |
+| How does the router work?        | `src/router/`                    |
 | How does resource + cache work?  | `src/resource.ts` (297 lines)    |
 | How do forms work?               | `src/forms.ts` (212 lines)       |
 | How should an app be structured? | `docs/en/10-app-architecture.md` |

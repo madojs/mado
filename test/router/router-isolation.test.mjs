@@ -114,8 +114,9 @@ w.document.removeEventListener = (evt, fn, opts) => {
   return origDocRemove(evt, fn, opts);
 };
 
-const { navigate, router, routes } = await import("../../dist/src/router.js");
-const { html } = await import("../../dist/src/html.js");
+const { routes } = await import("../../dist/src/router/manifest.js");
+const { navigate, router } = await import("../../dist/src/router/navigation.js");
+const { html } = await import("../../dist/src/html/template.js");
 const { page } = await import("../../dist/src/page.js");
 
 function snapshot() {

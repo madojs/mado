@@ -19,7 +19,8 @@
  */
 
 import { signal } from "./signal.js";
-import { html, type TemplateResult } from "./html.js";
+import { html } from "./html/template.js";
+import type { TemplateResult } from "./html/template-types.js";
 
 export interface LazyOptions<P> {
   /** What to show while the module is loading. */

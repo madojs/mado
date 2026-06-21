@@ -20,7 +20,7 @@ const { window } = parseHTML("<!doctype html><html><body></body></html>");
 globalThis.window = window;
 globalThis.document = window.document;
 
-const { html, render } = await import("../dist/src/html.js");
+const { html, render } = await import("../dist/src/html/template.js");
 
 test("renders", () => {
   const root = document.createElement("div");

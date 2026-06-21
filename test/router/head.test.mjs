@@ -48,8 +48,8 @@ function installDom(pathname = "/") {
 }
 
 const { applyHead } = await import("../../dist/src/head.js");
-const { routes } = await import("../../dist/src/router.js");
-const { html } = await import("../../dist/src/html.js");
+const { routes } = await import("../../dist/src/router/manifest.js");
+const { html } = await import("../../dist/src/html/template.js");
 const { page } = await import("../../dist/src/page.js");
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));

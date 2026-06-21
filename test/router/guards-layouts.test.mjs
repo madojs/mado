@@ -1,8 +1,7 @@
-// Tests for the v1 layout() + guard contract on routes().
+// Tests for the layout() + guard contract on routes().
 //
 // Verifies:
-//   - layout() (an alias for nested()) accepts a `guard` and applies it to
-//     every child page;
+//   - layout() accepts a `guard` and applies it to every child page;
 //   - synchronous guards can pass, halt, or redirect;
 //   - async guards work and trigger navigate() on redirect;
 //   - parent-group guards run before page guards (outer → inner).
@@ -73,17 +72,16 @@ globalThis.location = fakeLocation;
 globalThis.history = fakeHistory;
 globalThis.PopStateEvent = fakeWindow.PopStateEvent;
 
-const { routes } = await import("../../dist/src/router.js");
-const { html } = await import("../../dist/src/html.js");
-const { page, layout, nested } = await import("../../dist/src/page.js");
+const { routes } = await import("../../dist/src/router/manifest.js");
+const { html } = await import("../../dist/src/html/template.js");
+const { page, layout } = await import("../../dist/src/page.js");
 
 // Tiny helper: wait one microtask tick so redirects scheduled with
 // queueMicrotask are observable.
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-test("layout() is an alias for nested() and ships in the public API", () => {
+test("layout() ships as the route group factory", () => {
   assert.equal(typeof layout, "function");
-  assert.equal(layout, nested, "layout() must be the same factory as nested()");
 });
 
 test("group-level guard: passes when verdict is void → page renders", async () => {

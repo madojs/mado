@@ -27,7 +27,7 @@ Ces noms sont publics et protégés par SemVer une fois v1 publiée :
 - Templates et directives : `html`, `render`, `each`, `list`, `unsafeHTML`,
   `ref`, `classMap`, `styleMap`.
 - Composants et CSS : `component`, `css`, `cssVars`.
-- Routage et pages : `routes`, `router`, `page`, `layout`, `nested`,
+- Routage et pages : `routes`, `router`, `page`, `layout`,
   `navigate`, `queryParam`, `prefetchPath`.
 - Data : `resource`, `mutation`, `invalidate`, `jsonFetcher`, `HttpError`.
 - Formulaires : `useForm`.

@@ -1,5 +1,5 @@
 // Tests that every starter ships a Vite-style index.html that survives SPA hard
-// refresh on nested routes: the module entry is root-absolute and there is no
+// refresh on layout-group routes: the module entry is root-absolute and there is no
 // legacy importmap/dist script path.
 
 import { test } from "node:test";
@@ -18,7 +18,7 @@ function listStarters() {
   });
 }
 
-test("every starter index.html uses absolute paths so nested-route hard refresh works", () => {
+test("every starter index.html uses absolute paths so layout-group hard refresh works", () => {
   for (const starter of listStarters()) {
     const indexPath = join(STARTERS_DIR, starter, "index.html");
     const html = readFileSync(indexPath, "utf8");
@@ -34,7 +34,7 @@ test("every starter index.html uses absolute paths so nested-route hard refresh 
     assert.ok(
       src.startsWith("/"),
       `${starter}/index.html: entry script src must be root-absolute, got ${src}\n` +
-        "Relative paths ('./...') break SPA hard refresh on nested routes.",
+        "Relative paths ('./...') break SPA hard refresh on layout-group routes.",
     );
     assert.equal(src, "/src/main.ts", `${starter}/index.html should use the Vite TS entry`);
     assert.equal(html.includes("importmap"), false, `${starter}/index.html should not use importmaps`);

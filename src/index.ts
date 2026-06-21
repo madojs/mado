@@ -20,16 +20,16 @@ export {
 export type { Signal, Computed, ComputedOptions, Disposer } from "./signal.js";
 
 // --- rendering ---
+export { html, render, instantiate } from "./html/template.js";
 export {
-  html,
-  render,
   unsafeHTML,
   ref,
   classMap,
   styleMap,
-} from "./html.js";
+  isHtmlDirective,
+} from "./html/bindings.js";
+export type { TemplateResult } from "./html/template-types.js";
 export type {
-  TemplateResult,
   HtmlDirective,
   UnsafeHTMLDirective,
   RefCallback,
@@ -38,7 +38,7 @@ export type {
   ClassMapDirective,
   StyleMap,
   StyleMapDirective,
-} from "./html.js";
+} from "./html/bindings.js";
 
 export { each, list } from "./each.js";
 
@@ -58,29 +58,30 @@ export type { CSSResult } from "./css.js";
 // --- routing ---
 export {
   router,
-  routes,
   queryParam,
-  prefetchPath,
   navigate,
-} from "./router.js";
+} from "./router/navigation.js";
+export { routes, prefetchPath } from "./router/manifest.js";
 export type {
   RouterApi,
+  QueryParam,
+  QuerySignal,
+} from "./router/navigation.js";
+export type {
   RouteHandler,
   RouteParams,
   Routes,
   RoutesMap,
-  RoutesOptions,
-  QueryParam,
-  QuerySignal,
-} from "./router.js";
+} from "./router/match.js";
+export type { RoutesOptions } from "./router/manifest.js";
 
-export { page, nested, layout, isPage, isNested } from "./page.js";
+export { page, layout, isPage, isLayoutGroup } from "./page.js";
 export type {
   Page,
   PageContext,
   PageData,
   RouteEntry,
-  NestedRoutes,
+  LayoutRoutes,
   HeadMeta,
   BakeConfig,
   Guard,

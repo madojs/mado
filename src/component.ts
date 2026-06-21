@@ -17,7 +17,8 @@
  */
 
 import { signal, effect, type Signal, type Disposer } from "./signal.js";
-import { html, render, type TemplateResult } from "./html.js";
+import { html, render } from "./html/template.js";
+import type { TemplateResult } from "./html/template-types.js";
 import { adopt, scopeStyles, type CSSResult } from "./css.js";
 import {
   createLifecycle,

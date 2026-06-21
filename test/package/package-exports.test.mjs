@@ -12,6 +12,8 @@ test("package exports expose only the public entrypoints", () => {
 test("package self-import blocks internal subpaths", async () => {
   const api = await import("@madojs/mado");
   assert.equal(typeof api.html, "function");
+  assert.equal(typeof api.layout, "function");
+  assert.equal(api.nested, undefined);
   await import("@madojs/mado/devtools.js");
   const vite = await import("@madojs/mado/vite");
   assert.equal(typeof vite.mado, "function");
@@ -31,7 +33,7 @@ test("internal test hooks are stripped from public declarations", () => {
     "../../dist/src/diagnostics.d.ts",
     "../../dist/src/resource.d.ts",
     "../../dist/src/router/manifest.d.ts",
-    "../../dist/src/router.d.ts",
+    "../../dist/src/router/navigation.d.ts",
   ];
 
   for (const file of files) {

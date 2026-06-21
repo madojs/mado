@@ -53,7 +53,7 @@ globalThis.AbortController ??= class AbortController {
 
 const { warnOnce, _testHooks } = await import("../../dist/src/diagnostics.js");
 const { component } = await import("../../dist/src/component.js");
-const { html, render } = await import("../../dist/src/html.js");
+const { html, render } = await import("../../dist/src/html/template.js");
 const { resource } = await import("../../dist/src/resource.js");
 
 function captureWarnings(fn) {

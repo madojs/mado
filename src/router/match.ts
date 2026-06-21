@@ -8,7 +8,7 @@
  */
 
 import {
-  isNested,
+  isLayoutGroup,
   isPage,
   type Guard,
   type Page,
@@ -88,14 +88,14 @@ export interface FlatEntry {
   loader: () => Promise<Page> | Page;
   layouts: Array<() => Promise<Page> | Page>;
   /**
-   * Guards inherited from enclosing nested groups, outer → inner.
+   * Guards inherited from enclosing layout groups, outer → inner.
    * The page may add its own via `Page.guard` — those run last.
    */
   guards: Guard[];
 }
 
 /**
- * Unfold a nested manifest into a flat list of `[fullPattern, FlatEntry]`.
+ * Unfold a layout-group manifest into a flat list of `[fullPattern, FlatEntry]`.
  * Accumulates parent layouts along the way, so each leaf route
  * "knows" all its layouts (from outer to inner).
  */
@@ -108,7 +108,7 @@ export function flatten(
   const out: Array<[string, FlatEntry]> = [];
   for (const [k, v] of Object.entries(map)) {
     const full = joinPath(prefix, k);
-    if (isNested(v)) {
+    if (isLayoutGroup(v)) {
       const nextLayouts = v.layout
         ? [...layouts, normalize(v.layout)]
         : layouts;

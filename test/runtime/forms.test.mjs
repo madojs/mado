@@ -38,6 +38,27 @@ function blurEvent(name) {
   return event("blur", input({ name }));
 }
 
+async function waitFor(assertion, timeoutMs = 100) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      flushSync();
+      assertion();
+      return;
+    } catch (err) {
+      lastError = err;
+      await new Promise((r) => setTimeout(r, 1));
+    }
+  }
+  flushSync();
+  try {
+    assertion();
+  } catch (err) {
+    throw lastError ?? err;
+  }
+}
+
 test("useForm: defaults + initial isValid with required", () => {
   const f = useForm({
     name: { required: true, default: "" },
@@ -183,20 +204,16 @@ test("useForm: onSubmit waits for validateAsync and blocks invalid submit", asyn
   flushSync();
   submit(event("submit", null));
   assert.equal(f.validating(), true);
-  await new Promise((r) => setTimeout(r, 5));
-  flushSync();
+  await waitFor(() => assert.equal(f.validating(), false));
 
   assert.equal(called, 0);
   assert.equal(f.errors().email, "blocked");
-  assert.equal(f.validating(), false);
 
   f.setField("email", "ok@b.c");
   flushSync();
   submit(event("submit", null));
-  await new Promise((r) => setTimeout(r, 5));
-  flushSync();
+  await waitFor(() => assert.equal(called, 1));
 
-  assert.equal(called, 1);
   assert.equal(f.errors().email, undefined);
 });
 

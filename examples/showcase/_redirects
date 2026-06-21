@@ -1,4 +1,0 @@
-# Cloudflare Pages SPA fallback: every unknown path returns index.html so the
-# client router can render it. Baked HTML (after `npm run bake`) has priority
-# because the file physically exists and this rule will not match it.
-/*  /index.html  200

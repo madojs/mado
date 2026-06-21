@@ -582,7 +582,7 @@ function applyAttrDirective(
 ): Disposer | undefined {
   if (directive._madoDirective === "ref") {
     if (name !== "ref") {
-      throw new Error("[mado] ref() directive must be used as ref=${ref(...)}.");
+      throw new Error(`[mado] ref() directive must be used as ref=\${ref(...)}.`);
     }
     el.removeAttribute(name);
     const dispose = directive.callback(el);
@@ -595,7 +595,7 @@ function applyAttrDirective(
   if (directive._madoDirective === "classMap") {
     if (name !== "class") {
       throw new Error(
-        "[mado] classMap() directive must be used as class=${classMap(...)}.",
+        `[mado] classMap() directive must be used as class=\${classMap(...)}.`,
       );
     }
     return applyClassMap(el, directive.value);
@@ -604,7 +604,7 @@ function applyAttrDirective(
   if (directive._madoDirective === "styleMap") {
     if (name !== "style") {
       throw new Error(
-        "[mado] styleMap() directive must be used as style=${styleMap(...)}.",
+        `[mado] styleMap() directive must be used as style=\${styleMap(...)}.`,
       );
     }
     return applyStyleMap(el, directive.value);

@@ -13,10 +13,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { mutation, invalidate, _testHooks } = await import(
-  "../../dist/src/resource.js"
-);
-const { resource } = await import("../../dist/src/resource.js");
+const { mutation, resource } = await import("../../dist/src/resource.js");
+const { createLifecycle, runInLifecycle } = await import("../../dist/src/lifecycle.js");
 
 function deferred() {
   let resolve;
@@ -26,33 +24,70 @@ function deferred() {
   return { promise, resolve };
 }
 
+function wait(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 test("two concurrent run() calls both complete and both invalidate", async () => {
   const gateA = deferred();
   const gateB = deferred();
+  const lifecycle = createLifecycle();
+  let callsA = 0;
+  let callsB = 0;
 
-  const invalidated = [];
-  // Spy on invalidation by registering live resources whose keys we expect to
-  // be invalidated. Simpler: track via a wrapper around invalidate patterns.
-  const save = mutation(
-    async (entity) => {
-      await (entity.id === "a" ? gateA.promise : gateB.promise);
-      return { ok: entity.id };
-    },
-    { invalidates: (result) => [`entity/${result.ok}`] },
-  );
+  try {
+    const entityA = runInLifecycle(lifecycle, () =>
+      resource(
+        () => "entity/a",
+        async (key) => {
+          callsA++;
+          return key;
+        },
+        { staleTime: 60_000 },
+      ),
+    );
+    const entityB = runInLifecycle(lifecycle, () =>
+      resource(
+        () => "entity/b",
+        async (key) => {
+          callsB++;
+          return key;
+        },
+        { staleTime: 60_000 },
+      ),
+    );
+    await wait(0);
+    assert.equal(callsA, 1);
+    assert.equal(callsB, 1);
 
-  // Fire two saves of different entities back-to-back.
-  const pA = save.run({ id: "a" });
-  const pB = save.run({ id: "b" });
+    const save = mutation(
+      async (entity) => {
+        await (entity.id === "a" ? gateA.promise : gateB.promise);
+        return { ok: entity.id };
+      },
+      { invalidates: (result) => [`entity/${result.ok}`] },
+    );
 
-  // Resolve the FIRST one last to make sure it was not aborted by the second.
-  gateB.resolve();
-  gateA.resolve();
+    // Fire two saves of different entities back-to-back.
+    const pA = save.run({ id: "a" });
+    const pB = save.run({ id: "b" });
 
-  const [rA, rB] = await Promise.all([pA, pB]);
+    // Resolve the FIRST one last to make sure it was not aborted by the second.
+    gateB.resolve();
+    gateA.resolve();
 
-  assert.deepEqual(rA, { ok: "a" }, "first mutation must complete, not abort");
-  assert.deepEqual(rB, { ok: "b" }, "second mutation completes");
+    const [rA, rB] = await Promise.all([pA, pB]);
+    await wait(0);
+
+    assert.deepEqual(rA, { ok: "a" }, "first mutation must complete, not abort");
+    assert.deepEqual(rB, { ok: "b" }, "second mutation completes");
+    assert.equal(callsA, 2, "entity/a resource should refetch after invalidation");
+    assert.equal(callsB, 2, "entity/b resource should refetch after invalidation");
+    assert.equal(entityA.data(), "entity/a");
+    assert.equal(entityB.data(), "entity/b");
+  } finally {
+    lifecycle.dispose();
+  }
 });
 
 test("loading stays true until the last in-flight run settles", async () => {

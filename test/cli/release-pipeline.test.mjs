@@ -31,63 +31,62 @@ const CLI = resolve(REPO_ROOT, "scripts/cli.mjs");
 // minimal public manifest so this test exercises the release pipeline, not
 // backend API availability.
 
-function scaffoldApp() {
+async function scaffoldApp() {
   const dir = mkdtempSync(join(tmpdir(), "mado-release-"));
 
   // Use the framework CLI to scaffold the minimal starter — it already does
   // not pull our admin guard chain, so we don't need to patch much.
-  return new Promise(async (resolve, reject) => {
-    try {
-      const r = await exec(process.execPath, [CLI, "init", "app"], { cwd: dir });
-      const app = join(dir, "app");
+  try {
+    await exec(process.execPath, [CLI, "init", "app"], { cwd: dir });
+    const app = join(dir, "app");
 
-      // Replace the starter home page with one that defines a bake route,
-      // so we exercise scripts/bake.mjs end-to-end.
-      const homePage = `
-        import { html, page } from "@madojs/mado";
-        export default page({
-          title: "Home",
-          head: () => ({ description: "Home page" }),
-          view: () => html\`<h1>Welcome</h1>\`,
-          bake: { paths: () => [{}], data: () => ({ greeting: "hi" }) },
-        });
-      `;
-      writeFileSync(join(app, "src/modules/home/home.page.ts"), homePage);
+    // Replace the starter home page with one that defines a bake route,
+    // so we exercise scripts/bake.mjs end-to-end.
+    const homePage = `
+      import { html, page } from "@madojs/mado";
+      export default page({
+        title: "Home",
+        head: () => ({ description: "Home page" }),
+        view: () => html\`<h1>Welcome</h1>\`,
+        bake: { paths: () => [{}], data: () => ({ greeting: "hi" }) },
+      });
+    `;
+    writeFileSync(join(app, "src/modules/home/home.page.ts"), homePage);
 
-      // app.routes.ts: trim to a public route plus not-found.
-      const routes = `
-        import { routes } from "@madojs/mado";
-        export const manifest = {
-          "/": () => import("./modules/home/home.page"),
-          "*": () => import("./modules/home/not-found.page"),
-        };
-        export default routes(manifest);
-      `;
-      writeFileSync(join(app, "src/app.routes.ts"), routes);
+    // app.routes.ts: trim to a public route plus not-found.
+    const routes = `
+      import { routes } from "@madojs/mado";
+      export const manifest = {
+        "/": () => import("./modules/home/home.page"),
+        "*": () => import("./modules/home/not-found.page"),
+      };
+      export default routes(manifest);
+    `;
+    writeFileSync(join(app, "src/app.routes.ts"), routes);
 
-      // Provide a `public/robots.txt` so we can assert the copy step works.
-      mkdirSync(join(app, "public"), { recursive: true });
-      writeFileSync(join(app, "public/robots.txt"), "User-agent: *\nAllow: /\n");
+    // Provide a `public/robots.txt` so we can assert the copy step works.
+    mkdirSync(join(app, "public"), { recursive: true });
+    writeFileSync(join(app, "public/robots.txt"), "User-agent: *\nAllow: /\n");
 
-      // Link the local framework as `@madojs/mado`.
-      mkdirSync(join(app, "node_modules/@madojs"), { recursive: true });
-      symlinkSync(REPO_ROOT, join(app, "node_modules/@madojs/mado"));
-      symlinkSync(join(REPO_ROOT, "node_modules/vite"), join(app, "node_modules/vite"));
+    // Link the local framework as `@madojs/mado`.
+    mkdirSync(join(app, "node_modules/@madojs"), { recursive: true });
+    symlinkSync(REPO_ROOT, join(app, "node_modules/@madojs/mado"));
+    symlinkSync(join(REPO_ROOT, "node_modules/vite"), join(app, "node_modules/vite"));
 
-      resolve({ root: dir, app });
-    } catch (e) {
-      reject(e);
-    }
-  });
+    return { root: dir, app };
+  } catch (err) {
+    rmSync(dir, { recursive: true, force: true });
+    throw err;
+  }
 }
 
 async function runCli(cwd, args) {
   try {
-    const r = await exec(process.execPath, [CLI, ...args], {
+    const execResult = await exec(process.execPath, [CLI, ...args], {
       cwd,
       env: { ...process.env, FORCE_COLOR: "0" },
     });
-    return { code: 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+    return { code: 0, stdout: execResult.stdout ?? "", stderr: execResult.stderr ?? "" };
   } catch (e) {
     return {
       code: typeof e.code === "number" ? e.code : 1,
@@ -100,10 +99,10 @@ async function runCli(cwd, args) {
 test("mado release: produces out/ with Vite assets, baked HTML, public assets, _headers, _redirects", async () => {
   const { root, app } = await scaffoldApp();
   try {
-    const r = await runCli(app, ["release"]);
-    if (r.code !== 0) {
+    const result = await runCli(app, ["release"]);
+    if (result.code !== 0) {
       throw new Error(
-        `mado release exited ${r.code}\nSTDOUT:\n${r.stdout}\nSTDERR:\n${r.stderr}`,
+        `mado release exited ${result.code}\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`,
       );
     }
     const out = join(app, "out");
@@ -143,8 +142,11 @@ test("mado release: produces out/ with Vite assets, baked HTML, public assets, _
     assert.doesNotMatch(rootHtml, /<script[^>]+src="\/dist\/main\.js"/);
 
     // Vite build produced at least one hashed asset.
-    const outFiles = readFileSync(join(out, "_redirects"), "utf8"); // smoke
-    void outFiles;
+    const assetFiles = readdirSync(join(out, "assets"));
+    assert.ok(
+      assetFiles.some((name) => /-[A-Za-z0-9_-]{6,}\.js$/.test(name)),
+      "Vite should emit at least one hashed JS asset",
+    );
 
     const firstSnapshot = snapshotDir(out);
     const secondRun = await runCli(app, ["release"]);

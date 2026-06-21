@@ -368,13 +368,14 @@ function renderTemplate(tpl, ctx) {
   if (typeof tpl === "string") return escapeHtml(tpl);
   if (typeof tpl === "number") return String(tpl);
   if (Array.isArray(tpl)) return tpl.map((x) => renderTemplate(x, ctx)).join("");
-  if (tpl && tpl._mado === true) return renderMadoTemplate(tpl, ctx);
-  // Unknown shapes (e.g. each() directive results) must NOT silently render
-  // as "[object Object]". Either each() unwraps to an array here, or we
-  // throw with a meaningful location.
-  if (tpl && typeof tpl === "object") {
+  if (typeof tpl === "object") {
+    if (tpl._mado === true) return renderMadoTemplate(tpl, ctx);
+
+    // Unknown shapes (e.g. each() directive results) must NOT silently render
+    // as "[object Object]". Either each() unwraps to an array here, or we
+    // throw with a meaningful location.
     throw new Error(
-      `bake cannot render value of type "${tpl?._type ?? tpl?.constructor?.name ?? "object"}" ` +
+      `bake cannot render value of type "${tpl._type ?? tpl.constructor?.name ?? "object"}" ` +
       `in route ${ctx?.route ?? "?"}. ` +
       "Hint: each() and other directives are not yet supported in bake. " +
       "Use a plain array (items.map(render)) in baked views, or render this " +

@@ -113,7 +113,6 @@ test("group-level guard: redirect verdict calls navigate(), original page does n
   setUrl("/admin");
   const dash = page({ view: () => html`<h1>dashboard</h1>` });
   const login = page({ view: () => html`<h1>login</h1>` });
-  const navigated = [];
   const r = routes({
     "/login": login,
     "/admin": layout({

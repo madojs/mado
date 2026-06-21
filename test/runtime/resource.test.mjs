@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { signal, flushSync } = await import("../../dist/src/signal.js");
-const { resource, mutation, invalidate, jsonFetcher, HttpError } = await import(
+const { resource, mutation, jsonFetcher, HttpError } = await import(
   "../../dist/src/resource.js"
 );
 
@@ -51,16 +51,19 @@ test("resource: cache is reused when returning to an old key", async () => {
   );
   await wait(0);
   assert.equal(calls, 1);
+  assert.equal(r.data(), "cached/1");
 
   id.set(2);
   flushSync();
   await wait(0);
   assert.equal(calls, 2);
+  assert.equal(r.data(), "cached/2");
 
   id.set(1);
   flushSync();
   await wait(0);
   assert.equal(calls, 2, "key '1' is already cached; no second request should happen");
+  assert.equal(r.data(), "cached/1");
 });
 
 test("resource: concurrent resources with the same key share one in-flight fetch", async () => {
@@ -181,6 +184,7 @@ test("mutation: run + invalidate invalidates a resource", async () => {
   );
   await wait(0);
   assert.equal(calls, 1);
+  assert.equal(r.data(), "inv/1");
 
   const m = mutation(
     async (n) => n + 1,
@@ -189,6 +193,7 @@ test("mutation: run + invalidate invalidates a resource", async () => {
   await m.run(0);
   await wait(0);
   assert.equal(calls, 2, "after invalidate there should be a refetch");
+  assert.equal(r.data(), "inv/1");
 });
 
 test("mutation: loading/error/data signals", async () => {
@@ -299,6 +304,7 @@ test("mutation: invalidates can be a function of result and arguments", async ()
   );
   await wait(0);
   assert.equal(calls, 1);
+  assert.equal(r.data(), "posts/7");
 
   const m = mutation(
     async (args) => ({ id: args.postId, ok: true }),
@@ -312,6 +318,7 @@ test("mutation: invalidates can be a function of result and arguments", async ()
   await m.run({ postId: 7, userId: 1 });
   await wait(0);
   assert.equal(calls, 2, "after dynamic invalidation there should be a refetch");
+  assert.equal(r.data(), "posts/7");
 });
 
 test("mutation: invalidates function that throws does not fail the mutation", async () => {

@@ -34,22 +34,13 @@ globalThis.customElements = w.customElements ?? {
 const { component } = await import("../../dist/src/component.js");
 const { html } = await import("../../dist/src/html/template.js");
 const { resource, _testHooks } = await import("../../dist/src/resource.js");
-const { signal, flushSync } = await import("../../dist/src/signal.js");
+const { flushSync } = await import("../../dist/src/signal.js");
 
 // Component teardown is deferred to a microtask (C1 / FABLE_REPORT.md #1), so a
 // genuine removal disposes only after the microtask queue drains.
 async function microtasks() {
   await Promise.resolve();
   await Promise.resolve();
-}
-
-
-// Utility: create a custom element and connect/disconnect it manually.
-function defineAndCreate(tag, setup, opts) {
-  // Use the real component() helper in the test DOM.
-  component(tag, setup, opts);
-  const el = document.createElement(tag);
-  return el;
 }
 
 test("resource inside component cleans up on disconnect", async () => {
@@ -69,6 +60,7 @@ test("resource inside component cleans up on disconnect", async () => {
   // linkedom may call connectedCallback synchronously on append. If not, call it manually.
   if (typeof el.connectedCallback === "function") el.connectedCallback();
   flushSync();
+  assert.ok(resourceRef, "component setup should create the resource");
 
   const during = _testHooks.invalidatorsSize();
   assert.ok(

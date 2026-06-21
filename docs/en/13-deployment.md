@@ -38,9 +38,10 @@ mado preview      # http://localhost:4173 — serves out/ exactly as a static ho
 
 ## Recipe 1: VPS + nginx
 
-The framework ships a production-ready [`nginx.conf`](../../nginx.conf) with
-`gzip_static`, immutable cache for hashed bundles, and SPA fallback. Drop
-`out/` into the host and point nginx at it.
+The framework ships an optional nginx recipe in
+[`docs/recipes/nginx`](../recipes/nginx/): `nginx.conf` for static hosting and a
+`Containerfile` you can copy into generated apps. Drop `out/` into the host and
+point nginx at it.
 
 ```bash
 # Build the artifact locally
@@ -51,11 +52,11 @@ rsync -avz --delete out/ user@server:/var/www/myapp/
 
 # On the VPS — first time only:
 sudo cp /etc/nginx/conf.d/myapp.conf{,.bak}
-sudo cp ./nginx.conf /etc/nginx/conf.d/myapp.conf
+sudo cp ./docs/recipes/nginx/nginx.conf /etc/nginx/conf.d/myapp.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Key lines of the shipped `nginx.conf`:
+Key lines of the recipe `nginx.conf`:
 
 - `gzip_static on;` — serves the precompressed `.gz` files written by
   `mado release`. Zero CPU at request time.
@@ -136,7 +137,7 @@ add a `404.html` that loads the SPA, or use the
 | Other static files           | `public, max-age=86400`                          | safe daily cache                 |
 
 `mado release` writes these rules into `out/_headers` for CF / Netlify and
-the shipped `nginx.conf` enforces them server-side.
+the nginx recipe enforces them server-side.
 
 ---
 

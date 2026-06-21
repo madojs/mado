@@ -13,8 +13,6 @@
 // connected, so a same-tick re-insert preserves state and does NOT re-run
 // setup(). A genuine removal still disposes (on the next microtask).
 //
-// See FABLE_REPORT.md finding #1 and MADO_V1_TRACKER.md C1.
-
 import test from "node:test";
 import assert from "node:assert/strict";
 

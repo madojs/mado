@@ -10,7 +10,7 @@
 // The fix defers an observed equals-computed's recompute+compare to the end of
 // the batch, so it runs once on fully-applied state. Crucially, the equals
 // optimisation must still hold inside a batch (no notify when the value is
-// unchanged). See FABLE_REPORT.md finding #4 and MADO_V1_TRACKER.md C4.
+// unchanged).
 
 import test from "node:test";
 import assert from "node:assert/strict";

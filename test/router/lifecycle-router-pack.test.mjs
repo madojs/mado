@@ -8,8 +8,6 @@
 // C8.3 router: same-path #hash navigation updated the URL but never scrolled.
 // C8.4 routes: mutually-redirecting guards had no loop detector.
 //
-// See MADO_V1_TRACKER.md C8.
-
 import test from "node:test";
 import assert from "node:assert/strict";
 

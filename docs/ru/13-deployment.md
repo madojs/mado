@@ -41,8 +41,8 @@ mado release
 rsync -avz --delete out/ user@server:/var/www/myapp/
 ```
 
-В репозитории есть production `nginx.conf`: hashed bundles кешируются immutable,
-HTML идет с `no-cache`, deep links работают через SPA fallback.
+Опциональный nginx-рецепт лежит в `docs/recipes/nginx/`: assets кешируются
+immutable, HTML идет с `no-cache`, deep links работают через SPA fallback.
 
 ## Cloudflare / Netlify
 

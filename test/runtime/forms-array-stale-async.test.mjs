@@ -7,8 +7,6 @@
 // remove(1) shifts what used to be index 2 down to index 1 — and writes its
 // error onto "items.2.title", which now points at a different (or absent) row.
 //
-// See FABLE_REPORT.md finding #5 and MADO_V1_TRACKER.md C5.
-
 import test from "node:test";
 import assert from "node:assert/strict";
 

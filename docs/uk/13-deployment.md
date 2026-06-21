@@ -12,7 +12,8 @@ mado release
 out/
 ├── index.html
 ├── assets/
-├── baked/
+├── <route>/index.html
+├── sitemap.xml
 ├── _redirects
 └── _headers
 ```
@@ -35,5 +36,5 @@ mado release
 rsync -avz --delete out/ user@server:/var/www/myapp/
 ```
 
-Наданий `nginx.conf` налаштовує immutable cache для hash bundles, no-cache для
-HTML та fallback для deep links.
+Опційний nginx recipe живе в `docs/recipes/nginx/`: immutable cache для
+`/assets/*`, no-cache для HTML та fallback для deep links.

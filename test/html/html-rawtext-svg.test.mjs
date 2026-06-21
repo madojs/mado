@@ -9,7 +9,7 @@
 //
 // "Silently doesn't work" is the worst failure mode for a framework selling
 // predictability and LLM-friendliness, so the parser now throws a clear,
-// fixable error in both cases. See MADO_V1_TRACKER.md C7.
+// fixable error in both cases.
 
 import test from "node:test";
 import assert from "node:assert/strict";

@@ -1,6 +1,7 @@
 # TODO
 
-Ideas that are not commitments. Roadmap milestones live in `ROADMAP.md`.
+Ideas that are not commitments. Promote concrete work to GitHub issues or
+release notes when it becomes real.
 
 
 ## DX

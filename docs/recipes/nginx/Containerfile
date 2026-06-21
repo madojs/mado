@@ -1,11 +1,11 @@
-# Two-stage build: tsc + esbuild bundle → nginx static.
-# No webpack/CRA/Nx: two tools, one understandable place.
+# Optional generated-app container recipe.
+#
+# Usage from your app root after copying this directory to ./docker:
+#   docker build -f docker/Containerfile -t myapp .
 
-# ---------- Stage 1: build ----------
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
-# Cache dependencies.
 COPY package.json package-lock.json* pnpm-lock.yaml* ./
 RUN if [ -f pnpm-lock.yaml ]; then \
       corepack enable && pnpm install --frozen-lockfile; \
@@ -15,17 +15,11 @@ RUN if [ -f pnpm-lock.yaml ]; then \
       npm install; \
     fi
 
-COPY tsconfig.json ./
-COPY src ./src
-COPY examples ./examples
-COPY scripts ./scripts
+COPY . .
+RUN npm run release
 
-RUN npx tsc
-RUN node scripts/bundle.mjs
-
-# ---------- Stage 2: serve ----------
 FROM nginx:alpine AS runtime
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/out /usr/share/nginx/html
 
 EXPOSE 80

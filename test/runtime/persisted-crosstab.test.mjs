@@ -9,7 +9,7 @@
 //       channel and clears storage, so the next base.set() re-writes the key.
 //
 // These tests model two tabs as two persisted() signals over the same key in
-// one process, observed by a third BroadcastChannel. See MADO_V1_TRACKER.md C2.
+// one process, observed by a third BroadcastChannel.
 
 import test from "node:test";
 import assert from "node:assert/strict";

@@ -8,7 +8,7 @@
 //
 // Fix: mutations are concurrent by default; abort is opt-in via
 // { abortPrevious: true } for search-as-you-type. `loading` is an in-flight
-// counter. See FABLE_REPORT.md finding #6 and MADO_V1_TRACKER.md C6.
+// counter.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -101,4 +101,3 @@ test("abortPrevious: true keeps search-as-you-type semantics", async () => {
   await assert.rejects(pOld, (err) => err?.name === "AbortError");
   assert.equal(await pNew, "new");
 });
-

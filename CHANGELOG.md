@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.11.1 - 2026-06-21
+
+Patch release for CI/release workflow cleanup after the Vite migration.
+
+### Fixed
+
+- **CI no longer references removed legacy paths or scripts.** The main workflow
+  now checks the current repo surface (`src`, `scripts`, `starters`, `test`,
+  docs and GitHub metadata) instead of removed `examples`, `server`,
+  `templates`, `ROADMAP.md`, root `nginx.conf`, and `Dockerfile` paths.
+
+- **Removed the deleted `npm run llm:smoke` CI step.** LLM guidance is now
+  covered by docs and package smoke checks rather than the old examples-based
+  smoke script.
+
+- **Replaced the stale browser workflow.** The old scheduled browser workflow
+  called a missing `npm run test:browser`; it now runs the publish gate, size
+  budget and package smoke checks as a weekly smoke workflow.
+
+- **Release workflow now runs the same gate used locally.** Tag releases run
+  `prepublishOnly`, size budgets and package smoke before packing/publishing.
+
+- **Cleaned CodeQL/static-analysis findings.** Tests no longer use async
+  Promise executors, dead smoke reads, unused helpers/imports, or misleading
+  mutation assertions; diagnostics and bake branches were clarified without
+  changing runtime behavior.
+
 ## 0.11.0 - 2026-06-21
 
 Vite-era release. Mado keeps the browser-native runtime, but generated apps now

@@ -164,8 +164,20 @@ async function serializeDocument(page, options) {
     const app = document.getElementById(appId);
     if (app) app.setAttribute("data-mado-static", "");
 
-    normalizeDomState();
-    materializeShadowStyles(document, added);
+    // Walk every open shadow root reachable from the document and run the
+    // same normalization in each. Mado canonical components live inside
+    // shadow trees, so a Light-DOM-only walker would lose form state and
+    // CSS for the very components DSD is meant to serialize.
+    const openShadowRoots = collectShadowRoots(document);
+    for (const root of [document, ...openShadowRoots]) {
+      normalizeDomStateIn(root);
+    }
+    materializeShadowStyles(openShadowRoots, added);
+
+    // Verification: count live open shadow roots before serialization and
+    // assert the same count of <template shadowrootmode> in the output.
+    // A drop indicates a host that was not opened with `serializable: true`.
+    const expectedShadowRoots = openShadowRoots.length;
 
     let html;
     try {
@@ -188,26 +200,47 @@ async function serializeDocument(page, options) {
       for (const node of added) node.remove();
     }
 
+    const serializedShadowRoots = (
+      html.match(/<template[^>]+shadowrootmode\b/g) ?? []
+    ).length;
+    if (serializedShadowRoots < expectedShadowRoots) {
+      throw new Error(
+        `[mado:static] DSD count mismatch: ${expectedShadowRoots} open ` +
+          `shadow roots present but ${serializedShadowRoots} serialized. ` +
+          "Make sure all custom elements attach their shadow root with " +
+          "{ mode: 'open', serializable: true }.",
+      );
+    }
+
     return html.split(serverOrigin).join(baseUrl.replace(/\/$/, ""));
 
-    function materializeShadowStyles(root, out) {
-      const visit = (current) => {
-        for (const el of current.querySelectorAll("*")) {
-          if (!el.shadowRoot) continue;
-          const shadow = el.shadowRoot;
-          for (const sheet of shadow.adoptedStyleSheets ?? []) {
-            const text = stylesheetText(sheet);
-            if (!text) continue;
-            const style = document.createElement("style");
-            style.setAttribute("data-mado-static-style", stableHash(text));
-            style.textContent = text;
-            shadow.insertBefore(style, shadow.firstChild);
-            out.push(style);
+    function collectShadowRoots(start) {
+      const out = [];
+      const stack = [start];
+      while (stack.length) {
+        const root = stack.pop();
+        for (const el of root.querySelectorAll("*")) {
+          if (el.shadowRoot) {
+            out.push(el.shadowRoot);
+            stack.push(el.shadowRoot);
           }
-          visit(shadow);
         }
-      };
-      visit(root);
+      }
+      return out;
+    }
+
+    function materializeShadowStyles(roots, out) {
+      for (const shadow of roots) {
+        for (const sheet of shadow.adoptedStyleSheets ?? []) {
+          const text = stylesheetText(sheet);
+          if (!text) continue;
+          const style = document.createElement("style");
+          style.setAttribute("data-mado-static-style", stableHash(text));
+          style.textContent = text;
+          shadow.insertBefore(style, shadow.firstChild);
+          out.push(style);
+        }
+      }
     }
 
     function stylesheetText(sheet) {
@@ -218,8 +251,8 @@ async function serializeDocument(page, options) {
       }
     }
 
-    function normalizeDomState() {
-      for (const input of document.querySelectorAll("input")) {
+    function normalizeDomStateIn(root) {
+      for (const input of root.querySelectorAll("input")) {
         if (input.type === "password") continue;
         if (input.type === "checkbox" || input.type === "radio") {
           if (input.checked) input.setAttribute("checked", "");
@@ -231,18 +264,18 @@ async function serializeDocument(page, options) {
         }
       }
 
-      for (const textarea of document.querySelectorAll("textarea")) {
+      for (const textarea of root.querySelectorAll("textarea")) {
         textarea.textContent = textarea.value;
       }
 
-      for (const select of document.querySelectorAll("select")) {
+      for (const select of root.querySelectorAll("select")) {
         for (const option of select.options) {
           if (option.selected) option.setAttribute("selected", "");
           else option.removeAttribute("selected");
         }
       }
 
-      for (const details of document.querySelectorAll("details")) {
+      for (const details of root.querySelectorAll("details")) {
         if (details.open) details.setAttribute("open", "");
         else details.removeAttribute("open");
       }

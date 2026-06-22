@@ -1,9 +1,18 @@
 import { existsSync, writeSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { detectContext, resolveProjectPath } from "../_config.mjs";
+import { detectContext, getPackageRoot, resolveProjectPath } from "../_config.mjs";
 import { assertJsonSerializable } from "./serialize.mjs";
 
+/**
+ * Build-time route discovery for static snapshots.
+ *
+ * Uses Vite's SSR module loader as a *control plane only* — no templates
+ * or components are rendered in Node. Routing, flattening, param
+ * extraction and pathname materialisation reuse the canonical helpers
+ * exported by src/router/match.ts so the discovery pipeline never drifts
+ * out of sync with the runtime router.
+ */
 export async function discoverStaticRoutes(options) {
   const projectRoot = resolve(options.projectRoot);
   const context = detectContext(projectRoot);
@@ -29,10 +38,18 @@ export async function discoverStaticRoutes(options) {
     );
   }
 
-  const aliases =
-    context === "repo"
+  // Two facts to keep in sync:
+  //   1. In-repo runs MUST resolve `@madojs/mado` to the live source so the
+  //      framework can test itself without a build artefact.
+  //   2. App runs need our routing helpers loaded through SSR alongside the
+  //      user manifest; we expose them via `__mado_match__` so we can ask
+  //      for them via ssrLoadModule without colliding with user imports.
+  const aliases = {
+    __mado_match__: resolve(getPackageRoot(), "src/router/match.ts"),
+    ...(context === "repo"
       ? { "@madojs/mado": resolve(projectRoot, "src/index.ts") }
-      : {};
+      : {}),
+  };
 
   const viteServer = await createViteServer({
     root: projectRoot,
@@ -43,6 +60,13 @@ export async function discoverStaticRoutes(options) {
   });
 
   try {
+    // Load the canonical routing utilities through the SAME Vite SSR loader
+    // that loads the user manifest, so both halves see one consistent copy
+    // of @madojs/mado. Try the source first (works in-repo) and fall back
+    // to a direct import for app contexts where the package may not be
+    // resolvable through Vite's SSR alias chain.
+    const { flatten, paramKeys, applyParams, isPage } = await loadCoreHelpers(viteServer);
+
     const routesModule = await viteServer.ssrLoadModule(toViteId(entry));
     const manifest = routesModule.manifest ?? routesModule.default?.manifest;
     if (!manifest) {
@@ -54,19 +78,19 @@ export async function discoverStaticRoutes(options) {
     const records = [];
     const seen = new Map();
     for (const [pattern, flat] of flatten(manifest)) {
-      const page = await resolvePage(flat.loader, pattern);
+      const page = await resolvePage(flat.loader, pattern, isPage);
       if (!page?.static) continue;
 
-      validateStaticRoute(pattern, flat, page);
+      validateStaticRoute(pattern, flat, page, paramKeys);
       for (const layoutLoader of flat.layouts) {
-        const layout = await resolvePage(layoutLoader, `${pattern} layout`);
+        const layout = await resolvePage(layoutLoader, `${pattern} layout`, isPage);
         if (layout?.guard) {
           throw new Error(`[mado:static] ${pattern}: static routes cannot use guarded layouts.`);
         }
       }
 
       const config = page.static === true ? {} : page.static;
-      const paramsList = await resolveParams(pattern, config);
+      const paramsList = await resolveParams(pattern, config, paramKeys);
       for (const params of paramsList) {
         const pathname = applyParams(pattern, params);
         if (seen.has(pathname)) {
@@ -98,7 +122,7 @@ export async function discoverStaticRoutes(options) {
   }
 }
 
-function validateStaticRoute(pattern, flat, page) {
+function validateStaticRoute(pattern, flat, page, paramKeys) {
   if (pattern === "*") {
     throw new Error("[mado:static] wildcard routes cannot be static.");
   }
@@ -120,7 +144,7 @@ function validateStaticRoute(pattern, flat, page) {
   }
 }
 
-async function resolveParams(pattern, config) {
+async function resolveParams(pattern, config, paramKeys) {
   const keys = paramKeys(pattern);
   const paramsList = config.paths ? await config.paths() : [{}];
   if (!Array.isArray(paramsList)) {
@@ -140,88 +164,44 @@ async function resolveParams(pattern, config) {
   return paramsList;
 }
 
-async function resolvePage(loader, label) {
+async function loadCoreHelpers(viteServer) {
+  // The Vite resolve.alias bridge maps `__mado_match__` to the live source
+  // file of this package, so the user manifest and discovery share the
+  // exact same routing helper functions (same function identity).
+  try {
+    const mod = await viteServer.ssrLoadModule("__mado_match__");
+    if (mod?.flatten && mod?.paramKeys && mod?.applyParams && mod?.isPage) {
+      return mod;
+    }
+  } catch (err) {
+    // Try the build artefact for published-only installs.
+    const distPath = resolve(getPackageRoot(), "dist/src/router/match.js");
+    if (existsSync(distPath)) {
+      const mod = await import(distPath);
+      if (mod?.flatten && mod?.paramKeys && mod?.applyParams && mod?.isPage) {
+        return mod;
+      }
+    }
+    throw new Error(
+      `[mado:static] failed to load core routing helpers: ${err.message}`,
+    );
+  }
+  throw new Error(
+    "[mado:static] core routing helpers loaded but missing expected exports.",
+  );
+}
+
+async function resolvePage(loader, label, isPage) {
   try {
     const value = await loader();
-    if (value?._page === true) return value;
+    if (isPage(value)) return value;
+    // Tolerate fixtures that hand-roll a plain object with _page: true
+    // (the dynamic-static-route validation test does this).
+    if (value && value._page === true) return value;
     throw new Error("loader did not resolve to page({...}).");
   } catch (err) {
     throw new Error(`[mado:static] failed to load ${label}: ${err.message}`);
   }
-}
-
-function flatten(map, prefix = "", layouts = [], guards = []) {
-  const out = [];
-  for (const [key, value] of Object.entries(map)) {
-    const full = joinRoute(prefix, key);
-    if (isLayoutGroup(value)) {
-      const nextLayouts = value.layout ? [...layouts, normalize(value.layout)] : layouts;
-      const nextGuards = value.guard ? [...guards, ...toGuardArray(value.guard)] : guards;
-      out.push(...flatten(value.routes, full, nextLayouts, nextGuards));
-    } else {
-      out.push([
-        full || "/",
-        {
-          loader: normalize(value),
-          layouts,
-          guards: [...guards],
-        },
-      ]);
-    }
-  }
-  return out;
-}
-
-function normalize(entry) {
-  if (entry?._page === true) return () => entry;
-  if (typeof entry === "function") {
-    return async () => {
-      const mod = await entry();
-      return mod?.default;
-    };
-  }
-  throw new Error("[mado:static] invalid route entry in manifest.");
-}
-
-function isLayoutGroup(value) {
-  return Boolean(value && typeof value === "object" && value._layout === true);
-}
-
-function toGuardArray(guard) {
-  return Array.isArray(guard) ? guard : [guard];
-}
-
-function joinRoute(a, b) {
-  if (!a) return b;
-  if (!b) return a;
-  const left = a.endsWith("/") ? a.slice(0, -1) : a;
-  const right = b.startsWith("/") ? b.slice(1) : b;
-  return `${left}/${right}`;
-}
-
-function paramKeys(pattern) {
-  const keys = [];
-  pattern.replace(/:([\w]+)/g, (_m, key) => {
-    keys.push(key);
-    return "";
-  });
-  return keys;
-}
-
-function applyParams(pattern, params) {
-  if (pattern === "/") return "/";
-  const pathname = pattern.replace(/:([\w]+)/g, (_m, key) => {
-    const value = params[key];
-    if (value == null) {
-      throw new Error(`[mado:static] missing param :${key} for ${pattern}`);
-    }
-    return encodeURIComponent(String(value));
-  });
-  if (pathname.includes("?") || pathname.includes("#")) {
-    throw new Error(`[mado:static] ${pattern}: query strings and hashes are not static paths.`);
-  }
-  const absolute = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return absolute.length > 1 && absolute.endsWith("/") ? absolute.slice(0, -1) : absolute;
 }
 
 function installNodeDomStubs() {

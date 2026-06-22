@@ -14,6 +14,10 @@ import {
   type Page,
   type RouteEntry,
 } from "../page.js";
+
+// Re-export isPage so build-time tooling (scripts/static/discover.mjs)
+// can pull every routing helper it needs from a single module.
+export { isPage };
 import type { TemplateResult } from "../html/template-types.js";
 
 export type RouteParams = Record<string, string>;
@@ -77,6 +81,49 @@ export function matchRoute(
 export function patternToRegex(pattern: string): RegExp {
   const re = pattern.replace(/\/$/, "").replace(/:[\w]+/g, "([^/]+)");
   return new RegExp(`^${re}/?$`);
+}
+
+/**
+ * Extract `:key` names from a route pattern, in declaration order.
+ * Used by static discovery and prefetch URL synthesis; centralised here so
+ * the two pipelines stay in sync.
+ */
+export function paramKeys(pattern: string): string[] {
+  const keys: string[] = [];
+  pattern.replace(/:([\w]+)/g, (_m, key) => {
+    keys.push(key);
+    return "";
+  });
+  return keys;
+}
+
+/**
+ * Materialise a route pattern into a concrete pathname by substituting
+ * declared `:key` placeholders with URL-encoded values from `params`.
+ * Throws with route context when a required param is missing or the
+ * resulting URL contains query / fragment.
+ */
+export function applyParams(
+  pattern: string,
+  params: Record<string, string>,
+): string {
+  if (pattern === "/") return "/";
+  const pathname = pattern.replace(/:([\w]+)/g, (_m, key) => {
+    const value = params[key];
+    if (value == null) {
+      throw new Error(`[mado] missing param :${key} for ${pattern}`);
+    }
+    return encodeURIComponent(String(value));
+  });
+  if (pathname.includes("?") || pathname.includes("#")) {
+    throw new Error(
+      `[mado] ${pattern}: query strings and fragments are not part of a route pathname.`,
+    );
+  }
+  const absolute = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return absolute.length > 1 && absolute.endsWith("/")
+    ? absolute.slice(0, -1)
+    : absolute;
 }
 
 // ---------- Manifest (routes()) ----------

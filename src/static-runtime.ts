@@ -38,13 +38,19 @@ declare global {
  * Lifecycle: discovery encodes the seed into the snapshot as a
  * `<script type="application/json" data-mado-static-data>` element. On the
  * first client boot of a static route the router calls
- * `consumeStaticSeed(pathname)` from a single place; the element is removed
- * after parsing so subsequent SPA navigations do not see stale data, and
- * the in-memory value is cleared on the next call.
+ * `consumeStaticSeed(pathname)` from a single place.
+ *
+ *   - In production (no capture marker): the script element is removed
+ *     after parsing so subsequent SPA navigations cannot resurrect a stale
+ *     seed.
+ *   - During build-time capture (data-mado-static-capture present): the
+ *     script element is preserved so the serializer can keep it in the
+ *     final snapshot HTML — that way the real client boot receives the
+ *     same seed once again.
  *
  * Returns `undefined` if no seed is present, the JSON is malformed, or the
- * pathname does not match. The router is responsible for passing the result
- * into both `page.head(params, seed)` and `page.load(params, seed)`.
+ * pathname does not match. The router passes the result into both
+ * `page.head(params, seed)` and `page.load(params, seed)`.
  */
 export function consumeStaticSeed(
   pathname: string,
@@ -54,14 +60,20 @@ export function consumeStaticSeed(
     'script[type="application/json"][data-mado-static-data]',
   );
   if (!el || el.textContent == null) return undefined;
+  // The attribute MAY carry the pathname it was emitted for; an empty or
+  // missing value means "the only seed in this document", and we accept it
+  // for the active route. A non-empty mismatch indicates a stale fragment
+  // from a previous route — drop it.
   const elPath = el.getAttribute("data-mado-static-data");
-  if (elPath != null && elPath !== pathname) return undefined;
+  if (elPath && elPath !== pathname) return undefined;
+  const preserve =
+    document.documentElement.hasAttribute("data-mado-static-capture");
   try {
     const value = JSON.parse(el.textContent) as JsonValue;
-    el.remove();
+    if (!preserve) el.remove();
     return value;
   } catch {
-    el.remove();
+    if (!preserve) el.remove();
     return undefined;
   }
 }

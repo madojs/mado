@@ -24,18 +24,49 @@ export function assertJsonSerializable(value, context) {
   serializeJsonForScript(value, context);
 }
 
+/**
+ * Prepare the shell HTML for browser capture of a single route.
+ *
+ * Two CSP-safe markers are injected:
+ *   1. `data-mado-static-capture` on the <html> tag — the runtime checks
+ *      that attribute (and removes it before serialization) instead of
+ *      relying on an inline script that strict CSP would block.
+ *   2. `<script type="application/json" data-mado-static-data="${pathname}">`
+ *      carrying the build-time seed. The runtime consumes it once, the
+ *      serializer preserves it in the final snapshot, and the real client
+ *      boot consumes it again on first load.
+ *
+ * The seed is URL-bound through the `data-mado-static-data` attribute so
+ * SPA navigations to other routes (or accidentally cached copies) cannot
+ * reuse a stale value.
+ */
 export function injectSnapshotMode(html, record) {
-  const scripts = [
-    `<script data-mado-static-mode>window.__MADO_STATIC_MODE__=true;</script>`,
-  ];
+  let out = setHtmlAttribute(html, "data-mado-static-capture", "");
   if ("initialData" in record) {
-    scripts.push(
-      `<script type="application/json" data-mado-static-data>` +
-        `${serializeJsonForScript(record.initialData, record.pathname)}` +
-        `</script>`,
-    );
+    const seedScript =
+      `<script type="application/json" data-mado-static-data="${escapeAttr(record.pathname)}">` +
+      serializeJsonForScript(record.initialData, record.pathname) +
+      `</script>`;
+    out = injectAfterHeadOpen(out, seedScript);
   }
-  return injectAfterHeadOpen(html, scripts.join(""));
+  return out;
+}
+
+function setHtmlAttribute(html, name, value) {
+  const match = /<html\b([^>]*)>/i.exec(html);
+  if (!match) return html;
+  const attrs = match[1] ?? "";
+  if (new RegExp(`\\b${name}\\b`, "i").test(attrs)) return html;
+  const replacement = `<html${attrs} ${name}="${escapeAttr(value)}">`;
+  return html.slice(0, match.index) + replacement + html.slice(match.index + match[0].length);
+}
+
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export function addNoIndex(html) {

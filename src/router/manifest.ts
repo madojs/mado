@@ -101,12 +101,18 @@ interface RoutesContext {
    */
   activeLifecycle: LifecycleHandle | null;
   /**
-   * Build-time seed for the current render pass. Consumed exactly once per
-   * route commit from `<script data-mado-static-data>` (see consumeStaticSeed)
-   * and passed to both `page.head(params, seed)` and `page.load(params, seed)`.
-   * Cleared on every new render so SPA navigations never see stale data.
+   * Build-time seed for the current route commit. Consumed exactly once per
+   * pathname from `<script data-mado-static-data>` (see consumeStaticSeed)
+   * and held here for the duration of the route's render passes so both
+   * head() and load() receive the same value — `routes()` may re-evaluate
+   * `view()` several times (idle → ready, layout re-runs) and re-calling
+   * `consumeStaticSeed()` would return undefined because the script element
+   * is removed on first read.
+   *
+   * Cleared the moment we observe a navigation to a different pathname,
+   * which guarantees SPA navigations never inherit a stale seed.
    */
-  currentSeed: JsonValue | undefined;
+  seedForPathname: { pathname: string; value: JsonValue | undefined } | null;
 }
 
 /**
@@ -132,7 +138,7 @@ export function routes(
     compiledForPrefetch: [],
     renderSeq: 0,
     activeLifecycle: null,
-    currentSeed: undefined,
+    seedForPathname: null,
   };
   activeRoutes.add(ctx);
 
@@ -140,12 +146,21 @@ export function routes(
   const lowLevel: Routes = {};
   for (const [pattern, entry] of flat) {
     lowLevel[pattern] = (params) => {
-      // One canonical place where the build-time seed is consumed for a
-      // route commit; both head() and load() then receive the same value.
       const pathname =
         typeof location !== "undefined" ? location.pathname : "/";
-      ctx.currentSeed = consumeStaticSeed(pathname);
-      beginStaticRoute(pathname);
+      // Seed lifecycle: consume exactly once per pathname (the script is
+      // removed on first read), then keep the value in ctx so subsequent
+      // render passes for the same route commit see the same seed. A new
+      // pathname triggers begin-route + a fresh consume; navigating back
+      // to a previous static URL returns undefined because the script is
+      // already gone from the document.
+      if (ctx.seedForPathname?.pathname !== pathname) {
+        ctx.seedForPathname = {
+          pathname,
+          value: consumeStaticSeed(pathname),
+        };
+        beginStaticRoute(pathname);
+      }
       return renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
     };
     ctx.pathToFlat.set(pattern, entry);
@@ -319,7 +334,7 @@ function renderEntry(
         : undefined;
   if (sync && syncGuardVerdict === null) {
     setStaticRouterState("render:sync");
-    const seed = ctx.currentSeed;
+    const seed = ctx.seedForPathname?.value;
     applyPageMeta(sync.page, params, seed, options);
     try {
       // Combine sync layouts with any guard-injected page guards' layouts is
@@ -345,8 +360,6 @@ function renderEntry(
       const view = runInLifecycle(lc, () =>
         renderWithLayouts(sync.page, sync.layouts, params, seed),
       );
-      // Seed is one-shot; SPA-navigated re-renders must not see it again.
-      ctx.currentSeed = undefined;
       markStaticRouteReady("ready");
       return view;
     } catch (err) {
@@ -421,7 +434,7 @@ function renderEntry(
         // will start its own render cycle.
         return;
       }
-      applyPageMeta(pg as Page, params, ctx.currentSeed, options);
+      applyPageMeta(pg as Page, params, ctx.seedForPathname?.value, options);
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
       markStaticRouteReady("ready");
     } catch (err: unknown) {
@@ -446,11 +459,10 @@ function renderEntry(
     }
     try {
       const lc = openPageLifecycle(ctx);
-      const seed = ctx.currentSeed;
+      const seed = ctx.seedForPathname?.value;
       const view = runInLifecycle(lc, () =>
         renderWithLayouts(s.page, s.layouts, params, seed),
       );
-      ctx.currentSeed = undefined;
       return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));

@@ -38,12 +38,21 @@ async function captureRoute(browser, record, options) {
 
   page.on("pageerror", (err) => pageErrors.push(err.message));
   page.on("requestfailed", (request) => {
+    if (isIgnorableResourceUrl(request.url())) return;
     failedRequests.push(
       `${request.method()} ${request.url()} ${request.failure()?.errorText ?? ""}`.trim(),
     );
   });
+  page.on("response", (response) => {
+    if (response.status() < 400) return;
+    if (isIgnorableResourceUrl(response.url())) return;
+    failedRequests.push(`${response.request().method()} ${response.url()} ${response.status()}`);
+  });
   page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
+    if (msg.type() !== "error") return;
+    const text = msg.text();
+    if (isIgnorableConsoleError(text)) return;
+    consoleErrors.push(text);
   });
 
   try {
@@ -144,10 +153,13 @@ async function collectUndefinedCustomElements(page) {
 async function serializeDocument(page, options) {
   return page.evaluate(({ appId, serverOrigin, baseUrl }) => {
     const added = [];
-    const staticModeScripts = [
-      ...document.querySelectorAll("script[data-mado-static-mode]"),
-    ];
-    for (const script of staticModeScripts) script.remove();
+    // Strip both the modern attribute marker and the legacy inline script
+    // (older snapshots may still contain it). The seed <script> is
+    // intentionally kept so the production client can consume it on boot.
+    document.documentElement.removeAttribute("data-mado-static-capture");
+    for (const script of document.querySelectorAll("script[data-mado-static-mode]")) {
+      script.remove();
+    }
 
     const app = document.getElementById(appId);
     if (app) app.setAttribute("data-mado-static", "");
@@ -265,6 +277,35 @@ async function importPlaywright() {
         "  npm i -D playwright-core",
     );
   }
+}
+
+/**
+ * The browser pulls `/favicon.ico` automatically and many user shells do
+ * not provide one; a 404 there must not fail the snapshot. Likewise any
+ * resource the user explicitly marked as optional (data:, devtools).
+ */
+function isIgnorableResourceUrl(url) {
+  if (!url) return false;
+  if (url.startsWith("data:")) return true;
+  try {
+    const u = new URL(url);
+    if (u.pathname === "/favicon.ico") return true;
+    if (u.pathname === "/favicon.svg") return true;
+    if (u.pathname === "/robots.txt") return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function isIgnorableConsoleError(text) {
+  if (!text) return false;
+  // Browser-level "Failed to load resource" lines without context. The
+  // matching response/requestfailed listeners already classify the URL.
+  if (/Failed to load resource/i.test(text) && !/\bmado\b/i.test(text)) {
+    return true;
+  }
+  return false;
 }
 
 async function launchBrowser(chromium, options) {

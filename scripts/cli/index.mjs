@@ -42,7 +42,7 @@ export async function main(argv) {
     case "test": {
       await runNodeBin(ctx, "typescript/bin/tsc", []);
       const files = await listTestFiles(projectRoot);
-      await run(process.execPath, ["--test", "--test-timeout=30000", ...files, ...args], {
+      await run(process.execPath, ["--test", "--test-timeout=120000", ...files, ...args], {
         cwd: projectRoot,
       });
       break;

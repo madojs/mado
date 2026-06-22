@@ -83,7 +83,7 @@ export type {
   RouteEntry,
   LayoutRoutes,
   HeadMeta,
-  BakeConfig,
+  StaticPageConfig,
   Guard,
   GuardResult,
 } from "./page.js";

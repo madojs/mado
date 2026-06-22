@@ -3,17 +3,17 @@
  *
  * Approach: we mark all tags we create with the `data-mado-head` attribute.
  * On the next `applyHead` we first remove all ours, then insert the new ones.
- * Existing meta from baked HTML (without `data-mado-head`) — we don't touch,
+ * Existing meta from static HTML (without `data-mado-head`) — we don't touch,
  * but they won't interfere: duplicates in <head> are valid.
  *
- * If HTML was pre-baked, meta+ld from bake.head() are already there.
- * On first hydration we either skip applyHead, or mark baked tags as not ours—
- * client-side apply will add its own data-mado-head copies, and the old baked
+ * If HTML was snapshotted, meta+ld from page.head() are already there.
+ * On first takeover we either skip applyHead, or mark static tags as not ours.
+ * Client-side apply will add its own data-mado-head copies, and the old static
  * ones remain for SEO caching without any negative effect
  * (canonical, jsonLd — don't depend on count).
  *
- * For strict baked HTML + SPA navigation: also mark bake-tags
- * `data-mado-head="baked"`, then the first applyHead will remove and replace them.
+ * For strict static HTML + SPA navigation: also mark static head tags with
+ * `data-mado-head="static"`, then the first applyHead removes and replaces them.
  */
 
 import type { HeadMeta } from "./page.js";

@@ -11,9 +11,10 @@ export function printHelp(ctx) {
     mado test              run unit tests
 
   Production:
-    mado bake [--entry <file>] [--template <html>] [--out <dir>] [--base-url <url>]
-                           prerender baked routes  -> out/
-    mado release           typecheck + vite build + bake -> out/
+    mado static [--entry <file>] [--out <dir>] [--base-url <url>]
+                [--browser-channel chrome | --browser-path <path>]
+                           browser-snapshot static routes -> out/
+    mado release           typecheck + vite build + static snapshots -> out/
     mado preview           serve exactly out/ locally
 
   Generators:

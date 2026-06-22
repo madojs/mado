@@ -8,7 +8,7 @@ export interface MadoVitePluginOptions {}
  * Vite integration for Mado apps.
  *
  * The plugin is intentionally small: Vite owns dev serving, HTML processing,
- * assets and bundling; Mado keeps its runtime and static bake semantics.
+ * assets and bundling; Mado keeps its runtime and static snapshot semantics.
  */
 export function mado(_options: MadoVitePluginOptions = {}): Plugin {
   let root = process.cwd();

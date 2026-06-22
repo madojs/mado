@@ -109,8 +109,8 @@ async function ensureStarterPackageJson(ctx, target) {
   pkg.devDependencies = {
     ...(pkg.devDependencies ?? {}),
     typescript: rootDev.typescript ?? "^6.0.3",
-    linkedom: rootDev.linkedom ?? "^0.18.12",
     lightningcss: rootDev.lightningcss ?? "^1.32.0",
+    "playwright-core": rootDev["playwright-core"] ?? "^1.47.0",
     vite: rootDev.vite ?? "^8.0.16",
   };
 

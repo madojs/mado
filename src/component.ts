@@ -12,14 +12,20 @@
  * The returned render function is called via an effect, so any signals
  * read inside it automatically re-render the template.
  *
- * Shadow DOM (open) is used by default. It can be disabled, and
- * styles will be scoped via @scope (or a tag-prefix fallback).
+ * Shadow DOM (open, serializable) is used by default. It can be disabled for
+ * advanced integration cases, and styles will be scoped via @scope
+ * (or a tag-prefix fallback).
  */
 
 import { signal, effect, type Signal, type Disposer } from "./signal.js";
 import { html, render } from "./html/template.js";
 import type { TemplateResult } from "./html/template-types.js";
-import { adopt, scopeStyles, type CSSResult } from "./css.js";
+import {
+  adopt,
+  createStylesheet,
+  scopeStyles,
+  type CSSResult,
+} from "./css.js";
 import {
   createLifecycle,
   runInLifecycle,
@@ -113,7 +119,13 @@ export function component(
 
     constructor() {
       super();
-      this.#root = useShadow ? this.attachShadow({ mode: "open" }) : this;
+      this.#root = useShadow
+        ? this.shadowRoot ??
+          this.attachShadow({
+            mode: "open",
+            serializable: true,
+          } as ShadowRootInit)
+        : this;
     }
 
     connectedCallback() {
@@ -223,8 +235,7 @@ function normalizeStyles(
   return arr.map((s) => {
     let sheet: CSSResult;
     if (typeof s === "string") {
-      sheet = new CSSStyleSheet();
-      sheet.replaceSync(s);
+      sheet = createStylesheet(s);
     } else {
       sheet = s;
     }

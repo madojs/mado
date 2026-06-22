@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { brotliCompressSync, constants as zlibConst, gzipSync } from "node:zlib";
 
 import { parseFlags } from "../_config.mjs";
@@ -12,8 +12,6 @@ export async function runRelease(ctx, rawArgs) {
     ctx.projectRoot,
     typeof releaseFlags.out === "string" ? releaseFlags.out : "out",
   );
-  const bundledHtml = join(outDir, "index.html");
-  const bakedDir = join(outDir, "baked");
 
   console.log(`[release] context: ${ctx.context}`);
   console.log(`[release] artifact: ${outDir}`);
@@ -34,37 +32,18 @@ export async function runRelease(ctx, rawArgs) {
   console.log("[release] step 2/5  vite build");
   await runVite(ctx, ["build", "--outDir", outDir], { defaultConfig: true });
 
-  console.log("[release] step 3/5  bake");
-  if (releaseFlags["keep-bake-dir"]) {
-    await runNodeScript(ctx, "scripts/bake.mjs", [
-      ...rawArgs.filter((a) => a !== "--keep-bake-dir"),
-      "--template",
-      bundledHtml,
-      "--out",
-      bakedDir,
-    ]);
-    const promoted = await promoteBakedHtml(bakedDir, outDir);
-    if (promoted.html > 0) {
-      console.log(`[release]   promoted ${promoted.html} baked HTML page(s) into out/`);
-    }
-    if (promoted.sitemap) {
-      console.log(`[release]   copied sitemap.xml -> ${join(outDir, "sitemap.xml")}`);
-    }
-  } else {
-    await runNodeScript(ctx, "scripts/bake.mjs", [
-      ...rawArgs,
-      "--template",
-      bundledHtml,
-      "--out",
-      outDir,
-    ]);
-  }
+  console.log("[release] step 3/5  static snapshots");
+  await runNodeScript(ctx, "scripts/static.mjs", [
+    ...rawArgs.filter((a) => a !== "--no-clean"),
+    "--out",
+    outDir,
+  ]);
 
   console.log("[release] step 4/5  precompress assets");
   await precompressOut(outDir);
 
   console.log("[release] step 5/5  CDN config");
-  await writeIfMissing(join(outDir, "_redirects"), "/* /index.html 200\n", "[release]  ");
+  await writeIfMissing(join(outDir, "_redirects"), "/* /_mado/spa.html 200\n", "[release]  ");
   await writeIfMissing(
     join(outDir, "_headers"),
     [
@@ -81,40 +60,6 @@ export async function runRelease(ctx, rawArgs) {
   console.log("");
   console.log(`[release] done. Deploy artifact: ${outDir}`);
   console.log("[release] try:  mado preview");
-}
-
-async function promoteBakedHtml(bakedDir, outDir) {
-  if (!existsSync(bakedDir)) return { html: 0, sitemap: false };
-
-  let html = 0;
-
-  async function walk(dir, rel = "") {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      const nextRel = rel ? `${rel}/${entry.name}` : entry.name;
-      const source = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(source, nextRel);
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
-      const target = join(outDir, nextRel);
-      await mkdir(dirname(target), { recursive: true });
-      await copyFile(source, target);
-      html++;
-    }
-  }
-
-  await walk(bakedDir);
-
-  const bakedSitemap = join(bakedDir, "sitemap.xml");
-  const rootSitemap = join(outDir, "sitemap.xml");
-  let sitemap = false;
-  if (existsSync(bakedSitemap)) {
-    await copyFile(bakedSitemap, rootSitemap);
-    sitemap = true;
-  }
-
-  return { html, sitemap };
 }
 
 async function precompressOut(outDir) {

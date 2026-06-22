@@ -62,8 +62,8 @@ export interface PageContext<P extends RouteParams, D> {
 }
 
 /**
- * Metadata for <head>. Baked into HTML at bake(), and in SPA runtime
- * updated on the fly on route changes.
+ * Metadata for <head>. Static snapshots write it into HTML, and the SPA
+ * runtime updates it on route changes.
  */
 export interface HeadMeta {
   /** If set — overrides page.title. */
@@ -95,27 +95,25 @@ export interface HeadMeta {
 }
 
 /**
- * Bake configuration: gives the build script enough information
- * to pre-render static HTML for all instances of a page.
+ * Static snapshot configuration: gives the build script enough information
+ * to enumerate public routes and seed browser-rendered snapshots.
  */
-export interface BakeConfig<P extends RouteParams, D> {
+export interface StaticPageConfig<P extends RouteParams, D> {
   /**
-   * List of all params for which to bake a page.
-   * Return a ready array (may fetch from API).
+   * Route parameter sets to materialize.
+   *
+   * Optional for literal routes such as "/".
+   * Required for dynamic routes such as "/products/:slug".
    */
-  paths: () => Promise<P[]> | P[];
+  paths?: () => Promise<P[]> | P[];
   /**
-   * Data for specific params. Must be JSON-serialisable —
-   * it is also embedded in the HTML inside
-   * `<script type="application/json" id="bake">`
-   * and used as `initialData` during hydration.
+   * Optional build-time seed. Passed to page.head(params, initialData)
+   * and page.load(params, initialData).
+   *
+   * This is a bridge that prevents duplicate first-load fetching. It is not
+   * hydration, resumability, or an alternate runtime loader.
    */
-  data: (params: P) => Promise<D> | D;
-  /**
-   * How many seconds before the data is considered stale (for CDN/edge cache).
-   * Optional. Metadata only.
-   */
-  revalidate?: number;
+  initialData?: (params: P) => Promise<D> | D;
 }
 
 /**
@@ -154,18 +152,18 @@ export type Guard = (ctx: {
 export interface Page<P extends RouteParams = RouteParams, D = unknown> {
   readonly _page: true;
   title?: string | ((params: P) => string);
-  load?: (params: P, baked?: D) => D;
+  load?: (params: P, initialData?: D) => D;
   view: (ctx: PageContext<P, D>) => TemplateResult;
   /**
    * <head> metadata. Receives params and (opt.) data if pre-loaded
-   * via bake.
+   * by the static snapshot pipeline.
    */
   head?: (params: P, data?: D) => HeadMeta;
   /**
-   * Static HTML bake config. Used only in the bake script.
-   * Ignored at runtime.
+   * Static HTML snapshot declaration. Used only by build-time discovery.
+   * Non-static routes remain ordinary SPA routes.
    */
-  bake?: BakeConfig<P, D>;
+  static?: true | StaticPageConfig<P, D>;
   /**
    * Local error boundary. Catches errors from view() and load() of this page.
    * If not set — the global `error` from routes() is used.

@@ -140,19 +140,15 @@ export function render(
     existing.dispose();
   }
 
-  // `mado bake` writes static first-paint markup into #app and marks the
+  // Static snapshots write first-paint markup into #app and mark the
   // container. That markup is not hydrated: once the client app starts, Mado
-  // owns the container again and replaces the baked DOM with live bindings.
-  const isBakedContainer =
+  // owns the container again and atomically replaces it with live bindings.
+  const isStaticContainer =
     !existing &&
     "hasAttribute" in container &&
-    container.hasAttribute("data-mado-baked");
-  if (isBakedContainer) {
-    container.replaceChildren();
-    container.removeAttribute("data-mado-baked");
-  }
+    container.hasAttribute("data-mado-static");
 
-  if (!existing && container.childNodes.length > 0) {
+  if (!isStaticContainer && !existing && container.childNodes.length > 0) {
     warnOnce(
       "render-unmanaged-dom",
       "render() called on a container with existing DOM that was not created by Mado. It will remain alongside the new render output.",
@@ -160,6 +156,11 @@ export function render(
   }
 
   const inst = instantiate(result);
-  container.appendChild(inst.fragment);
+  if (isStaticContainer) {
+    container.replaceChildren(inst.fragment);
+    container.removeAttribute("data-mado-static");
+  } else {
+    container.appendChild(inst.fragment);
+  }
   rendered.set(container, inst);
 }

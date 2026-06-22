@@ -62,7 +62,7 @@
     "build": "node scripts/cli.mjs build",
     "watch": "node scripts/cli.mjs watch",
     "dev": "node scripts/cli.mjs dev",
-    "bake": "node scripts/cli.mjs bake",
+    "static": "node scripts/cli.mjs static",
     "preview": "node scripts/cli.mjs preview",
     "new": "node scripts/cli.mjs new",
     "size": "node scripts/size-budget.mjs",
@@ -82,9 +82,13 @@
     "vite": "^8.0.16"
   },
   "peerDependencies": {
+    "playwright-core": "^1.47.0",
     "vite": "^8.0.0"
   },
   "peerDependenciesMeta": {
+    "playwright-core": {
+      "optional": true
+    },
     "vite": {
       "optional": true
     }

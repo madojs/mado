@@ -55,7 +55,12 @@ export async function main(argv) {
       );
       break;
     case "bake":
-      await runNodeScript(ctx, "scripts/bake.mjs", args);
+      console.error("[mado] `mado bake` was removed.");
+      console.error("Use `mado static`, or run the complete pipeline with `mado release`.");
+      process.exit(1);
+      break;
+    case "static":
+      await runNodeScript(ctx, "scripts/static.mjs", args);
       break;
     case "preview":
       await runNodeScript(ctx, "scripts/preview.mjs", args);

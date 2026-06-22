@@ -54,11 +54,11 @@ const { page } = await import("../../dist/src/page.js");
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("applyHead({}) removes previous runtime and baked head tags", () => {
+test("applyHead({}) removes previous runtime and static head tags", () => {
   installDom("/");
   document.head.innerHTML = `
-    <meta name="description" content="baked" data-mado-head="baked">
-    <link rel="canonical" href="/old" data-mado-head="baked">
+    <meta name="description" content="static" data-mado-head="static">
+    <link rel="canonical" href="/old" data-mado-head="static">
     <meta name="robots" content="index">
   `;
 

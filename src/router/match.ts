@@ -4,7 +4,7 @@
  * There is NO window/document/history or signals here — only functions
  * over strings and objects. This allows:
  *   - testing routing in Node without jsdom;
- *   - reusing the same compile/regex in bake / prefetch without duplication.
+ *   - reusing the same compile/regex in static discovery / prefetch without duplication.
  */
 
 import {

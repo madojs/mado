@@ -14,14 +14,11 @@ import { html, page } from "@madojs/mado";
 
 // 4. VIEW
 export default page({
+  static: true,
   title: "Home",
   head: () => ({
     description: "A modular Mado application.",
   }),
-  bake: {
-    paths: () => [{}],
-    data: () => ({}),
-  },
   view: () => html`
     <section>
       <h1>Mado App</h1>

@@ -33,6 +33,13 @@ import {
   type RoutesMap,
 } from "./match.js";
 import { navigate, router, type RouterApi } from "./navigation.js";
+import {
+  markStaticRouteReady,
+  readStaticData,
+  recordStaticError,
+  setStaticRouterState,
+  trackStatic,
+} from "../static-runtime.js";
 
 export interface RoutesOptions {
   /**
@@ -202,7 +209,8 @@ async function loadPage(
 ): Promise<Page> {
   const cached = ctx.moduleCache.get(loader);
   if (cached) return cached;
-  const p = await loader();
+  const loaded = loader();
+  const p = await trackIfPromise(loaded, "route module");
   ctx.moduleCache.set(loader, p);
   return p;
 }
@@ -249,10 +257,11 @@ function applyPageMeta(
     return;
   }
   try {
-    const baked = readBaked<unknown>();
-    applyHead(page.head(params, baked));
+    const initialData = readStaticData<unknown>();
+    applyHead(page.head(params, initialData));
   } catch (err) {
     applyHead({});
+    recordStaticError(err);
     // eslint-disable-next-line no-console
     console.error("[mado] page.head() threw:", err);
   }
@@ -288,6 +297,7 @@ function renderEntry(
         ? trySyncGuards(entry.guards, params)
         : undefined;
   if (sync && syncGuardVerdict === null) {
+    setStaticRouterState("render:sync");
     applyPageMeta(sync.page, params, options);
     try {
       // Combine sync layouts with any guard-injected page guards' layouts is
@@ -310,19 +320,25 @@ function renderEntry(
         }
       }
       const lc = openPageLifecycle(ctx);
-      return runInLifecycle(lc, () =>
+      const view = runInLifecycle(lc, () =>
         renderWithLayouts(sync.page, sync.layouts, params),
       );
+      markStaticRouteReady("ready");
+      return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       return renderError(e, params, options, sync.page);
     }
   }
   if (sync && syncGuardVerdict) {
+    setStaticRouterState("guard");
     return renderGuardVerdictSync(syncGuardVerdict, options);
   }
 
   // ---------- ASYNC PATH ----------
+  setStaticRouterState("loading");
   // 'idle' — first window (until loadingDelay): render empty to avoid
   // progress-bar flicker on fast connections.
   // 'loading' — module didn't arrive in time → show loading.
@@ -365,27 +381,32 @@ function renderEntry(
         | { kind: "halt" }
         | null = null;
       if (entry.guards.length > 0 || pageGuards.length > 0) {
-        verdict = await runGuards(
-          [...entry.guards, ...pageGuards],
-          params,
+        verdict = await trackStatic(
+          runGuards([...entry.guards, ...pageGuards], params),
+          "route guards",
         );
       }
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       if (verdict) {
+        setStaticRouterState(`guard:${verdict.kind}`);
         applyGuardVerdict(verdict);
+        if (verdict.kind === "halt") markStaticRouteReady("halted");
         // After a redirect we leave `idle` so nothing flashes; the new route
         // will start its own render cycle.
         return;
       }
       applyPageMeta(pg as Page, params, options);
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
+      markStaticRouteReady("ready");
     } catch (err: unknown) {
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       state.set({ kind: "error", err: e });
     }
   })();
@@ -406,6 +427,8 @@ function renderEntry(
       );
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       return renderError(e, params, options, s.page);
     }
   }}`;
@@ -561,8 +584,8 @@ function renderWithLayouts(
   layouts: Page[],
   params: RouteParams,
 ): TemplateResult {
-  const baked = readBaked<unknown>();
-  const data = page.load ? page.load(params, baked) : undefined;
+  const initialData = readStaticData<unknown>();
+  const data = page.load ? page.load(params, initialData) : undefined;
 
   // Expose onDispose to page views so they can clean up timers, manual
   // subscriptions, etc. that aren't auto-managed by resource()/effect().
@@ -590,6 +613,12 @@ function renderWithLayouts(
   }
 
   return view;
+}
+
+function trackIfPromise<T>(value: T | Promise<T>, label: string): Promise<T> {
+  return value && typeof (value as Promise<T>).then === "function"
+    ? trackStatic(value as Promise<T>, label)
+    : Promise.resolve(value as T);
 }
 
 // ---------- Default loading view ----------
@@ -632,21 +661,6 @@ function ensureDefaultLoadingStyle(): void {
 function defaultLoadingView(): TemplateResult {
   ensureDefaultLoadingStyle();
   return html`<div class="mado-progress-bar" aria-hidden="true"></div>`;
-}
-
-/**
- * Read baked data from `<script id="bake" type="application/json">`
- * placed by `scripts/bake.mjs` during static generation. Returns
- * undefined in SPA mode.
- */
-function readBaked<T>(): T | undefined {
-  const el = document.getElementById("bake");
-  if (!el || el.textContent == null) return undefined;
-  try {
-    return JSON.parse(el.textContent) as T;
-  } catch {
-    return undefined;
-  }
 }
 
 // ---------- Test hooks ----------

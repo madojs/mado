@@ -14,7 +14,12 @@ const CLI = resolve(REPO_ROOT, "scripts/cli.mjs");
 const ROOT_PACKAGE = JSON.parse(
   readFileSync(join(REPO_ROOT, "package.json"), "utf8"),
 );
-const REQUIRED_DEV_DEPS = ["typescript", "vite", "linkedom", "lightningcss"];
+const REQUIRED_DEV_DEPS = [
+  "typescript",
+  "vite",
+  "playwright-core",
+  "lightningcss",
+];
 
 test("mado init writes required dev dependencies for the default starter", async () => {
   for (const starter of ["default"]) {

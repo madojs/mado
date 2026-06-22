@@ -9,7 +9,7 @@
 //      PREVIEW_AUTOBUILD=1.
 //   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
-//        - SPA fallback to index.html;
+//        - SPA fallback to _mado/spa.html when present, else index.html;
 //        - exact `out/` route files before SPA fallback;
 //        - precompressed .gz / .br serving via Accept-Encoding.
 //
@@ -17,6 +17,7 @@
 // what a static host (nginx / Cloudflare Pages / S3) would serve.
 
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
 import { readFile, stat, access } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -86,11 +87,13 @@ if (!(await exists(OUT))) {
   process.exit(1);
 }
 
-const spaShell = join(OUT, "index.html");
+const spaShell = existsSync(join(OUT, "_mado", "spa.html"))
+  ? join(OUT, "_mado", "spa.html")
+  : join(OUT, "index.html");
 if (!(await exists(spaShell))) {
   console.error(
     `[preview] missing ${spaShell} — \`mado release\` did not produce an HTML entry.\n` +
-      `[preview] Without it any non-baked route will 404 instead of falling back to the SPA.`,
+      `[preview] Without it any non-static route will 404 instead of falling back to the SPA.`,
   );
   process.exit(1);
 }
@@ -216,7 +219,9 @@ async function resolveTarget(pathname) {
   //    extension) deliberately 404 instead — otherwise a 200 on
   //    /missing.png would mask real bugs.
   if (!extname(pathname)) {
-    const spa = join(OUT, "index.html");
+    const spa = existsSync(join(OUT, "_mado", "spa.html"))
+      ? join(OUT, "_mado", "spa.html")
+      : join(OUT, "index.html");
     if (await exists(spa)) return spa;
   }
 

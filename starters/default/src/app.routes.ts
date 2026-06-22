@@ -7,8 +7,8 @@
 //   each zone of the app is made HERE, by wrapping a module's routes with
 //   a `layout({...})` block.
 //
-// `manifest` is exported separately so `mado bake` can discover pages that
-// declare `bake: { paths, data }`.
+// `manifest` is exported separately so `mado static` can discover pages that
+// declare `static`.
 
 import { layout, routes } from "@madojs/mado";
 

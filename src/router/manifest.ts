@@ -34,12 +34,14 @@ import {
 } from "./match.js";
 import { navigate, router, type RouterApi } from "./navigation.js";
 import {
+  beginStaticRoute,
+  consumeStaticSeed,
   markStaticRouteReady,
-  readStaticData,
   recordStaticError,
   setStaticRouterState,
   trackStatic,
 } from "../static-runtime.js";
+import type { JsonValue } from "../page.js";
 
 export interface RoutesOptions {
   /**
@@ -98,6 +100,13 @@ interface RoutesContext {
    * the page leaves — no leak, no "resource-outside-lifecycle" warning.
    */
   activeLifecycle: LifecycleHandle | null;
+  /**
+   * Build-time seed for the current render pass. Consumed exactly once per
+   * route commit from `<script data-mado-static-data>` (see consumeStaticSeed)
+   * and passed to both `page.head(params, seed)` and `page.load(params, seed)`.
+   * Cleared on every new render so SPA navigations never see stale data.
+   */
+  currentSeed: JsonValue | undefined;
 }
 
 /**
@@ -123,14 +132,22 @@ export function routes(
     compiledForPrefetch: [],
     renderSeq: 0,
     activeLifecycle: null,
+    currentSeed: undefined,
   };
   activeRoutes.add(ctx);
 
   const flat = flatten(manifest);
   const lowLevel: Routes = {};
   for (const [pattern, entry] of flat) {
-    lowLevel[pattern] = (params) =>
-      renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
+    lowLevel[pattern] = (params) => {
+      // One canonical place where the build-time seed is consumed for a
+      // route commit; both head() and load() then receive the same value.
+      const pathname =
+        typeof location !== "undefined" ? location.pathname : "/";
+      ctx.currentSeed = consumeStaticSeed(pathname);
+      beginStaticRoute(pathname);
+      return renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
+    };
     ctx.pathToFlat.set(pattern, entry);
     if (pattern !== "*") {
       ctx.compiledForPrefetch.push({ regex: patternToRegex(pattern), entry });
@@ -241,10 +258,15 @@ function tryLoadSync(
 /**
  * Apply the page's title/head. Extracted from renderEntry so it
  * can be called from both the async and sync branch.
+ *
+ * `seed` is the build-time static seed consumed once per route commit and
+ * passed through both head() and load(); it is `undefined` for SPA
+ * navigations and for non-static routes.
  */
 function applyPageMeta(
   page: Page,
   params: RouteParams,
+  seed: JsonValue | undefined,
   options: RoutesOptions,
 ): void {
   const title =
@@ -257,8 +279,7 @@ function applyPageMeta(
     return;
   }
   try {
-    const initialData = readStaticData<unknown>();
-    applyHead(page.head(params, initialData));
+    applyHead(page.head(params, seed));
   } catch (err) {
     applyHead({});
     recordStaticError(err);
@@ -298,7 +319,8 @@ function renderEntry(
         : undefined;
   if (sync && syncGuardVerdict === null) {
     setStaticRouterState("render:sync");
-    applyPageMeta(sync.page, params, options);
+    const seed = ctx.currentSeed;
+    applyPageMeta(sync.page, params, seed, options);
     try {
       // Combine sync layouts with any guard-injected page guards' layouts is
       // a future concern; today guards never return a layout.
@@ -321,8 +343,10 @@ function renderEntry(
       }
       const lc = openPageLifecycle(ctx);
       const view = runInLifecycle(lc, () =>
-        renderWithLayouts(sync.page, sync.layouts, params),
+        renderWithLayouts(sync.page, sync.layouts, params, seed),
       );
+      // Seed is one-shot; SPA-navigated re-renders must not see it again.
+      ctx.currentSeed = undefined;
       markStaticRouteReady("ready");
       return view;
     } catch (err) {
@@ -397,7 +421,7 @@ function renderEntry(
         // will start its own render cycle.
         return;
       }
-      applyPageMeta(pg as Page, params, options);
+      applyPageMeta(pg as Page, params, ctx.currentSeed, options);
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
       markStaticRouteReady("ready");
     } catch (err: unknown) {
@@ -422,9 +446,12 @@ function renderEntry(
     }
     try {
       const lc = openPageLifecycle(ctx);
-      return runInLifecycle(lc, () =>
-        renderWithLayouts(s.page, s.layouts, params),
+      const seed = ctx.currentSeed;
+      const view = runInLifecycle(lc, () =>
+        renderWithLayouts(s.page, s.layouts, params, seed),
       );
+      ctx.currentSeed = undefined;
+      return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       recordStaticError(e);
@@ -578,14 +605,22 @@ function navigateFromGuard(to: string, replace?: boolean): void {
  * Wrap a page's view in layouts (from inner to outer).
  * Each layout receives `child` = TemplateResult of the child page or
  * next layout — composes like a matryoshka.
+ *
+ * `seed` is the build-time static seed (or undefined for SPA navigation).
+ * It is passed to `page.load(params, seed)`; if no `load` is declared the
+ * seed itself becomes the view's data so static-only pages render their
+ * initial data without needing a runtime loader.
  */
 function renderWithLayouts(
   page: Page,
   layouts: Page[],
   params: RouteParams,
+  seed: JsonValue | undefined,
 ): TemplateResult {
-  const initialData = readStaticData<unknown>();
-  const data = page.load ? page.load(params, initialData) : undefined;
+  // Contract: page.load receives the seed; when no load is declared the
+  // seed itself is the runtime data (otherwise static-only pages would
+  // lose their initial data after head() has consumed it).
+  const data = page.load ? page.load(params, seed) : (seed as unknown);
 
   // Expose onDispose to page views so they can clean up timers, manual
   // subscriptions, etc. that aren't auto-managed by resource()/effect().

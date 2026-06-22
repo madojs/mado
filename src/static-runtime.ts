@@ -1,13 +1,16 @@
 import { flushSync } from "./signal.js";
+import type { JsonValue } from "./page.js";
 
 export interface StaticDiagnostics {
   routeReady: boolean;
   pending: string[];
   lastRouterState: string | null;
   errors: string[];
+  expectedPathname: string | null;
 }
 
 export interface MadoStaticRuntime {
+  beginRoute(pathname: string): void;
   routeReady(state?: string): void;
   track<T>(promise: Promise<T>, label: string): Promise<T>;
   whenStable(): Promise<void>;
@@ -18,54 +21,73 @@ export interface MadoStaticRuntime {
 
 declare global {
   interface Window {
+    /**
+     * Build-time signal that this document is being rendered by the static
+     * snapshot capture harness. Set by Mado runtime when the document
+     * carries the `data-mado-static-capture` attribute. CSP-safe: it does
+     * NOT come from an inline script.
+     */
     __MADO_STATIC_MODE__?: boolean;
     __MADO_STATIC__?: MadoStaticRuntime;
   }
 }
 
-let staticData:
-  | { path: string; parsed: true; value: unknown }
-  | { path: string; parsed: false; value: undefined }
-  | null = null;
-
-export function readStaticData<T>(): T | undefined {
-  if (typeof document === "undefined" || typeof location === "undefined") {
-    return undefined;
-  }
-  if (staticData && staticData.path === location.pathname) {
-    return staticData.parsed ? (staticData.value as T) : undefined;
-  }
-  if (staticData && staticData.path !== location.pathname) return undefined;
-
+/**
+ * Consume the build-time seed for the active route exactly once.
+ *
+ * Lifecycle: discovery encodes the seed into the snapshot as a
+ * `<script type="application/json" data-mado-static-data>` element. On the
+ * first client boot of a static route the router calls
+ * `consumeStaticSeed(pathname)` from a single place; the element is removed
+ * after parsing so subsequent SPA navigations do not see stale data, and
+ * the in-memory value is cleared on the next call.
+ *
+ * Returns `undefined` if no seed is present, the JSON is malformed, or the
+ * pathname does not match. The router is responsible for passing the result
+ * into both `page.head(params, seed)` and `page.load(params, seed)`.
+ */
+export function consumeStaticSeed(
+  pathname: string,
+): JsonValue | undefined {
+  if (typeof document === "undefined") return undefined;
   const el = document.querySelector<HTMLScriptElement>(
     'script[type="application/json"][data-mado-static-data]',
   );
-  if (!el || el.textContent == null) {
-    staticData = { path: location.pathname, parsed: false, value: undefined };
-    return undefined;
-  }
-
-  el.setAttribute("data-mado-static-data-consumed", "");
+  if (!el || el.textContent == null) return undefined;
+  const elPath = el.getAttribute("data-mado-static-data");
+  if (elPath != null && elPath !== pathname) return undefined;
   try {
-    const value = JSON.parse(el.textContent) as T;
-    staticData = { path: location.pathname, parsed: true, value };
+    const value = JSON.parse(el.textContent) as JsonValue;
+    el.remove();
     return value;
   } catch {
-    staticData = { path: location.pathname, parsed: false, value: undefined };
+    el.remove();
     return undefined;
   }
+}
+
+function detectCaptureMode(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.hasAttribute("data-mado-static-capture");
 }
 
 export function getStaticRuntime(): MadoStaticRuntime | null {
   if (typeof window === "undefined") return null;
   if (window.__MADO_STATIC__) return window.__MADO_STATIC__;
-  if (window.__MADO_STATIC_MODE__ !== true) return null;
+  const enabled =
+    window.__MADO_STATIC_MODE__ === true || detectCaptureMode();
+  if (!enabled) return null;
+  window.__MADO_STATIC_MODE__ = true;
   window.__MADO_STATIC__ = createStaticRuntime();
   return window.__MADO_STATIC__;
 }
 
 export function trackStatic<T>(promise: Promise<T>, label: string): Promise<T> {
   return getStaticRuntime()?.track(promise, label) ?? promise;
+}
+
+export function beginStaticRoute(pathname: string): void {
+  getStaticRuntime()?.beginRoute(pathname);
 }
 
 export function markStaticRouteReady(state = "ready"): void {
@@ -84,6 +106,7 @@ function createStaticRuntime(): MadoStaticRuntime {
   let nextId = 1;
   let routeReady = false;
   let lastRouterState: string | null = null;
+  let expectedPathname: string | null = null;
   const pending = new Map<number, string>();
   const errors: string[] = [];
 
@@ -92,10 +115,27 @@ function createStaticRuntime(): MadoStaticRuntime {
     pending: [...pending.values()].sort(),
     lastRouterState,
     errors: [...errors],
+    expectedPathname,
   });
 
+  const currentPathname = (): string | null =>
+    typeof location !== "undefined" ? location.pathname : null;
+
   const runtime: MadoStaticRuntime = {
+    beginRoute(pathname: string) {
+      expectedPathname = pathname;
+      routeReady = false;
+      lastRouterState = "begin";
+    },
     routeReady(state = "ready") {
+      // If the runtime moved to a different pathname (effect-driven redirect,
+      // guard verdict), only acknowledge readiness for the active path; the
+      // capture harness compares pathname before serialization.
+      const here = currentPathname();
+      if (expectedPathname != null && here != null && here !== expectedPathname) {
+        // Stale completion of an old route; do not mark as ready.
+        return;
+      }
       routeReady = true;
       lastRouterState = state;
     },
@@ -119,7 +159,7 @@ function createStaticRuntime(): MadoStaticRuntime {
         }
         await microtask();
 
-        if (routeReady && pending.size === 0) {
+        if (routeReady && pending.size === 0 && errors.length === 0) {
           quietPasses++;
           if (quietPasses >= 2) return;
         } else {
@@ -131,7 +171,9 @@ function createStaticRuntime(): MadoStaticRuntime {
       const d = diagnostics();
       throw new Error(
         `[mado:static] route did not become stable. ` +
-          `state=${d.lastRouterState ?? "unknown"} pending=${d.pending.join(", ") || "none"}`,
+          `state=${d.lastRouterState ?? "unknown"} ` +
+          `pending=${d.pending.join(", ") || "none"} ` +
+          `errors=${d.errors.join(" | ") || "none"}`,
       );
     },
     diagnostics,

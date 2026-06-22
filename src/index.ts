@@ -86,6 +86,8 @@ export type {
   StaticPageConfig,
   Guard,
   GuardResult,
+  JsonPrimitive,
+  JsonValue,
 } from "./page.js";
 
 export { applyHead } from "./head.js";

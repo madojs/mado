@@ -30,6 +30,19 @@ import type { TemplateResult } from "./html/template-types.js";
 export type RouteParams = Record<string, string>;
 
 /**
+ * JSON-compatible value. Static seeds and any data crossing the build-time →
+ * snapshot → client boundary must satisfy this contract: only primitives,
+ * plain arrays and plain object trees. Date, Map, Set, class instances,
+ * functions, undefined values and circular references are not allowed and
+ * fail at serialization time with a route-tagged error.
+ */
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
  * Loaded data. If load returned a Resource — this is `Resource<T>`,
  * otherwise — a plain value. The view decides what to do with it.
  */
@@ -97,8 +110,21 @@ export interface HeadMeta {
 /**
  * Static snapshot configuration: gives the build script enough information
  * to enumerate public routes and seed browser-rendered snapshots.
+ *
+ * `S` is the JSON-safe seed type (build-time → snapshot → client boundary).
+ * It is intentionally decoupled from the runtime `D` data type: a seed of
+ * type `Product` is fine even when `page.load()` returns `Resource<Product>`.
+ *
+ * `static.paths` and `static.initialData` MUST be browser-bundle-safe,
+ * build-executable, and secret-free. They are executed during build
+ * discovery, but their module also remains in the client bundle: do not
+ * import Node-only APIs, do not embed credentials, do not perform side
+ * effects at module top level.
  */
-export interface StaticPageConfig<P extends RouteParams, D> {
+export interface StaticPageConfig<
+  P extends RouteParams,
+  S extends JsonValue,
+> {
   /**
    * Route parameter sets to materialize.
    *
@@ -107,13 +133,14 @@ export interface StaticPageConfig<P extends RouteParams, D> {
    */
   paths?: () => Promise<P[]> | P[];
   /**
-   * Optional build-time seed. Passed to page.head(params, initialData)
-   * and page.load(params, initialData).
+   * Optional build-time seed. Passed to page.head(params, seed)
+   * and page.load(params, seed).
    *
-   * This is a bridge that prevents duplicate first-load fetching. It is not
-   * hydration, resumability, or an alternate runtime loader.
+   * Used both at build time (to render the snapshot) and at client boot
+   * (so the runtime does not re-fetch what the snapshot already knows).
+   * The seed is consumed exactly once per route commit.
    */
-  initialData?: (params: P) => Promise<D> | D;
+  initialData?: (params: P) => Promise<S> | S;
 }
 
 /**
@@ -149,21 +176,34 @@ export type Guard = (ctx: {
   path: string;
 }) => GuardResult | Promise<GuardResult>;
 
-export interface Page<P extends RouteParams = RouteParams, D = unknown> {
+export interface Page<
+  P extends RouteParams = RouteParams,
+  D = unknown,
+  S extends JsonValue = JsonValue,
+> {
   readonly _page: true;
   title?: string | ((params: P) => string);
-  load?: (params: P, initialData?: D) => D;
+  /**
+   * Runtime data loader. Receives params and the optional static seed
+   * (only present on the first client boot of a static route, never
+   * during SPA navigation).
+   */
+  load?: (params: P, seed?: S) => D;
   view: (ctx: PageContext<P, D>) => TemplateResult;
   /**
-   * <head> metadata. Receives params and (opt.) data if pre-loaded
-   * by the static snapshot pipeline.
+   * <head> metadata. Receives params and the optional static seed.
+   *
+   * `head` is intentionally built from `(params, seed)` and not from the
+   * runtime `load()` result: head must be deterministic and JSON-derivable
+   * so that it appears in the raw snapshot HTML for SEO and social
+   * crawlers.
    */
-  head?: (params: P, data?: D) => HeadMeta;
+  head?: (params: P, seed?: S) => HeadMeta;
   /**
    * Static HTML snapshot declaration. Used only by build-time discovery.
    * Non-static routes remain ordinary SPA routes.
    */
-  static?: true | StaticPageConfig<P, D>;
+  static?: true | StaticPageConfig<P, S>;
   /**
    * Local error boundary. Catches errors from view() and load() of this page.
    * If not set — the global `error` from routes() is used.
@@ -179,10 +219,17 @@ export interface Page<P extends RouteParams = RouteParams, D = unknown> {
 /**
  * Page factory. A typed wrapper over a plain object —
  * needed only for type inference and the single "_page" stamp.
+ *
+ * The three generic parameters are inferred from `spec` in the common case:
+ *   page({ static: true, view: () => html`...` })
+ * Provide them explicitly only for non-trivial shapes:
+ *   page<{ slug: string }, Resource<Product>, Product>({ ... })
  */
-export function page<P extends RouteParams = RouteParams, D = unknown>(
-  spec: Omit<Page<P, D>, "_page">,
-): Page<P, D> {
+export function page<
+  P extends RouteParams = RouteParams,
+  D = unknown,
+  S extends JsonValue = JsonValue,
+>(spec: Omit<Page<P, D, S>, "_page">): Page<P, D, S> {
   return { _page: true, ...spec };
 }
 
@@ -202,7 +249,7 @@ export const isPage = (v: unknown): v is Page =>
  * due to parameter contravariance).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPage = Page<any, any>;
+export type AnyPage = Page<any, any, any>;
 
 export type RouteEntry =
   | AnyPage

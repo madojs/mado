@@ -4,6 +4,38 @@ import { extname, join, resolve, sep } from "node:path";
 
 import { injectSnapshotMode } from "./serialize.mjs";
 
+/**
+ * Normalise a Vite-style base into the canonical Mado form: `"/"` for the
+ * root, otherwise `"/prefix/"` (leading and trailing slash, no doubles).
+ * Mirrors src/router/base.ts.normalizeBase so the capture pipeline never
+ * disagrees with the runtime router.
+ */
+function normalizeBase(raw) {
+  if (!raw) return "/";
+  let s = String(raw).trim();
+  if (!s || s === "/") return "/";
+  if (!s.startsWith("/")) s = "/" + s;
+  if (!s.endsWith("/")) s = s + "/";
+  return s.replace(/\/+/g, "/");
+}
+
+/**
+ * Strip the active base prefix off a request pathname so the capture
+ * server can look it up against route records (which are always
+ * registered without a base).
+ */
+function stripBase(pathname, base) {
+  const b = normalizeBase(base);
+  if (!pathname) return "/";
+  if (b === "/") return pathname.startsWith("/") ? pathname : "/" + pathname;
+  if (pathname === b || pathname === b.slice(0, -1)) return "/";
+  if (pathname.startsWith(b)) {
+    const rest = pathname.slice(b.length - 1);
+    return rest || "/";
+  }
+  return pathname;
+}
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -21,21 +53,34 @@ const MIME = {
   ".map": "application/json; charset=utf-8",
 };
 
-export async function createStaticCaptureServer({ outDir, shellHtml, records }) {
+/**
+ * Internal HTTP server that hosts the Vite build output during snapshot
+ * capture. It speaks the real deployment URL shape (the active Vite
+ * `base` is honoured for both static routes and asset lookups), so the
+ * runtime router sees the same `location.pathname` as production.
+ */
+export async function createStaticCaptureServer({ outDir, shellHtml, records, base = "/" }) {
+  const normalizedBase = normalizeBase(base);
   const routeRecords = new Map(records.map((record) => [record.pathname, record]));
 
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
-      const pathname = normalizePathname(url.pathname);
+      const browserPath = normalizePathname(url.pathname);
+      // The router uses BASE-FREE route pathnames, but assets in
+      // `out/assets/...` are served from the same base-relative URLs the
+      // production CDN exposes. Strip the active base before any record
+      // lookup or file resolution so both halves use one consistent
+      // pathname space.
+      const routePath = stripBase(browserPath, normalizedBase);
 
-      const record = routeRecords.get(pathname);
+      const record = routeRecords.get(routePath);
       if (record) {
         sendHtml(res, injectSnapshotMode(shellHtml, record));
         return;
       }
 
-      const file = await resolveStaticFile(outDir, pathname);
+      const file = await resolveStaticFile(outDir, routePath);
       if (file) {
         const data = await readFile(file);
         res.writeHead(200, {
@@ -46,8 +91,15 @@ export async function createStaticCaptureServer({ outDir, shellHtml, records }) 
         return;
       }
 
-      if (!extname(pathname)) {
-        sendHtml(res, injectSnapshotMode(shellHtml, { pathname, params: {} }));
+      // SPA fallback: any non-asset path falls back to the snapshot shell
+      // so client-side routing handles it. We use the original browser
+      // pathname (not the stripped one) inside `injectSnapshotMode` so
+      // that the runtime `location.pathname` matches production.
+      if (!extname(routePath)) {
+        sendHtml(
+          res,
+          injectSnapshotMode(shellHtml, { pathname: routePath, params: {} }),
+        );
         return;
       }
 

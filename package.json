@@ -1,21 +1,21 @@
 {
   "name": "@madojs/mado",
-  "version": "0.11.1",
-  "description": "Mado — a calm browser-native SPA framework for internal tools, admin panels and business apps. Routing, forms, state and data fetching without frontend infrastructure overhead.",
+  "version": "0.12.0-rc.1",
+  "description": "A calm native-first web framework for sites and apps. Web Components, signals, routing, data, forms and browser-rendered static snapshots. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
   "keywords": [
     "framework",
-    "spa",
+    "native-first",
     "web-components",
+    "declarative-shadow-dom",
     "signals",
     "tagged-templates",
     "router",
     "vite",
-    "tsc",
-    "minimal",
-    "lit-alternative",
-    "solid-alternative"
+    "static-snapshot",
+    "spa",
+    "minimal"
   ],
   "homepage": "https://github.com/madojs/mado#readme",
   "repository": {
@@ -67,6 +67,7 @@
     "new": "node scripts/cli.mjs new",
     "size": "node scripts/size-budget.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
+    "docs:lint": "node scripts/docs-lint.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
     "clean": "rm -rf dist out",

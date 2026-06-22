@@ -62,6 +62,13 @@ export {
   navigate,
 } from "./router/navigation.js";
 export { routes, prefetchPath } from "./router/manifest.js";
+export {
+  appBase,
+  normalizeBase,
+  stripBase,
+  withBase,
+  routeUrl,
+} from "./router/base.js";
 export type {
   RouterApi,
   QueryParam,

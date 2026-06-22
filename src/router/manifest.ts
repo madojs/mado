@@ -32,6 +32,7 @@ import {
   type Routes,
   type RoutesMap,
 } from "./match.js";
+import { stripBase } from "./base.js";
 import { navigate, router, type RouterApi } from "./navigation.js";
 import {
   beginStaticRoute,
@@ -146,8 +147,11 @@ export function routes(
   const lowLevel: Routes = {};
   for (const [pattern, entry] of flat) {
     lowLevel[pattern] = (params) => {
+      // Use the ROUTE pathname (Vite base already stripped) so the seed
+      // attribute written at capture time matches the lookup at runtime
+      // boot regardless of which base the app deploys under.
       const pathname =
-        typeof location !== "undefined" ? location.pathname : "/";
+        typeof location !== "undefined" ? stripBase(location.pathname) : "/";
       // Seed lifecycle: consume exactly once per pathname (the script is
       // removed on first read), then keep the value in ctx so subsequent
       // render passes for the same route commit see the same seed. A new
@@ -639,10 +643,13 @@ function renderWithLayouts(
   const lc = getCurrentLifecycle();
   const onDispose = lc ? (fn: () => void) => lc.onDispose(fn) : undefined;
 
+  // Expose ROUTE pathname (base stripped) to user views so they receive
+  // the same value the matcher works with.
+  const routePath = () => stripBase(location.pathname);
   let view: TemplateResult = page.view({
     params,
     data,
-    path: () => location.pathname,
+    path: routePath,
     child: null,
     onDispose,
   } as PageContext<RouteParams, unknown>);
@@ -653,7 +660,7 @@ function renderWithLayouts(
     view = layout.view({
       params,
       data: layoutData,
-      path: () => location.pathname,
+      path: routePath,
       child: view,
       onDispose,
     } as PageContext<RouteParams, unknown>);

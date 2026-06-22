@@ -1,39 +1,26 @@
-// Single source of truth for the application route table.
+// Single source of truth for the app's URL → page mapping.
 //
-// This file is the APP MAP. Reading it = understanding the app.
-//
-// One rule:
-//   Modules export plain `routes` maps. The choice of SHELL and GUARD for
-//   each zone of the app is made HERE, by wrapping a module's routes with
-//   a `layout({...})` block.
-//
-// `manifest` is exported separately so `mado static` can discover pages that
-// declare `static`.
-
-import { layout, routes } from "@madojs/mado";
-
-import { requireAuth } from "./modules/auth/auth.public";
-import { authRoutes } from "./modules/auth/auth.routes";
-import { billingRoutes } from "./modules/billing/billing.routes";
+// Mado has no "file-based routes". You list pages explicitly, in order
+// of specificity, and the router takes care of code-splitting via the
+// dynamic imports below.
+import { routes } from "@madojs/mado";
 
 export const manifest = {
-  // Public landing (no shell, no guard).
-  "/": () => import("./modules/home/home.page"),
-
-  // AUTH ZONE — centered card, no guard.
-  "/login": layout({
-    layout: () => import("./layouts/auth-shell.layout"),
-    routes: authRoutes,
-  }),
-
-  // APP ZONE — header + nav, guarded by requireAuth.
-  "/billing": layout({
-    layout: () => import("./layouts/app-shell.layout"),
-    guard: requireAuth,
-    routes: billingRoutes,
-  }),
-
-  "*": () => import("./modules/home/not-found.page"),
+  // Public landing — `static: true` makes `mado release` snapshot this
+  // route into `out/index.html` so search engines see a fully rendered
+  // document without running JS.
+  "/": () => import("./pages/home.page"),
+  // Dynamic static route: `mado static` calls `paths()` at build time,
+  // captures one HTML file per slug, and seeds `initialData` so the
+  // first client render does not re-fetch what the snapshot already
+  // shows.
+  "/guide/:slug": () => import("./pages/guide.page"),
+  // SPA-only route: deliberately non-static. Lives in `_mado/spa.html`
+  // at deploy time and is served whenever the CDN cannot find a static
+  // document.
+  "/app": () => import("./pages/app.page"),
+  // 404 — matched after every literal pattern.
+  "*": () => import("./pages/not-found.page"),
 };
 
 export default routes(manifest);

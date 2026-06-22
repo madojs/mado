@@ -45,15 +45,33 @@ try {
     { cwd: installRoot },
   );
 
-  await run("npx", ["mado", "init", "smoke-app"], {
-    cwd: installRoot,
-    env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
-  });
+  // The package smoke exercises the *modular* starter end-to-end: it has
+  // the `mado new module` generator wired in, and its modules / routes
+  // structure is the real shape long-lived business apps deploy. The
+  // universal default starter is exercised separately by the static
+  // round-trip test (`test/static/dsd-takeover.test.mjs`).
+  await run(
+    "npx",
+    ["mado", "init", "smoke-app", "--starter", "modular"],
+    {
+      cwd: installRoot,
+      env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
+    },
+  );
 
   const appRoot = join(installRoot, "smoke-app");
   await run("npm", ["install"], { cwd: appRoot });
   await run("npm", ["run", "new", "--", "module", "smoke"], { cwd: appRoot });
-  await run("npm", ["run", "release"], { cwd: appRoot });
+  await run("npm", ["run", "release"], {
+    cwd: appRoot,
+    env: {
+      ...process.env,
+      // Static routes require a public origin so canonical URLs are
+      // absolute. The smoke release does not deploy anywhere; we set a
+      // deterministic placeholder so the pipeline can complete.
+      MADO_SITE: "https://package-smoke.test",
+    },
+  });
 
   console.log(`[package-smoke] ok ${basename(tarball)}`);
 } finally {

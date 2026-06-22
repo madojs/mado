@@ -15,6 +15,7 @@ import {
   type RouteParams,
   type Routes,
 } from "./match.js";
+import { appBase, stripBase, withBase } from "./base.js";
 import type { TemplateResult } from "../html/template-types.js";
 
 // ---------- router() ----------
@@ -82,7 +83,10 @@ export function router(
   const fallback =
     compiled.find((r) => r.pattern === "*") ?? defaultFallback();
 
-  const path = signal(location.pathname);
+  // Route pathname = browser pathname with the active Vite base stripped.
+  // The route matcher, route signal and any `path()` consumer always see
+  // base-free paths; `withBase()` re-adds it when we touch history.
+  const path = signal(stripBase(location.pathname));
   const cleanups: Array<() => void> = [];
   const scrollPositions = new Map<string, { top: number; left: number }>();
   let currentScrollKey = locationKey();
@@ -106,7 +110,7 @@ export function router(
     if (disposed) return;
     if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
     currentScrollKey = locationKey();
-    path.set(location.pathname);
+    path.set(stripBase(location.pathname));
     if (useScrollRestoration) restoreScroll(scrollPositions, currentScrollKey);
     if (useFocusManagement) scheduleFocusReset();
   };
@@ -129,8 +133,16 @@ export function router(
     if (a.hasAttribute("download")) return;
     const url = new URL(a.href, location.href);
     if (url.origin !== location.origin) return;
+    // Foreign-base links escape SPA navigation entirely so the browser
+    // performs a real document load (avoids matching "/other/..." against
+    // routes registered under base "/mado/").
+    const b = appBase;
+    if (b !== "/" && !(url.pathname === b.slice(0, -1) || url.pathname.startsWith(b))) {
+      return;
+    }
     e.preventDefault();
-    api.navigate(url.pathname + url.search + url.hash);
+    const routePath = stripBase(url.pathname);
+    api.navigate(routePath + url.search + url.hash);
   };
   document.addEventListener("click", onClick);
   cleanups.push(() => document.removeEventListener("click", onClick));
@@ -176,12 +188,15 @@ export function router(
     },
     path,
     navigate(to, opts) {
+      // `to` is a ROUTE path (no base). Re-add the active base before we
+      // touch history so the browser URL has the correct prefix.
+      const url = toBrowserUrl(to);
       const apply = () => {
         if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
-        if (opts?.replace) history.replaceState(null, "", to);
-        else history.pushState(null, "", to);
+        if (opts?.replace) history.replaceState(null, "", url);
+        else history.pushState(null, "", url);
         currentScrollKey = locationKey();
-        path.set(location.pathname);
+        path.set(stripBase(location.pathname));
         // An in-page #hash must scroll to its target even when the pathname is
         // unchanged (signal dedup would otherwise swallow the navigation and
         // leave anchor links dead). (FABLE_REPORT.md finding #9)
@@ -259,8 +274,9 @@ function defaultFallback(): CompiledRoute {
  */
 export function navigate(to: string, opts?: { replace?: boolean }): void {
   if (typeof history === "undefined" || typeof window === "undefined") return;
-  if (opts?.replace) history.replaceState(null, "", to);
-  else history.pushState(null, "", to);
+  const url = toBrowserUrl(to);
+  if (opts?.replace) history.replaceState(null, "", url);
+  else history.pushState(null, "", url);
   // popstate is NOT dispatched automatically on pushState/replaceState,
   // so we dispatch it manually — all active routers will hear and update.
   window.dispatchEvent(new PopStateEvent("popstate"));
@@ -271,6 +287,29 @@ export function navigate(to: string, opts?: { replace?: boolean }): void {
 
 function locationKey(): string {
   return `${location.pathname}${location.search}${location.hash}`;
+}
+
+/**
+ * Convert a route path + optional query/hash into a full browser URL with
+ * the active Vite base re-applied. Pure: no DOM access beyond the
+ * resolved `appBase` constant.
+ */
+function toBrowserUrl(to: string): string {
+  if (!to) return withBase("/");
+  let path = to;
+  let suffix = "";
+  const hashAt = path.indexOf("#");
+  if (hashAt >= 0) {
+    suffix = path.slice(hashAt) + suffix;
+    path = path.slice(0, hashAt);
+  }
+  const queryAt = path.indexOf("?");
+  if (queryAt >= 0) {
+    suffix = path.slice(queryAt) + suffix;
+    path = path.slice(0, queryAt);
+  }
+  if (!path) path = "/";
+  return withBase(path) + suffix;
 }
 
 function saveScroll(

@@ -184,7 +184,7 @@ jobs:
   build and shipped your own unhashed JS, give it a hash or short cache.
 - **Baked SEO page shows `[object Object]`.** Should never happen after the
   v1 bake update — bake now raises a loud error in that case. If you see it,
-  upgrade `@madojs/mado` and re-run `mado bake`.
+  upgrade `@madojs/mado` and re-run `mado static`.
 
 See also: [`02-project-layout.md`](./02-project-layout.md) for the
 `src/`/`public/`/`out/` model and [`03-static-bake.md`](./03-static-bake.md)

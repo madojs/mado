@@ -1,4 +1,5 @@
 import { flushSync } from "./signal.js";
+import { stripBase } from "./router/base.js";
 import type { JsonValue } from "./page.js";
 
 export interface StaticDiagnostics {
@@ -9,11 +10,37 @@ export interface StaticDiagnostics {
   expectedPathname: string | null;
 }
 
+export interface WhenStableOptions {
+  /**
+   * Cap on time to wait for the route to call `routeReady()`. Defaults
+   * to 15s — long enough to load and render even a slow code-split
+   * route, short enough that a deadlocked one fails loudly.
+   */
+  routeReadyMs?: number;
+  /**
+   * Cap on time to wait for tracked resources (initial fetches, lazy
+   * imports created before `routeReady()`) to settle once the route is
+   * ready. Defaults to 15s.
+   */
+  resourcesMs?: number;
+  /**
+   * Cap on time to wait for `document.fonts.ready`. Web fonts that
+   * never resolve must not block the snapshot pipeline indefinitely.
+   * Defaults to 5s. We log a diagnostic and proceed on timeout.
+   */
+  fontsMs?: number;
+  /**
+   * Cap on time to wait for two paint frames so async style or layout
+   * effects can flush before serialization. Defaults to 1s.
+   */
+  paintMs?: number;
+}
+
 export interface MadoStaticRuntime {
   beginRoute(pathname: string): void;
   routeReady(state?: string): void;
   track<T>(promise: Promise<T>, label: string): Promise<T>;
-  whenStable(): Promise<void>;
+  whenStable(options?: WhenStableOptions): Promise<void>;
   diagnostics(): StaticDiagnostics;
   setRouterState(state: string): void;
   recordError(error: unknown): void;
@@ -130,8 +157,12 @@ function createStaticRuntime(): MadoStaticRuntime {
     expectedPathname,
   });
 
+  // Both `beginRoute()` callers and the `routeReady()` comparison live on
+  // the BASE-FREE pathname (the route key the matcher uses). Strip the
+  // active Vite base so capture under any deployment shape compares
+  // apples to apples.
   const currentPathname = (): string | null =>
-    typeof location !== "undefined" ? location.pathname : null;
+    typeof location !== "undefined" ? stripBase(location.pathname) : null;
 
   const runtime: MadoStaticRuntime = {
     beginRoute(pathname: string) {
@@ -158,35 +189,54 @@ function createStaticRuntime(): MadoStaticRuntime {
         pending.delete(id);
       });
     },
-    async whenStable() {
-      const started = Date.now();
-      const timeoutMs = 30_000;
-      let quietPasses = 0;
+    async whenStable(options: WhenStableOptions = {}) {
+      const routeReadyMs = options.routeReadyMs ?? 15_000;
+      const resourcesMs = options.resourcesMs ?? 15_000;
 
-      while (Date.now() - started < timeoutMs) {
-        try {
-          flushSync();
-        } catch {
-          /* best effort: diagnostics will report page errors separately */
-        }
-        await microtask();
-
-        if (routeReady && pending.size === 0 && errors.length === 0) {
-          quietPasses++;
-          if (quietPasses >= 2) return;
-        } else {
-          quietPasses = 0;
-        }
-        await delay(10);
-      }
-
-      const d = diagnostics();
-      throw new Error(
-        `[mado:static] route did not become stable. ` +
-          `state=${d.lastRouterState ?? "unknown"} ` +
-          `pending=${d.pending.join(", ") || "none"} ` +
-          `errors=${d.errors.join(" | ") || "none"}`,
+      // 1) Route ready: wait until the router calls `markStaticRouteReady`
+      //    for the active pathname. Resources, fonts and paint frames are
+      //    irrelevant until the route itself has committed.
+      await waitFor(
+        () => routeReady && errors.length === 0,
+        routeReadyMs,
+        () => {
+          const d = diagnostics();
+          return (
+            `[mado:static] route did not become ready in ${routeReadyMs}ms. ` +
+            `state=${d.lastRouterState ?? "unknown"} ` +
+            `pending=${d.pending.join(", ") || "none"} ` +
+            `errors=${d.errors.join(" | ") || "none"}`
+          );
+        },
       );
+
+      // 2) Tracked resources: any `resource()` created before route ready
+      //    is part of the initial render contract; the snapshot waits for
+      //    it. Resources created after `routeReady` count as background
+      //    work and are NOT awaited — they would otherwise let a stray
+      //    `setInterval` keep capture pinned forever.
+      await waitFor(
+        () => pending.size === 0 && errors.length === 0,
+        resourcesMs,
+        () => {
+          const d = diagnostics();
+          return (
+            `[mado:static] route ready but resources did not settle in ${resourcesMs}ms. ` +
+            `pending=${d.pending.join(", ") || "none"} ` +
+            `errors=${d.errors.join(" | ") || "none"}`
+          );
+        },
+      );
+
+      // 3) One last quiet pass: flushSync + microtask drain to ensure
+      //    any final reactive effect committed during step 2 has
+      //    rendered before the caller serializes the document.
+      try {
+        flushSync();
+      } catch {
+        /* best effort; diagnostics already capture page errors */
+      }
+      await microtask();
     },
     diagnostics,
     setRouterState(state: string) {
@@ -206,4 +256,39 @@ function microtask(): Promise<void> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Poll `predicate` until it returns true or `timeoutMs` elapses. Calls
+ * `flushSync()` once per pass so reactive effects scheduled during the
+ * tick get a chance to commit before the next check. On timeout throws
+ * the message returned by `describe()` so each phase of `whenStable`
+ * produces a phase-specific diagnostic.
+ */
+async function waitFor(
+  predicate: () => boolean,
+  timeoutMs: number,
+  describe: () => string,
+): Promise<void> {
+  const started = Date.now();
+  // Two consecutive quiet ticks before we declare success: the predicate
+  // can transition transiently while a microtask flush rebuilds the
+  // route view.
+  let quietPasses = 0;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      flushSync();
+    } catch {
+      /* page errors surface separately via recordError */
+    }
+    await microtask();
+    if (predicate()) {
+      quietPasses++;
+      if (quietPasses >= 2) return;
+    } else {
+      quietPasses = 0;
+    }
+    await delay(10);
+  }
+  throw new Error(describe());
 }

@@ -34,10 +34,15 @@ const CLI = resolve(REPO_ROOT, "scripts/cli.mjs");
 async function scaffoldApp() {
   const dir = mkdtempSync(join(tmpdir(), "mado-release-"));
 
-  // Use the framework CLI to scaffold the minimal starter — it already does
-  // not pull our admin guard chain, so we don't need to patch much.
+  // The release pipeline test exercises the modular starter end to end:
+  // it already has the auth / billing / layout / module-boundary shape
+  // that real business apps deploy, so any regression here surfaces in
+  // the most realistic possible artifact. The universal starter is
+  // exercised separately by `test/static/dsd-takeover.test.mjs`.
   try {
-    await exec(process.execPath, [CLI, "init", "app"], { cwd: dir });
+    await exec(process.execPath, [CLI, "init", "app", "--starter", "modular"], {
+      cwd: dir,
+    });
     const app = join(dir, "app");
 
     // Replace the starter home page with a compact static route,

@@ -48,7 +48,7 @@ Test behavior, not internal implementation details:
 - route guards, redirects, scroll/focus behavior, error boundaries;
 - forms: validation, async validation races, field arrays;
 - resources/mutations: cache keys, invalidation, lifecycle cleanup;
-- CLI flows: `mado release`, `mado bake`, `mado preview`.
+- CLI flows: `mado release`, `mado static`, `mado preview`.
 
 ## Browser smoke tests
 

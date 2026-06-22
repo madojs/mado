@@ -68,7 +68,7 @@ export default routes(manifest);
 
 Rules:
 
-- Export `manifest` so `mado bake` can discover bakeable pages.
+- Export `manifest` so `mado static` can discover bakeable pages.
 - Modules never call `layout()`.
 - Layouts describe app zones, not domains.
 - Do not hide the router inside a custom element or a second shell in

@@ -160,7 +160,7 @@ export default page({
 Do not create route-specific state in layout view locals. Put it in pages,
 components, resources, or app-level contexts.
 
-`mado bake` renders selected routes to static HTML for SEO and first paint. It
+`mado static` renders selected routes to static HTML for SEO and first paint. It
 does not hydrate server-rendered code. Baked views must be deterministic from
 `params`, `bake.data`, and plain values. Avoid browser-only effects, timers,
 relative `fetch`, and runtime directives like keyed `each()` during bake.

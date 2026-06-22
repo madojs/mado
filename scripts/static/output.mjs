@@ -8,13 +8,13 @@ import { addNoIndex, escapeXml } from "./serialize.mjs";
  * Stage a deterministic temp output for the snapshot pipeline.
  *
  *   out/index.html           ← Vite-built SPA shell, consumed as capture seed
- *   out/_mado/spa.html       ← noindexed copy used as SPA fallback at runtime
- *   <os-temp>/mado-static-…  ← per-route captured HTML
+ *   <os-temp>/spa.html       ← noindexed copy, staged before promotion
+ *   <os-temp>/routes/...     ← per-route captured HTML, also staged
  *
- * Captures go to an OS temp directory rather than `out/.mado/` so a crash
- * mid-capture can never leave half-baked artifacts inside the deployment
- * tree. promoteCapturedRoutes() copies the final HTML back into `out/`
- * atomically after verification.
+ * Nothing inside `out/` is mutated until all routes capture cleanly. A
+ * mid-pipeline crash leaves the existing deployment untouched; only a
+ * verified, complete capture is promoted by `promoteCapturedRoutes()`
+ * and `promoteSpaShell()`.
  */
 export async function prepareStaticOutput(outDir) {
   const shellPath = join(outDir, "index.html");
@@ -25,18 +25,21 @@ export async function prepareStaticOutput(outDir) {
   }
 
   const shellHtml = await readFile(shellPath, "utf8");
-  const spaPath = join(outDir, "_mado", "spa.html");
-  await mkdir(dirname(spaPath), { recursive: true });
-  await writeFile(spaPath, addNoIndex(shellHtml));
 
-  // External temp directory — never leaks into `out/`.
+  // External temp directory — never leaks into `out/` on failure.
   const { mkdtemp } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const tempRoot = await mkdtemp(join(tmpdir(), "mado-static-"));
   const routesDir = join(tempRoot, "routes");
   await mkdir(routesDir, { recursive: true });
 
-  return { shellHtml, spaPath, tempRoot, routesDir };
+  // Stage the SPA fallback in temp; promote later, only after all
+  // captures verified. Until then `out/_mado/spa.html` either does not
+  // exist (cold release) or holds the previous release's copy (re-run).
+  const stagedSpaPath = join(tempRoot, "spa.html");
+  await writeFile(stagedSpaPath, addNoIndex(shellHtml));
+
+  return { shellHtml, tempRoot, routesDir, stagedSpaPath };
 }
 
 export async function writeCapturedRoutes(routesDir, captured) {
@@ -54,6 +57,30 @@ export async function promoteCapturedRoutes({ outDir, routesDir, captured }) {
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
   }
+}
+
+/**
+ * Promote the staged SPA fallback shell into `out/_mado/spa.html` after
+ * all routes captured successfully. Called once at the end of the
+ * pipeline; any crash before this point leaves the previous shell (or
+ * no shell at all) in place.
+ */
+export async function promoteSpaShell({ outDir, stagedSpaPath }) {
+  const target = join(outDir, "_mado", "spa.html");
+  await mkdir(dirname(target), { recursive: true });
+  await copyFile(stagedSpaPath, target);
+}
+
+/**
+ * Drop the build-time bridge `out/_mado/build.json` from the final
+ * deployment artifact. It is internal CLI plumbing (the
+ * `@madojs/mado/vite` plugin emits it so `mado static` can read the
+ * resolved Vite base/site without parsing `vite.config.ts`); leaving it
+ * in `out/` would leak the build pipeline's view of the project to
+ * production traffic.
+ */
+export async function dropBuildBridge(outDir) {
+  await rm(join(outDir, "_mado", "build.json"), { force: true });
 }
 
 /**

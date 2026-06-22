@@ -31,10 +31,21 @@ export async function main(argv) {
       await runInit(ctx, args);
       break;
     case "build":
-      await runNodeBin(ctx, "typescript/bin/tsc", args);
+      // Framework repo bootstraps via `tsc` (so the published package
+      // ships compiled .js). Every other context — user apps, the
+      // starter — gets a production Vite build of the deployable SPA.
+      if (ctx.isRepo) {
+        await runNodeBin(ctx, "typescript/bin/tsc", args);
+      } else {
+        await runVite(ctx, ["build", ...args], { defaultConfig: true });
+      }
       break;
     case "watch":
-      await runNodeBin(ctx, "typescript/bin/tsc", ["-w", ...args]);
+      if (ctx.isRepo) {
+        await runNodeBin(ctx, "typescript/bin/tsc", ["-w", ...args]);
+      } else {
+        await runVite(ctx, ["build", "--watch", ...args], { defaultConfig: true });
+      }
       break;
     case "typecheck":
       await runNodeBin(ctx, "typescript/bin/tsc", ["--noEmit", ...args]);

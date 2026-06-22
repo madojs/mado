@@ -21,8 +21,8 @@ const REQUIRED_DEV_DEPS = [
   "lightningcss",
 ];
 
-test("mado init writes required dev dependencies for the default starter", async () => {
-  for (const starter of ["default"]) {
+test("mado init writes required dev dependencies for every starter", async () => {
+  for (const starter of ["default", "modular"]) {
     const root = mkdtempSync(join(tmpdir(), `mado-init-${starter}-`));
     try {
       await exec(process.execPath, [CLI, "init", "app", "--starter", starter], {

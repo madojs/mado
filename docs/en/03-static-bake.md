@@ -220,7 +220,7 @@ export default page<{ slug: string }>({
 
 ## Comparison with Alternatives
 
-|                          | Next.js SSG/ISR    | playwright-prerender | **mado bake** |
+|                          | Next.js SSG/ISR    | playwright-prerender | **mado static** |
 |--------------------------|--------------------|----------------------|-----------------|
 | Chrome required in CI    | no                 | **yes** (~300 MB)    | **no**          |
 | Node required in production | for ISR         | no                   | **no**          |

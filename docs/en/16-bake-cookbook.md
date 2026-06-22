@@ -1,6 +1,6 @@
 # Bake cookbook
 
-`mado bake` renders selected routes into static HTML. It is for SEO and fast
+`mado static` renders selected routes into static HTML. It is for SEO and fast
 first paint, not for server-side hydration.
 
 ## Minimal baked page
@@ -42,7 +42,7 @@ export default page<{ slug: string }>({
 
 ## Route manifest
 
-`mado bake` needs the source manifest:
+`mado static` needs the source manifest:
 
 ```ts
 export const manifest = {
@@ -55,7 +55,7 @@ export default routes(manifest);
 
 ## Output
 
-By default standalone `mado bake` writes baked pages directly into `out/`.
+By default standalone `mado static` writes baked pages directly into `out/`.
 `mado release` first lets Vite build the production shell and assets, then bake
 replaces route HTML in place and writes `out/sitemap.xml`:
 
@@ -66,7 +66,7 @@ tree out
 
 The deployable folder is `out/`, not `dist/`.
 
-Use `mado release --keep-bake-dir` only when you want an extra `out/baked/`
+Use `mado release --keep-bake-dir` only when you want an extra `out/<route>/index.html/`
 inspection copy during debugging.
 
 ## Client boot
@@ -90,7 +90,7 @@ Pass `--base-url` so generated canonical links and sitemap entries point to
 production.
 
 ```bash
-mado bake --base-url https://example.com
+mado static --base-url https://example.com
 mado release --base-url https://example.com
 ```
 

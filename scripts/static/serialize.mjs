@@ -1,15 +1,136 @@
-export function serializeJsonForScript(value, context) {
-  let json;
-  try {
-    json = JSON.stringify(value);
-  } catch (err) {
-    throw new Error(
-      `[mado:static] initialData for ${context} is not JSON-serializable: ${err.message}`,
-    );
+/**
+ * Strict JsonValue validator.
+ *
+ * Mirrors the public `JsonValue` type from src/page.ts: only null,
+ * booleans, finite numbers, strings, plain arrays and plain object trees
+ * are allowed. Forbidden shapes (Date, Map, Set, class instances, NaN,
+ * Infinity, undefined values, functions, symbols, bigints, cycles,
+ * non-plain prototypes) are reported with a path-aware error so a static
+ * route author can find the bad field immediately.
+ *
+ *   [mado:static] /products/keyboard:
+ *     seed.product.createdAt is Date; expected JsonValue.
+ *
+ * `JSON.stringify()` alone is too forgiving — Date coerces to a string,
+ * Map serialises as `{}`, undefined fields silently disappear — so the
+ * snapshot would look "fine" at build time but mismatch the runtime
+ * shape on the first SPA navigation. The custom walker stops the bad
+ * value before it ever reaches the snapshot HTML.
+ */
+function describeNonJson(value) {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    return Number.isNaN(value) ? "NaN" : "Infinity";
   }
+  if (typeof value === "bigint") return "bigint";
+  if (typeof value === "symbol") return "symbol";
+  if (typeof value === "function") return "function";
+  if (Array.isArray(value)) return "Array";
+  if (value instanceof Date) return "Date";
+  if (typeof Map !== "undefined" && value instanceof Map) return "Map";
+  if (typeof Set !== "undefined" && value instanceof Set) return "Set";
+  if (typeof RegExp !== "undefined" && value instanceof RegExp) return "RegExp";
+  if (typeof URL !== "undefined" && value instanceof URL) return "URL";
+  if (ArrayBuffer.isView?.(value)) return value.constructor?.name ?? "TypedArray";
+  if (value instanceof ArrayBuffer) return "ArrayBuffer";
+  if (value && typeof value === "object") {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== null && proto !== Object.prototype) {
+      return value.constructor?.name ?? "non-plain object";
+    }
+    return "object";
+  }
+  return typeof value;
+}
+
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
+/**
+ * Walk a value and throw on the first non-JsonValue shape. `seen`
+ * tracks containers to catch cycles deterministically (Set keyed by
+ * identity).
+ */
+function walkJsonValue(value, path, contextLabel, seen) {
+  if (value === null) return;
+  const t = typeof value;
+  if (t === "boolean" || t === "string") return;
+  if (t === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(
+        `[mado:static] ${contextLabel}: ${path} is ${
+          Number.isNaN(value) ? "NaN" : "Infinity"
+        }; expected JsonValue.`,
+      );
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      throw new Error(
+        `[mado:static] ${contextLabel}: ${path} contains a circular reference; expected JsonValue.`,
+      );
+    }
+    seen.add(value);
+    for (let i = 0; i < value.length; i++) {
+      walkJsonValue(value[i], `${path}[${i}]`, contextLabel, seen);
+    }
+    seen.delete(value);
+    return;
+  }
+  if (isPlainObject(value)) {
+    if (seen.has(value)) {
+      throw new Error(
+        `[mado:static] ${contextLabel}: ${path} contains a circular reference; expected JsonValue.`,
+      );
+    }
+    seen.add(value);
+    for (const key of Object.keys(value)) {
+      const child = value[key];
+      // `undefined` would silently disappear through JSON.stringify; we
+      // reject it explicitly so the schema stays honest. To omit a field
+      // simply do not include the key.
+      if (child === undefined) {
+        throw new Error(
+          `[mado:static] ${contextLabel}: ${path}.${key} is undefined; ` +
+            `expected JsonValue. Omit the key instead of assigning undefined.`,
+        );
+      }
+      walkJsonValue(child, `${path}.${key}`, contextLabel, seen);
+    }
+    seen.delete(value);
+    return;
+  }
+  throw new Error(
+    `[mado:static] ${contextLabel}: ${path} is ${describeNonJson(value)}; ` +
+      `expected JsonValue.`,
+  );
+}
+
+/**
+ * Throw if `value` is not a strict JsonValue (see walkJsonValue).
+ * `contextLabel` is included in every error so the discovery output can
+ * point a user at the failing route or pathname.
+ */
+export function assertJsonSerializable(value, contextLabel) {
+  walkJsonValue(value, "seed", contextLabel, new Set());
+}
+
+export function serializeJsonForScript(value, contextLabel) {
+  assertJsonSerializable(value, contextLabel);
+  // The validator guarantees JSON.stringify cannot drop, coerce or
+  // silently expand anything, so the resulting string is exactly the
+  // shape page.head/load will receive on first client boot.
+  const json = JSON.stringify(value);
   if (json === undefined) {
+    // Should be unreachable after assertJsonSerializable; defensive.
     throw new Error(
-      `[mado:static] initialData for ${context} is not JSON-serializable.`,
+      `[mado:static] ${contextLabel}: top-level value cannot be serialized as JSON.`,
     );
   }
   return json
@@ -18,10 +139,6 @@ export function serializeJsonForScript(value, context) {
     .replace(/&/g, "\\u0026")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-}
-
-export function assertJsonSerializable(value, context) {
-  serializeJsonForScript(value, context);
 }
 
 /**

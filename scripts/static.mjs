@@ -9,8 +9,10 @@ import { createStaticCaptureServer } from "./static/server.mjs";
 import { captureStaticRoutes } from "./static/browser.mjs";
 import {
   cleanupTemp,
+  dropBuildBridge,
   prepareStaticOutput,
   promoteCapturedRoutes,
+  promoteSpaShell,
   writeCapturedRoutes,
   writeStaticDeploymentFiles,
 } from "./static/output.mjs";
@@ -23,6 +25,7 @@ const outDir = resolve(
 );
 const timeout = Number(flags.timeout ?? 30_000);
 
+let tempRootForCleanup = null;
 try {
   console.log(`[static] artifact: ${outDir}`);
 
@@ -35,7 +38,10 @@ try {
   const base = pickBase({ flags, buildMeta });
   validateSite(site, "site");
 
-  const { shellHtml, tempRoot, routesDir } = await prepareStaticOutput(outDir);
+  const { shellHtml, tempRoot, routesDir, stagedSpaPath } =
+    await prepareStaticOutput(outDir);
+  tempRootForCleanup = tempRoot;
+
   const { records } = await discoverStaticRoutes({
     projectRoot,
     entry: typeof flags.entry === "string" ? flags.entry : undefined,
@@ -59,12 +65,19 @@ try {
     : "/";
 
   if (records.length > 0) {
-    const server = await createStaticCaptureServer({ outDir, shellHtml, records });
+    const server = await createStaticCaptureServer({
+      outDir,
+      shellHtml,
+      records,
+      base,
+    });
     try {
       const captured = await captureStaticRoutes({
         records,
         serverOrigin: server.origin,
         baseUrl,
+        base,
+        site: publicOrigin,
         timeout,
         browserChannel:
           typeof flags["browser-channel"] === "string"
@@ -75,6 +88,9 @@ try {
             ? flags["browser-path"]
             : undefined,
       });
+      // First write everything to the temp staging tree, only then
+      // promote into `out/`. A capture failure aborts before any of the
+      // existing deployment files are touched.
       await writeCapturedRoutes(routesDir, captured);
       await promoteCapturedRoutes({ outDir, routesDir, captured });
       console.log(`[static] captured ${captured.length} route snapshot(s)`);
@@ -83,6 +99,11 @@ try {
     }
   }
 
+  // SPA shell is promoted only after every route survived capture and
+  // promotion. On a re-run with broken pages this guarantees that the
+  // previous (working) `_mado/spa.html` is preserved.
+  await promoteSpaShell({ outDir, stagedSpaPath });
+
   await writeStaticDeploymentFiles({
     outDir,
     records,
@@ -90,11 +111,22 @@ try {
     site: publicOrigin,
     base,
   });
-  await cleanupTemp(tempRoot);
+
+  // Drop the internal build bridge so the production artifact does not
+  // ship Vite's resolved view of the project (site, base, assetsDir).
+  await dropBuildBridge(outDir);
   console.log(`[static] done`);
 } catch (err) {
   writeSync(2, `${err?.stack ?? err}\n`);
   process.exit(1);
+} finally {
+  if (tempRootForCleanup) {
+    try {
+      await cleanupTemp(tempRootForCleanup);
+    } catch {
+      /* best effort */
+    }
+  }
 }
 
 function readBuildMeta(outDir) {

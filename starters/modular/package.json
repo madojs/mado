@@ -1,0 +1,30 @@
+{
+  "name": "__APP_NAME__",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mado dev",
+    "build": "mado build",
+    "typecheck": "mado typecheck",
+    "test": "npm run typecheck && npm run lint",
+    "release": "mado release",
+    "preview": "mado preview",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "new": "mado new"
+  },
+  "dependencies": {
+    "@madojs/mado": "__MADOJS_VERSION__"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-boundaries": "^5.0.0",
+    "lightningcss": "^1.32.0",
+    "playwright-core": "^1.47.0",
+    "typescript": "^5.5.0",
+    "vite": "^8.0.16"
+  }
+}

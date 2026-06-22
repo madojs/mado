@@ -110,7 +110,7 @@ The default starter opts into Vite's Lightning CSS transformer. CSS
 minification is already handled by Vite; the explicit transformer keeps
 prefixing and modern CSS lowering in Vite instead of in Mado.
 
-`mado bake` uses conventions by default: `src/app.routes.ts` first,
+`mado static` uses conventions by default: `src/app.routes.ts` first,
 then `src/routes.ts`, `index.html` as the template, and `out/` as output.
 Use CLI flags (`--entry`, `--template`, `--out`, `--base-url`) for the few
 values that are specific to prerendering.

@@ -386,7 +386,7 @@ Rules:
 
 ### 14. Bake — meta shell, not SSR/SSG runtime
 
-`mado bake` is a static meta-shell/prerender pass for SEO and first paint. It is
+`mado static` is a static meta-shell/prerender pass for SEO and first paint. It is
 not SSR with hydration and not a Next-style SSG runtime.
 
 - Baked HTML must be deterministic from `params`, `bake.data`, and plain values.

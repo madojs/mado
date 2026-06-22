@@ -35,7 +35,7 @@ export default routes(manifest);
 Open `app.routes.ts` and you can see the whole app: public pages, auth zone,
 protected app zones, guards and shells.
 
-Exporting `manifest` is important because `mado bake` reads it.
+Exporting `manifest` is important because `mado static` reads it.
 
 ## Module Routes
 

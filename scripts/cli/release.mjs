@@ -39,10 +39,14 @@ export async function runRelease(ctx, rawArgs) {
     outDir,
   ]);
 
-  console.log("[release] step 4/5  precompress assets");
-  await precompressOut(outDir);
-
-  console.log("[release] step 5/5  CDN config");
+  console.log("[release] step 4/5  deployment files");
+  // GitHub Pages / Netlify / Cloudflare Pages fallback. SPA fallback shell
+  // is written by `mado static`; here we only register the deployment
+  // bindings, and respect user-supplied files (writeIfMissing).
+  const spaShell = join(outDir, "_mado/spa.html");
+  if (existsSync(spaShell)) {
+    await writeIfMissing(join(outDir, "404.html"), await readFile(spaShell, "utf8"), "[release]  ");
+  }
   await writeIfMissing(join(outDir, "_redirects"), "/* /_mado/spa.html 200\n", "[release]  ");
   await writeIfMissing(
     join(outDir, "_headers"),
@@ -56,6 +60,9 @@ export async function runRelease(ctx, rawArgs) {
     ].join("\n"),
     "[release]  ",
   );
+
+  console.log("[release] step 5/5  precompress assets");
+  await precompressOut(outDir);
 
   console.log("");
   console.log(`[release] done. Deploy artifact: ${outDir}`);

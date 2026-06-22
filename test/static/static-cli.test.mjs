@@ -95,7 +95,7 @@ test("static: dynamic static route without paths fails during discovery", async 
   }
 });
 
-test("static: SPA-only manifest preserves fallback shell and writes deployment files", async () => {
+test("static: SPA-only manifest preserves fallback shell and writes sitemap", async () => {
   const dir = mkTempProject({
     "package.json": JSON.stringify({ name: "spa-only-app", type: "module" }),
     "out/index.html": "<!doctype html><html><head><title>App</title></head><body><div id=\"app\"></div></body></html>",
@@ -112,12 +112,13 @@ test("static: SPA-only manifest preserves fallback shell and writes deployment f
         `static exited ${result.code}\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`,
       );
     }
+    // Ownership boundary: `mado static` writes the SPA fallback shell and
+    // the sitemap. CDN config (404/_headers/_redirects) is the
+    // responsibility of `mado release` so users can override them per
+    // deployment target.
     assert.ok(existsSync(join(dir, "out/_mado/spa.html")));
-    assert.ok(existsSync(join(dir, "out/404.html")));
     assert.ok(existsSync(join(dir, "out/sitemap.xml")));
-    assert.ok(existsSync(join(dir, "out/_redirects")));
     assert.match(readFileSync(join(dir, "out/_mado/spa.html"), "utf8"), /noindex/);
-    assert.match(readFileSync(join(dir, "out/_redirects"), "utf8"), /\/_mado\/spa\.html/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

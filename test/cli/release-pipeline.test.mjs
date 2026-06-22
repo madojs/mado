@@ -84,7 +84,15 @@ async function runCli(cwd, args) {
   try {
     const execResult = await exec(process.execPath, [CLI, ...args], {
       cwd,
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: {
+        ...process.env,
+        FORCE_COLOR: "0",
+        // mado static now requires an explicit public origin for static
+        // routes. The fixture's home page declares `static: true`, so we
+        // bind a stable test origin (matches the deterministic-output
+        // assertion).
+        MADO_SITE: "https://release-fixture.test",
+      },
     });
     return { code: 0, stdout: execResult.stdout ?? "", stderr: execResult.stderr ?? "" };
   } catch (e) {

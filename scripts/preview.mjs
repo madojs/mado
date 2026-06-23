@@ -240,7 +240,12 @@ server.listen(PORT, HOST, async () => {
   const urlHost = HOST === "0.0.0.0" || HOST === "::" ? "localhost" : HOST;
   console.log("");
   console.log("Mado preview (production-like)");
-  console.log(`  url:    http://${urlHost}:${PORT}/`);
+  // Print the URL the server actually serves the app at. When the
+  // deployment uses a non-trivial Vite `base`, the bare root just
+  // 302-redirects to the base prefix, which surprises users who copy
+  // the logged URL into a browser and land on "Not Found".
+  console.log(`  url:    http://${urlHost}:${PORT}${BASE}`);
+  console.log(`  base:   ${BASE}`);
   console.log(`  out:    ${OUT}`);
   console.log("  (Ctrl-C to stop)");
   console.log("");

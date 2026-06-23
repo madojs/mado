@@ -125,6 +125,8 @@ function mkBaseProject(base) {
       'import { html, render, routeUrl } from "@madojs/mado";',
       'import appRoutes from "./routes";',
       "(window as any).__MADO_ROUTE_URL_DOCS__ = routeUrl(\"/docs\");",
+      "(window as any).__MADO_ROUTE_URL_ROOT__ = routeUrl(\"/\");",
+      "(window as any).__MADO_PREFETCHED__ = [] as string[];",
       'render(html`${appRoutes.view}`, document.getElementById("app")!);',
       "",
     ].join("\n"),
@@ -132,7 +134,16 @@ function mkBaseProject(base) {
       'import { routes } from "@madojs/mado";',
       'import homePage from "./home.page";',
       'import docsPage from "./docs.page";',
-      'export const manifest = { "/": homePage, "/docs": docsPage };',
+      "// Wrap the docs loader so the test can observe every prefetch",
+      "// invocation. The loader runs in two environments: the Node-side",
+      "// discovery (no window) and the browser SPA boot, so the tracker",
+      "// only fires when `window` is present.",
+      'export const manifest = { "/": homePage, "/docs": () => {',
+      '  if (typeof window !== "undefined") {',
+      '    ((window as any).__MADO_PREFETCHED__ ??= []).push("/docs");',
+      "  }",
+      "  return Promise.resolve({ default: docsPage });",
+      "} };",
       "export default routes(manifest);",
       "",
     ].join("\n"),
@@ -384,11 +395,44 @@ test(
         const probe = await page.textContent("#path-probe");
         assert.equal((probe ?? "").trim(), "/docs", "page.path() is base-free");
 
-        // routeUrl() emits the base-prefixed link.
+        // routeUrl() emits the base-prefixed link, including the
+        // trailing slash for the root route.
         const docsUrl = await page.evaluate(
           () => (window).__MADO_ROUTE_URL_DOCS__,
         );
         assert.equal(docsUrl, "/mado/docs", "routeUrl() prefixes with base");
+        const rootUrl = await page.evaluate(
+          () => (window).__MADO_ROUTE_URL_ROOT__,
+        );
+        assert.equal(
+          rootUrl,
+          "/mado/",
+          "routeUrl('/') keeps the trailing slash under a non-trivial base",
+        );
+
+        // Hover-prefetch must hand the manifest a base-FREE pathname so
+        // it can match the route key "/docs". Before the fix the
+        // handler forwarded the raw `/mado/docs`, which never matched
+        // and silently dropped every prefetch.
+        await page.goto(`http://127.0.0.1:${port}${BASE}`, {
+          waitUntil: "networkidle",
+        });
+        await page.evaluate(
+          () => ((window).__MADO_PREFETCHED__ = []),
+        );
+        await page.hover("#docs-link");
+        await page.waitForFunction(
+          () => (window).__MADO_PREFETCHED__.length > 0,
+          { timeout: 2_000 },
+        );
+        const prefetched = await page.evaluate(
+          () => (window).__MADO_PREFETCHED__,
+        );
+        assert.deepEqual(
+          prefetched,
+          ["/docs"],
+          "hover-prefetch forwards the base-free route path",
+        );
 
         // Navigate home and back via the data-link anchor: the link's
         // href is base-prefixed, the matcher receives the base-free

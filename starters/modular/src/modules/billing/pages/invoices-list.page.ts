@@ -1,4 +1,4 @@
-import { each, html, page, signal, untracked } from "@madojs/mado";
+import { each, html, page, routeUrl, signal, untracked } from "@madojs/mado";
 
 import { formatDate, formatMoney } from "../../../shared/lib/format-date";
 import "../../../shared/ui/x-spinner.component";
@@ -50,7 +50,7 @@ export default page({
                           (i) => html`
                             <tr>
                               <td>
-                                <a href=${`/billing/invoices/${i.id}`}>${i.number}</a>
+                                <a data-link href=${routeUrl(`/billing/invoices/${i.id}`)}>${i.number}</a>
                               </td>
                               <td>${i.customerEmail}</td>
                               <td>${formatMoney(i.amount, i.currency)}</td>
@@ -59,7 +59,7 @@ export default page({
                               </td>
                               <td>${formatDate(i.issuedAt)}</td>
                               <td>
-                                <a href=${`/billing/invoices/${i.id}`}>Open</a>
+                                <a data-link href=${routeUrl(`/billing/invoices/${i.id}`)}>Open</a>
                               </td>
                             </tr>
                           `,

@@ -44,6 +44,28 @@ The public home page is captured as a static document; auth and
 billing surfaces stay SPA-only and are served through the
 `_mado/spa.html` fallback.
 
+## Dev API mock
+
+`vite.config.ts` mounts a tiny in-memory mock for the endpoints used by
+this starter so `npm run dev` is runnable out of the box:
+
+| Method + path                            | Behaviour                                      |
+| ---------------------------------------- | ---------------------------------------------- |
+| `POST /api/auth/login`                   | accepts `demo@mado.dev` / `demo`               |
+| `GET  /api/auth/me`                      | current user (after login)                     |
+| `POST /api/auth/logout`                  | clears the in-memory session                   |
+| `GET  /api/billing/stripe/invoices`      | lists six seeded invoices                      |
+| `GET  /api/billing/stripe/invoices/:id`  | returns a single invoice                       |
+| `POST /api/billing/stripe/invoices/:id/pay` | flips status to `paid`                      |
+
+The mock only runs under `vite dev`, so `mado release` ships a clean
+bundle that talks to your real backend. Disable the mock with
+`MADO_MOCK_API=0` or remove the `devApiMock()` plugin entry.
+
+When you wire up your real backend, mirror the request/response shape
+in `auth.connector.ts` and `stripe.connector.ts`. The contract types in
+`modules/<name>/_contracts/` are the source of truth.
+
 ## Shape
 
 ```txt

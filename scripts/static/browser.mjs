@@ -380,6 +380,11 @@ async function serializeDocument(page, options) {
       const link = document.createElement("link");
       link.setAttribute("rel", "canonical");
       link.setAttribute("href", absoluteUrl);
+      // Mark the static fallback as Mado-managed so the runtime
+      // `applyHead()` (which clears every `[data-mado-head]` before
+      // writing the new metadata) can remove stale canonicals after an
+      // SPA navigation into a page that does not declare its own.
+      link.setAttribute("data-mado-head", "static");
       document.head.appendChild(link);
     }
 
@@ -397,6 +402,10 @@ async function serializeDocument(page, options) {
       const meta = document.createElement("meta");
       meta.setAttribute("property", "og:url");
       meta.setAttribute("content", absoluteUrl);
+      // Same rationale as ensureCanonical: handing the tag to
+      // applyHead()'s clean-slate selector prevents stale OG URLs from
+      // surviving a navigation into a page without explicit head().
+      meta.setAttribute("data-mado-head", "static");
       document.head.appendChild(meta);
     }
 

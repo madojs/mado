@@ -1,12 +1,9 @@
 # Mado docs
 
-Documentation is organized by language.
+Canonical project documentation is maintained in English only.
 
-| Language | Status |
-|---|---|
-| [Français](./fr/README.md) | translated |
-| [English](./en/README.md) | translated |
-| [Ukrainian](./uk/README.md) | translated |
-| [Russian](./ru/README.md) | translated |
+- [English documentation](./en/README.md)
 
-Translations and comment localization are tracked separately from core work.
+Older translations (`fr/`, `uk/`, `ru/`) were removed at v0.12. They
+remain available in git history and the `v0.11.1` tag for any
+external links that still need them.

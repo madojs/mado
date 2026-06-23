@@ -4,13 +4,13 @@
 // auth ZONE. If tomorrow a `password-reset` module appears, it will reuse
 // this same shell.
 
-import { html, page } from "@madojs/mado";
+import { html, page, routeUrl } from "@madojs/mado";
 
 export default page({
   title: "Sign in",
   view: ({ child }) => html`
     <div class="layout layout--auth">
-      <a href="/" class="brand">Mado App</a>
+      <a data-link href=${routeUrl("/")} class="brand">Mado App</a>
       <main class="auth-main">${child}</main>
     </div>
   `,

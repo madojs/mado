@@ -74,9 +74,10 @@ services from framework tests. For app tests, make the API client injectable via
 npm run typecheck
 npm run build
 npm test
-npm run bake
+npm run release
 ```
 
-`mado release` runs the production path for an app: typecheck, Vite build,
-bake, compression and deploy helper files. In the framework repository,
-`npm run build` still emits `dist/src` for package tests and publishing.
+`mado release` runs the production path for an app: typecheck, Vite
+build, static-snapshot capture, compression and deploy helper files.
+In the framework repository, `npm run build` still emits `dist/src`
+for package tests and publishing.

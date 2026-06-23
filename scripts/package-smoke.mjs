@@ -21,17 +21,23 @@ try {
   await mkdir(installRoot, { recursive: true });
   await run("npm", ["install", tarball], { cwd: installRoot });
 
+  // Public-API surface smoke: prove the published tarball exposes the
+  // root entry, the devtools side-effect import and the Vite plugin,
+  // while still hiding internal subpaths behind `exports`.
   await run(
     process.execPath,
     [
       "--input-type=module",
       "--eval",
       `
-        import { html, signal } from "@madojs/mado";
+        import { html, signal, routeUrl, appBase } from "@madojs/mado";
         import "@madojs/mado/devtools.js";
         import { mado } from "@madojs/mado/vite";
         if (typeof html !== "function" || typeof signal !== "function") {
           throw new Error("public root import failed");
+        }
+        if (typeof routeUrl !== "function" || typeof appBase !== "string") {
+          throw new Error("routing helpers missing from public root");
         }
         if (typeof mado !== "function") throw new Error("vite plugin import failed");
         try {
@@ -45,38 +51,72 @@ try {
     { cwd: installRoot },
   );
 
-  // The package smoke exercises the *modular* starter end-to-end: it has
-  // the `mado new module` generator wired in, and its modules / routes
-  // structure is the real shape long-lived business apps deploy. The
-  // universal default starter is exercised separately by the static
-  // round-trip test (`test/static/dsd-takeover.test.mjs`).
-  await run(
-    "npx",
-    ["mado", "init", "smoke-app", "--starter", "modular"],
-    {
-      cwd: installRoot,
-      env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
-    },
-  );
+  // We exercise BOTH published starters end-to-end:
+  //
+  //   smoke-universal — `mado init` (default), npm install, typecheck,
+  //                     release. This is the path the README quick-start
+  //                     points new users to; if it ever breaks for a
+  //                     published tarball the first-run experience is
+  //                     broken.
+  //
+  //   smoke-modular   — `mado init --starter modular`, npm install,
+  //                     `mado new module`, release. Long-lived apps
+  //                     deploy this shape; the `mado new` generator
+  //                     also lives here.
+  //
+  // Each run uses MADO_SITE so static routes resolve canonical URLs,
+  // and points the starter at the freshly packed tarball through
+  // MADO_PACKAGE_SPEC so package.json doesn't reference an unpublished
+  // version.
 
-  const appRoot = join(installRoot, "smoke-app");
-  await run("npm", ["install"], { cwd: appRoot });
-  await run("npm", ["run", "new", "--", "module", "smoke"], { cwd: appRoot });
-  await run("npm", ["run", "release"], {
-    cwd: appRoot,
-    env: {
-      ...process.env,
-      // Static routes require a public origin so canonical URLs are
-      // absolute. The smoke release does not deploy anywhere; we set a
-      // deterministic placeholder so the pipeline can complete.
-      MADO_SITE: "https://package-smoke.test",
+  await smokeStarter({
+    label: "universal",
+    appName: "smoke-universal",
+    initArgs: ["mado", "init", "smoke-universal"],
+    after: async (appRoot) => {
+      await run("npm", ["run", "typecheck"], { cwd: appRoot });
+      await run("npm", ["run", "release"], {
+        cwd: appRoot,
+        env: { ...process.env, MADO_SITE: "https://package-smoke.test" },
+      });
     },
+    installRoot,
+    tarball,
+  });
+
+  await smokeStarter({
+    label: "modular",
+    appName: "smoke-modular",
+    initArgs: ["mado", "init", "smoke-modular", "--starter", "modular"],
+    after: async (appRoot) => {
+      await run("npm", ["run", "new", "--", "module", "smoke"], {
+        cwd: appRoot,
+      });
+      await run("npm", ["run", "typecheck"], { cwd: appRoot });
+      await run("npm", ["run", "release"], {
+        cwd: appRoot,
+        env: { ...process.env, MADO_SITE: "https://package-smoke.test" },
+      });
+    },
+    installRoot,
+    tarball,
   });
 
   console.log(`[package-smoke] ok ${basename(tarball)}`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
   if (tarball) await rm(tarball, { force: true });
+}
+
+async function smokeStarter({ label, appName, initArgs, after, installRoot, tarball }) {
+  console.log(`[package-smoke] === ${label} starter ===`);
+  await run("npx", initArgs, {
+    cwd: installRoot,
+    env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
+  });
+  const appRoot = join(installRoot, appName);
+  await run("npm", ["install"], { cwd: appRoot });
+  await after(appRoot);
 }
 
 async function run(cmd, args, options) {

@@ -1,4 +1,4 @@
-import { existsSync, writeSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { detectContext, getPackageRoot, resolveProjectPath } from "../_config.mjs";
@@ -19,9 +19,13 @@ export async function discoverStaticRoutes(options) {
   const entry = resolveProjectPath(projectRoot, options.entry ?? pickDefaultEntry(projectRoot));
 
   if (!existsSync(entry)) {
-    fatal(
-      `[mado:static] entry not found: ${entry}`,
-      `[mado:static] expected src/app.routes.ts or src/routes.ts; pass --entry <file> to override`,
+    // Throwing — rather than `process.exit()` — lets the outer
+    // `scripts/static.mjs` finalize its temp-directory cleanup before
+    // the process terminates.
+    throw new Error(
+      `[mado:static] entry not found: ${entry}\n` +
+        `[mado:static] expected src/app.routes.ts or src/routes.ts; ` +
+        `pass --entry <file> to override`,
     );
   }
 
@@ -31,10 +35,10 @@ export async function discoverStaticRoutes(options) {
   try {
     ({ createServer: createViteServer } = await import("vite"));
   } catch {
-    fatal(
-      "[mado:static] package 'vite' is required.",
-      "[mado:static] Install it as a dev dependency in this project:",
-      "[mado:static]   npm i -D vite playwright-core",
+    throw new Error(
+      "[mado:static] package 'vite' is required.\n" +
+        "[mado:static] Install it as a dev dependency in this project:\n" +
+        "[mado:static]   npm i -D vite playwright-core",
     );
   }
 
@@ -274,9 +278,4 @@ function pickDefaultEntry(projectRoot) {
 
 function toViteId(path) {
   return path.split("\\").join("/");
-}
-
-function fatal(...msgs) {
-  writeSync(2, msgs.join("\n") + "\n");
-  process.exit(1);
 }

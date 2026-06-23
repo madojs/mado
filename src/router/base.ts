@@ -13,8 +13,6 @@
  * `routes({}, { base })`, no second runtime config. Tools that load Mado
  * outside Vite (native ESM tests, partial SSR probes) fall back to "/".
  */
-let cached: string | null = null;
-
 function readEnvBase(): string {
   // Direct access to the well-known constant so Vite's static
   // `define`-replacement (and Vite-only `import.meta.env.BASE_URL`
@@ -110,7 +108,10 @@ export function withBase(pathname: string, base: string = appBase): string {
   const p = pathname || "/";
   const abs = p.startsWith("/") ? p : "/" + p;
   if (b === "/") return abs;
-  if (abs === "/") return b.slice(0, -1) || "/"; // "/mado/" → "/mado"? prefer trailing
+  // Root route under a non-trivial base must keep the trailing slash so
+  // that `<a href>` agrees with the canonical deployment URL shape.
+  //   routeUrl("/") with base "/mado/" === "/mado/"   (not "/mado")
+  if (abs === "/") return b;
   // Strip leading slash from abs so we can concatenate with base ("/mado/").
   // If abs already starts with the base prefix, return it unchanged so we
   // do not double-prefix on accident.
@@ -154,15 +155,3 @@ export function routeUrl(pathname: string, base: string = appBase): string {
   return withBase(path, base) + suffix;
 }
 
-/**
- * Cached invalidation hook for tests that need to swap the base at
- * runtime. Not part of the public API.
- *
- * @internal
- */
-export function _resetBaseCacheForTests(next?: string): string {
-  cached = next == null ? null : normalizeBase(next);
-  return cached ?? appBase;
-}
-
-void cached; // keep type-only reference until tests opt in

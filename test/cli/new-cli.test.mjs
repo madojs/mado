@@ -19,10 +19,13 @@ async function runCli(cwd, args) {
   });
 }
 
-test("mado new scaffolds canonical starter file forms", async () => {
+test("mado new scaffolds canonical modular starter file forms", async () => {
   const root = mkdtempSync(join(tmpdir(), "mado-new-"));
   try {
-    await runCli(root, ["init", "app"]);
+    // Generators that touch src/modules/<name>/ are only meaningful in
+    // the modular starter — the universal starter ships src/pages and
+    // src/components instead and rejects modular-only kinds.
+    await runCli(root, ["init", "app", "--starter", "modular"]);
     const app = join(root, "app");
 
     await runCli(app, ["new", "module", "reports"]);
@@ -73,6 +76,47 @@ test("mado new scaffolds canonical starter file forms", async () => {
     );
     assert.match(page, /view: \(\) => \{/);
     assert.match(page, /\/\/ 1\. LOCAL STATE/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mado new is context-aware in the universal starter", async () => {
+  const root = mkdtempSync(join(tmpdir(), "mado-new-uni-"));
+  try {
+    // Default starter is the universal layout (src/pages, src/components).
+    await runCli(root, ["init", "app"]);
+    const app = join(root, "app");
+
+    // `page` and `component` write into the universal locations.
+    await runCli(app, ["new", "page", "settings"]);
+    await runCli(app, ["new", "component", "callout"]);
+
+    assert.ok(
+      existsSync(join(app, "src/pages/settings.page.ts")),
+      "page generator must target src/pages/ in the universal starter",
+    );
+    assert.ok(
+      existsSync(join(app, "src/components/callout.component.ts")),
+      "component generator must target src/components/ in the universal starter",
+    );
+    assert.equal(
+      existsSync(join(app, "src/modules")),
+      false,
+      "universal starter never creates src/modules/",
+    );
+
+    // Modular-only kinds (`module`, `connector`, `resource`, `service`,
+    // `form`, `guard`) are refused with a non-zero exit so users do not
+    // accidentally pollute the universal layout.
+    await assert.rejects(
+      runCli(app, ["new", "module", "billing"]),
+      "expected `mado new module` to fail under universal starter",
+    );
+    await assert.rejects(
+      runCli(app, ["new", "resource", "billing/data/invoices"]),
+      "expected `mado new resource` to fail under universal starter",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

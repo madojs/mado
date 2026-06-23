@@ -6,7 +6,7 @@
 //
 // A page should be read top-to-bottom and understood without jumping files.
 
-import { html, page } from "@madojs/mado";
+import { html, page, routeUrl } from "@madojs/mado";
 
 // 1. LOCAL STATE — none
 // 2. DATA       — none
@@ -23,8 +23,9 @@ export default page({
     <section>
       <h1>Mado App</h1>
       <p>
-        Welcome. Try <a href="/billing/invoices">billing</a> or
-        <a href="/login">sign in</a>.
+        Welcome. Try
+        <a data-link href=${routeUrl("/billing/invoices")}>billing</a>
+        or <a data-link href=${routeUrl("/login")}>sign in</a>.
       </p>
     </section>
   `,

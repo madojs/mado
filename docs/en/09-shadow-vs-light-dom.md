@@ -1,24 +1,49 @@
 # Shadow DOM vs Light DOM
 
-Mado components use Shadow DOM by default. This is a good default for
-self-contained widgets, but it is not the right default for every component in
-an application.
+Mado has two distinct primitives. They are not interchangeable:
+
+- **`page()` — a semantic document.** It renders directly into the
+  light DOM (no shadow root, no encapsulation), owns route + load +
+  head + view + optional static declaration, and is the unit the
+  router commits. Pages are the URLs your app exposes. Layouts are
+  also pages (`page({ view: ({ child }) => ... })`).
+- **`component()` — a Web Component.** It is the unit of Web Component
+  encapsulation. By default it attaches an open Shadow DOM so the
+  component owns its own DOM, CSS, slots and form-association
+  boundary. Components have no notion of routes.
+
+Pages are never built with `component()`; components never participate
+in routing. Mixing the two by giving a route a Shadow DOM root breaks
+form participation, breaks shared CSS and confuses the static
+snapshot capture.
+
+`{ shadow: false }` exists as an **advanced escape hatch** for the
+small number of components that MUST live in the light DOM — for
+example a custom input that has to participate in a parent
+`<form>` without `attachInternals()`, or a host whose styling must be
+addressable from the document. It is not the default and not the
+recommendation; use it only when a Shadow DOM root would break the
+required behaviour. Page-shaped wrappers are written with `page()`,
+not with `component({ shadow: false })`.
 
 ## Rule of Thumb
 
-Use Mado route layouts (`page({ view: ({ child }) => ... })`) for app zones:
-auth shells, admin shells, public shells and embedded shells. These live in
-`src/layouts/` and are composed from `src/app.routes.ts`.
+Use route layouts (`page({ view: ({ child }) => ... })`) for app
+zones: auth shells, admin shells, public shells and embedded shells.
+These live in `src/layouts/` (modular starter) or are imported
+directly from `src/pages/` (universal starter), and are composed from
+`src/app.routes.ts`.
 
-Use Web Components registered with `component()` for reusable UI elements and
-widgets. Use plain functions only for small inline template helpers:
+Use Web Components registered with `component()` for reusable UI
+elements and widgets. Use plain functions only for small inline
+template helpers:
 
 ```ts
 const money = (value: number) => html`<span>${formatMoney(value)}</span>`;
 ```
 
-Do not hide app shells inside `main.ts` or generic helper functions. The app
-map should show which layout wraps which route group.
+Do not hide app shells inside `main.ts` or generic helper functions.
+The app map should show which layout wraps which route group.
 
 Use **Shadow DOM** for leaf widgets:
 
@@ -54,7 +79,25 @@ component("x-dashboard", () => () => html`
 `);
 ```
 
-Fix it by making the route/page component Light DOM:
+Two fixes exist. The first one is the canonical answer:
+
+```ts
+// ✅ Best fix: this is a page, not a component.
+// Pages live in the light DOM by definition.
+import { html, page } from "@madojs/mado";
+
+export default page({
+  title: "Dashboard",
+  view: () => html`
+    <header class="page-head">...</header>
+    <div class="metric-grid">...</div>
+  `,
+});
+```
+
+The escape hatch — `component({ shadow: false })` — is only justified
+when the host MUST be a custom element (form participation, host-level
+attribute API, host-level CSS that the document wants to address):
 
 ```ts
 component("x-dashboard", () => () => html`
@@ -69,7 +112,8 @@ component("x-dashboard", () => () => html`
 });
 ```
 
-Now global utilities and local scoped styles both work.
+Do not reach for `shadow: false` to "fix CSS in a route layout" — use
+`page()` instead.
 
 ## How Styles Behave
 

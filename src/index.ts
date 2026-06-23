@@ -2,10 +2,13 @@
  * Mado — public API.
  *
  * Import everything from one place:
- *   import { signal, computed, effect, component, html, router } from '@madojs/mado';
+ *   import { signal, computed, effect, component, html, router } from "@madojs/mado";
  *
- * In the browser: connected via <script type="importmap">.
- * In Node: via `tsconfig.paths` (resolves to "./src/index.ts").
+ * Vite is the canonical transport: every official starter, generator
+ * and CLI command resolves `@madojs/mado` from `node_modules` through
+ * the Vite plugin (`@madojs/mado/vite`). Native ESM consumers (tests,
+ * partial-SSR probes) get the same surface area; anything that touches
+ * `import.meta.env.BASE_URL` falls back to "/" outside Vite.
  */
 
 // --- core ---
@@ -62,13 +65,13 @@ export {
   navigate,
 } from "./router/navigation.js";
 export { routes, prefetchPath } from "./router/manifest.js";
-export {
-  appBase,
-  normalizeBase,
-  stripBase,
-  withBase,
-  routeUrl,
-} from "./router/base.js";
+// Application code should use `routeUrl()` exclusively for building
+// internal links. `appBase` is exposed for integrations that need to
+// read the active prefix (e.g. building absolute canonical URLs from a
+// component). `normalizeBase`, `stripBase` and `withBase` are
+// implementation details: they remain unexported until a concrete
+// downstream use case appears.
+export { appBase, routeUrl } from "./router/base.js";
 export type {
   RouterApi,
   QueryParam,

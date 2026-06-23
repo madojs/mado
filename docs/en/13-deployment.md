@@ -8,11 +8,12 @@
 
 ```
 out/
-├── index.html              ← SPA shell or baked HTML for /
+├── index.html              ← captured snapshot for / (or SPA shell)
 ├── assets/                 ← Vite hashed assets
 │   ├── *.gz                ← precompressed gzip (gzip_static / Accept-Encoding)
 │   └── *.br                ← precompressed brotli (brotli_static / Accept-Encoding)
-├── <route>/index.html      ← prerendered SEO HTML for baked routes
+├── <route>/index.html      ← captured snapshot per static route
+├── _mado/spa.html          ← SPA fallback shell (noindex)
 ├── sitemap.xml             ← generated sitemap
 ├── favicon.svg             ← your public/ assets copied verbatim
 ├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
@@ -182,10 +183,57 @@ jobs:
 - **`/assets/*` files change but the browser keeps the old one.** They
   should not — the filename is hashed by Vite during `mado release`. If you bypassed
   build and shipped your own unhashed JS, give it a hash or short cache.
-- **Baked SEO page shows `[object Object]`.** Should never happen after the
-  v1 bake update — bake now raises a loud error in that case. If you see it,
-  upgrade `@madojs/mado` and re-run `mado static`.
+- **Captured snapshot shows `[object Object]`.** `mado static` rejects
+  non-JSON-serialisable seeds at build time and points at the bad
+  field. If you still see it, upgrade `@madojs/mado` and re-run
+  `mado release`.
+
+## Sub-path deployments and `base`
+
+A deployment under a sub-path (`https://your.site/docs/`, GitHub
+Pages project URL, an admin panel mounted under `/admin/`, …) only
+requires two changes:
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+import { mado } from "@madojs/mado/vite";
+
+export default defineConfig({
+  base: "/docs/",                       // ← active prefix
+  plugins: [mado({ site: "https://your.site" })],
+});
+```
+
+Then make every internal anchor go through `routeUrl()` + `data-link`
+so the URL is correct under any base:
+
+```ts
+import { html, routeUrl } from "@madojs/mado";
+
+html`<a data-link href=${routeUrl("/")}>Home</a>`;     // → "/docs/"
+html`<a data-link href=${routeUrl("/guides/intro")}>Intro</a>`;
+```
+
+`mado release` honours `base` end-to-end:
+
+- captured snapshots load assets through `/docs/assets/...`;
+- sitemap URLs are `https://your.site/docs/...`;
+- canonicals and `og:url` include the prefix;
+- `mado preview` redirects bare `/` to `/docs/` and serves SPA
+  fallback under `/docs/<anything>`.
+
+On the production host:
+
+- **nginx** — keep `try_files $uri $uri/ /index.html;` but mount the
+  app under the matching prefix (`location /docs/ { ... }`).
+- **Cloudflare Pages / Netlify** — `_redirects` is generated with the
+  base prefix already baked in.
+- **GitHub Pages (project site)** — set `base: "/<repo>/"` and use
+  the `gh-pages` deploy path; canonical URLs land at
+  `https://<user>.github.io/<repo>/...`.
 
 See also: [`02-project-layout.md`](./02-project-layout.md) for the
-`src/`/`public/`/`out/` model and [`03-static-bake.md`](./03-static-bake.md)
-for the SEO bake mechanics.
+`src/` / `public/` / `out/` model and
+[`03-static-bake.md`](./03-static-bake.md) for the static snapshot
+mechanics.

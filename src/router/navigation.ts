@@ -159,7 +159,16 @@ export function router(
       try {
         const url = new URL(a.href, location.href);
         if (url.origin !== location.origin) return;
-        options.prefetch!(url.pathname);
+        // Foreign-base links escape SPA prefetch entirely — the manifest
+        // only knows base-free route paths and would never match
+        // "/mado/docs". Mirrors the click-interception check above.
+        const b = appBase;
+        if (b !== "/" && !(url.pathname === b.slice(0, -1) || url.pathname.startsWith(b))) {
+          return;
+        }
+        // The prefetch hook is fed manifest-shaped paths (no base),
+        // matching the route signal and loader registry.
+        options.prefetch!(stripBase(url.pathname));
       } catch {
         /* noop */
       }

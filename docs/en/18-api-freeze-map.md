@@ -30,14 +30,16 @@ These names are public and protected by SemVer once v1 ships:
   `ref`, `classMap`, `styleMap`.
 - Components and CSS: `component`, `css`, `cssVars`.
 - Routing and pages: `routes`, `router`, `page`, `layout`,
-  `navigate`, `queryParam`, `prefetchPath`.
+  `navigate`, `queryParam`, `prefetchPath`, `routeUrl`, `appBase`.
 - Data: `resource`, `mutation`, `invalidate`, `jsonFetcher`, `HttpError`.
 - Forms: `useForm`.
 - Head and persistence: `applyHead`, `persisted`.
 - Context: `createContext`, `provide`, `inject`.
 - Advanced lifecycle helpers: `createLifecycle`, `runInLifecycle`,
   `getCurrentLifecycle`.
-- Public TypeScript types exported from `@madojs/mado`.
+- Public TypeScript types exported from `@madojs/mado`, including
+  `StaticPageConfig` (the `static: true | { ... }` option on `page()`)
+  and `HeadMeta` (the head metadata shape returned by pages).
 
 ## Internal or unstable
 
@@ -48,7 +50,14 @@ These are not public API:
 - Template parser/binding internals such as `html/parser.js`,
   `html/bindings.js`, `ChildState`, and `EachEntry`.
 - Router implementation modules such as `router/match.js`,
-  `router/navigation.js`, and `router/manifest.js`.
+  `router/navigation.js`, `router/manifest.js`, and `router/base.js`.
+- Base-path helpers other than `routeUrl` / `appBase`: `normalizeBase`,
+  `stripBase` and `withBase` are intentionally not exported from
+  `@madojs/mado`. Use `routeUrl()` for `<a href>` values and `appBase`
+  if you need the raw active prefix.
+- The static snapshot pipeline (`scripts/static.mjs`, the
+  `_mado/build.json` bridge, the temp capture server). `mado static` is
+  a CLI command; its internals can change between minor versions.
 - Diagnostics internals and all `_testHooks`.
 - Exact generated bundle text, chunk names, and internal file layout.
 

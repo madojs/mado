@@ -67,7 +67,9 @@ dependencies.
 ## Quick start
 
 ```bash
-npm exec --package @madojs/mado@latest -- mado init my-app
+# Mado 0.12 is currently shipping as a prerelease (`@next` on npm).
+# After 0.12.0 stable lands, swap `@next` for `@latest`.
+npm exec --package @madojs/mado@next -- mado init my-app
 cd my-app
 npm install
 npm run dev
@@ -200,8 +202,9 @@ mado release
 
 `mado release` runs your app in a real Chromium and freezes the
 rendered HTML — including the Shadow DOM via Declarative Shadow DOM —
-into one file per route. On first paint the live component re-attaches
-to the same host with zero hydration boundary.
+into one file per route. On first paint Mado atomically replaces the
+static tree with the live tree: no hydration protocol, no node
+reconciliation, no per-attribute diffing.
 
 - Real search engines see a fully rendered document.
 - Social preview bots see the canonical / og tags inside the raw HTML.

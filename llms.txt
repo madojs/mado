@@ -1,281 +1,309 @@
 # Mado
 
-> A calm browser-native SPA framework for internal tools, admin panels and business apps.  
-> Routing, forms, state, data fetching and prerendering. Zero runtime dependencies; generated apps use `typescript`, `esbuild` and `linkedom` as dev tooling.
+> A calm native-first web framework for both static sites and live
+> SPAs. One Web Component model, one page model, one release command.
+> Browser-native source, Vite as the canonical development and delivery
+> transport, zero runtime dependencies.
 
-Mado is a focused frontend framework for admin panels, internal tools and CRUD-heavy SPA. It deliberately avoids React patterns (no JSX, no hooks, no VDOM, no Vite). Target audience: backend developers and small teams who want a complete app stack without frontend infrastructure overhead.
+Mado deliberately rejects compilers (no JSX, no special template
+language), VDOM diffing, and SSR/hydration. Static documents are
+captured by a real headless Chromium during `mado release`, including
+the Shadow DOM through Declarative Shadow DOM (DSD), and the live SPA
+then atomically replaces the static tree with no hydration protocol or
+node reconciliation.
 
-## Key things an AI assistant needs to know
+## What an AI assistant must never invent
 
-- **This is NOT React, NOT Lit, NOT Solid.** When generating code for Mado, **do not use JSX, `useState`, `useEffect`, classes, decorators, `requestUpdate`**. That will be an error.
-- **All templates are tagged template `html\`...\``** (not JSX). Allowed bindings inside: `${value}`, `attr=${v}`, `@evt=${fn}`, `.prop=${v}`, `?attr=${flag}`.
-- **Reactivity via signals.** `signal()`, `computed()`, `effect()`. A signal is a getter function (`count()`), not an object field (`count.value`).
-- **Components are Web Components.** Registered via `component('x-name', setupFn, options)`. Names must include a hyphen (`x-foo`, `my-button`).
-- **Component files register tags as side effects.** The browser does not auto-import files by tag name. If `<x-card>` works, some imported module already ran `customElements.define("x-card", ...)`.
-- **Cleanup via `ctx.onDispose(fn)`** in setup, not via return from effect.
-- **Page cleanup via `onDispose`** in view: `view: ({ onDispose }) => { ... onDispose(() => cleanup()); }`. Only needed for raw APIs (setInterval, WebSocket). `resource()`/`effect()` auto-cleanup.
-- **`untracked()` in page view async** — functions called synchronously in `view()` that read signals must wrap reads in `untracked()` to avoid effect cycles with the router.
-- **Reactive attributes via `ctx.attr(name, default?)`** — returns a Signal<string> that auto-updates when the attribute changes via a per-instance `MutationObserver`. No `observedAttributes` option, no boilerplate.
-- **Public imports only.** App code imports from `@madojs/mado` and optionally side-effect `@madojs/mado/devtools.js`. Other package subpaths and `dist/src/*` are internal.
-- **Layouts are stateless wrappers.** Use route-manifest `layout()` and render `${child}` inside shared chrome. Put per-page state in pages/components/resources, not in layout view locals keyed by route identity.
-- **Bake is a static meta-shell/prerender pass.** It is not SSR with hydration and not a Next-style SSG runtime.
+- **This is NOT React, NOT Next, NOT Lit, NOT Solid.** Do not write
+  JSX, `useState`, `useEffect`, decorators, classes-with-render or
+  `requestUpdate`. Those patterns will not compile.
+- **Vite is the canonical transport.** Every starter, the CLI and the
+  static snapshot pipeline run through `@madojs/mado/vite`. The
+  framework runtime reads `import.meta.env.BASE_URL` once and exposes
+  it through `appBase` / `routeUrl()`.
+<!-- docs-lint:allow-legacy-mention -->
+- **There is no `bake` API.** The old `bake.paths`, `bake.data`,
+  `bake.revalidate`, `npm run bake`, "Smart Static" and "no Chromium"
+  language refer to a removed system. A page becomes static by
+  declaring `static: true` (or `static: { paths, initialData }`); the
+  CLI command is `mado static`, normally invoked as part of
+  `mado release`.
+<!-- /docs-lint:allow-legacy-mention -->
+- **`page()` is a semantic document.** It renders in the light DOM and
+  owns route + load + head + view + optional static declaration.
+  `component()` is the unit of Web Component encapsulation; by default
+  it attaches an open Shadow DOM. `{ shadow: false }` exists as an
+  advanced escape hatch when a custom element MUST live in the light
+  DOM (e.g. to participate in a parent form). Pages are never built
+  with `component()` and components never participate in routing.
+<!-- docs-lint:allow-legacy-mention -->
+- **A compatible Chromium is required at release time.** `mado static`
+  spawns Playwright (`playwright-core`) and captures real DOM. There is
+  no `linkedom`-based renderer, no `npm run bake`, no "meta-shell".
+<!-- /docs-lint:allow-legacy-mention -->
 
 ## Critical template rules
 
-1. **A reactive value in a template = getter function.**
-   ```ts
-   // ❌ NOT REACTIVE: read once at render time
-   html`<div>${count() * 2}</div>`
-   // ✅ REACTIVE: subscription
-   html`<div>${() => count() * 2}</div>`
-   ```
-   The signal itself can also be inserted directly — Mado will recognise it as a function:
-   ```ts
-   html`<div>${count}</div>`  // ✅ ok, count is a function
-   ```
+`html\`...\`` is a tagged template parser, not JSX. Only these bindings
+are recognised:
 
-2. **DOM properties vs HTML attributes:**
-   - `attr=${v}` → setAttribute (strings/numbers only);
-   - `.prop=${v}` → DOM property (objects, arrays, numbers without serialisation);
-   - `?attr=${flag}` → boolean attribute (toggle attribute);
-   - `@evt=${fn}` → addEventListener.
-
-   ```ts
-   html`<input ?disabled=${isLoading} .value=${user.name} @input=${onInput}>`
-   ```
-
-3. **Lists — must use `each(items, keyFn, renderFn)`**, not `.map()` without a key:
-   ```ts
-   import { each } from "@madojs/mado";
-   html`<ul>${() => each(users(), u => u.id, u => html`<li>${u.name}</li>`)}</ul>`
-   ```
-
-4. **Parser hard errors:**
-   - no dynamic `${...}` child slots inside `<script>`, `<style>`, `<textarea>`, or `<title>`;
-   - no nested SVG-only `html` templates inside an outer `<svg>`.
-
-   ```ts
-   // ❌ throws: RAW_TEXT elements cannot host child slots
-   html`<textarea>${draft}</textarea>`;
-
-   // ✅ bind the DOM property instead
-   html`<textarea .value=${draft}></textarea>`;
-
-   // ❌ throws: nested SVG template loses namespace context
-   html`<svg>${html`<circle r="5"></circle>`}</svg>`;
-
-   // ✅ keep SVG internals in one template
-   html`<svg viewBox="0 0 10 10"><circle r="5"></circle></svg>`;
-   ```
-
-## Canonical imports
+- `${value}`           — child content (text, nodes, arrays, nested templates, `each`)
+- `attr=${v}`          — HTML attribute (string/number)
+- `.prop=${v}`         — DOM property (objects, arrays, numbers without serialisation)
+- `?attr=${flag}`      — boolean attribute (toggle)
+- `@event=${fn}`       — event listener
 
 ```ts
-// Everything you normally need — from one place:
-import {
-  signal, computed, effect, batch,
-  html, render,
-  each,
-  component,
-  css, cssVars,
-  routes, router, navigate, queryParam, prefetchPath,
-  page, layout,
-  resource, mutation, invalidate, jsonFetcher,
-  useForm,
-  createContext, provide, inject,
-  persisted,
-  lazy,
-} from "@madojs/mado";
+// ❌ not reactive — `count()` runs once at render
+html`<div>${count() * 2}</div>`
+
+// ✅ subscription — the function is re-run on signal change
+html`<div>${() => count() * 2}</div>`
+
+// ✅ the signal itself works because it is already a function
+html`<div>${count}</div>`
 ```
 
-## Component ctx.attr() — reactive attributes
+Lists must use `each(items, keyFn, renderFn)` for stable identity:
 
 ```ts
-component("x-badge", ({ attr }) => {
-  const variant = attr("variant", "default"); // Signal<string>, auto-updates
-  const size = attr("size", "md");
+import { each } from "@madojs/mado";
+html`<ul>${() => each(users(), (u) => u.id, (u) => html`<li>${u.name}</li>`)}</ul>`
+```
 
-  return () => html`<span class=${() => `badge-${variant()} size-${size()}`}>
-    <slot></slot>
-  </span>`;
+The parser refuses dynamic `${...}` child slots inside `<script>`,
+`<style>`, `<textarea>`, `<title>`, and refuses nested SVG-only `html`
+templates inside an outer `<svg>` (namespace context is lost).
+
+## Public API surface
+
+```ts
+import {
+  // reactivity
+  signal, computed, effect, untracked, batch, flushSync,
+  // rendering + templates
+  html, render, each, list, unsafeHTML, ref, classMap, styleMap,
+  // components
+  component, css, cssVars,
+  // routing
+  routes, router, navigate, queryParam, prefetchPath,
+  routeUrl, appBase,
+  // pages
+  page, layout, applyHead,
+  // data
+  resource, mutation, invalidate, jsonFetcher, HttpError,
+  // forms / context / persistence / lazy
+  useForm,
+  createContext, provide, inject,
+  persisted, lazy,
+} from "@madojs/mado";
+
+// Side-effect-only:
+import "@madojs/mado/devtools.js";
+
+// Vite plugin:
+import { mado } from "@madojs/mado/vite";
+```
+
+Everything else under the package is internal and subject to change
+without notice (see `docs/en/18-api-freeze-map.md`).
+
+## Pages and the static snapshot pipeline
+
+A page declares its participation in static capture through the
+`static` field on `page({ ... })`:
+
+```ts
+import { html, page } from "@madojs/mado";
+
+export default page({
+  static: true,                                // capture as HTML at release
+  title: "Mado Keyboard",
+  head: () => ({ description: "Canonical product page." }),
+  view: () => html`<h1>Welcome</h1>`,
 });
 ```
 
-No MutationObserver boilerplate. The parent can bind with `?disabled=${...}` or
-plain attribute changes and the component re-renders reactively.
-
-## Shadow DOM + Forms
-
-Custom inputs in Shadow DOM need two things for `useForm()` compatibility:
-
-1. **Proxy properties** — expose `name` and `value` on the host:
-   ```ts
-   Object.defineProperty(host, "name", { get: () => host.getAttribute("name") ?? "" });
-   Object.defineProperty(host, "value", { get: () => host.shadowRoot?.querySelector("input")?.value ?? "" });
-   ```
-
-2. **Form submit bridge** — buttons inside Shadow DOM can't submit Light DOM forms:
-   ```ts
-   @click=${() => { const form = host.closest("form"); if (form) form.requestSubmit(); }}
-   ```
-
-See `docs/en/17-shadow-dom-forms.md` for the full recipe.
-
-## Auth fetcher for resource()
-
-The admin starter provides `apiFetcher<T>()` in `lib/api.ts` for protected endpoints:
-
-```ts
-import { resource } from "@madojs/mado";
-import { apiFetcher } from "../lib/api.js";
-
-const stats = resource(() => "/api/admin/stats", apiFetcher<Stats>());
-```
-
-Unlike `jsonFetcher()`, `apiFetcher()` attaches the Bearer token from memory.
-Use `jsonFetcher()` for public endpoints, `apiFetcher()` for anything behind auth.
-
-## Resource and mutation semantics
-
-- A `resource()` key is the cache identity. Same key means shared cache and
-  deduped in-flight request; use distinct keys for distinct data or auth scope.
-- `mutation().run()` is concurrent by default. `loading()` stays true while any
-  run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
-  "latest request wins" flows.
-- `invalidates` runs after a successful mutation and is best-effort: errors are
-  logged, but the mutation result stays successful.
-
-## Layouts and bake
-
-Use `layout()` in `src/app.routes.ts` for shared shells. Modules export plain
-route maps; app routes decide which layout and guard wrap each zone. A layout
-view should be a pure wrapper around `${child}` and shared chrome:
+Dynamic static routes provide `paths()` and `initialData()`:
 
 ```ts
 export default page({
-  view: ({ child }) => html`<x-app-shell>${child}</x-app-shell>`,
+  static: {
+    paths: async () => [{ slug: "alpha" }, { slug: "beta" }],
+    initialData: async ({ slug }) => loadGuide(slug),
+  },
+  title: ({ slug }) => `Guide: ${slug}`,
+  view: (ctx) => html`<article>${ctx.data}</article>`,
 });
 ```
 
-Do not create route-specific state in layout view locals. Put it in pages,
-components, resources, or app-level contexts.
+`mado release` does the full pipeline:
 
-`mado static` renders selected routes to static HTML for SEO and first paint. It
-does not hydrate server-rendered code. Baked views must be deterministic from
-`params`, `bake.data`, and plain values. Avoid browser-only effects, timers,
-relative `fetch`, and runtime directives like keyed `each()` during bake.
+1. Vite builds the SPA.
+2. `mado static` discovers every `static: true | { ... }` page through
+   the routes manifest.
+3. A real headless Chromium navigates each page through an internal
+   capture server.
+4. The captured HTML — including DSD-serialised Shadow DOM, canonical /
+   `og:url` fallback and the seed `<script type="application/json">` —
+   is written into `out/<route>/index.html`.
+5. SPA-only routes keep the `_mado/spa.html` fallback.
+6. The internal `_mado/build.json` bridge is dropped from the deployed
+   artefact.
 
-## Canonical "Hello world"
+On first paint the live SPA takes over atomically: Mado replaces the
+static tree with the live tree, no hydration protocol or node
+reconciliation. The seed JSON is consumed once so `page.load()` returns
+the same data the server already rendered.
+
+## Internal links and base path
+
+Vite's `base` flows automatically into `appBase` and `routeUrl()`. App
+code must use `routeUrl()` for every internal anchor so the URL stays
+correct under `/`, `/mado/` or any sub-path deployment:
+
+```ts
+import { routeUrl } from "@madojs/mado";
+
+html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
+html`<a data-link href=${routeUrl("/")}>Home</a>`;       // → "/mado/"
+```
+
+The router only intercepts anchors that opt in with `data-link`. Bare
+`<a href>` performs a full document load (intentional, for foreign URLs
+and downloads).
+
+## Components are Shadow DOM by default
+
+```ts
+import { component, css, html, signal } from "@madojs/mado";
+
+component(
+  "x-counter",
+  () => {
+    const n = signal(0);
+    return () => html`<button @click=${() => n.set(n() + 1)}>${n}</button>`;
+  },
+  {
+    styles: css`
+      :host { display: inline-block; }
+      button { padding: .5rem 1rem; }
+    `,
+  },
+);
+```
+
+- Custom element names MUST include a hyphen.
+- Setup runs once per host; the returned function is the reactive view.
+- `ctx.attr("name", "default")` returns a `Signal<string>` that
+  auto-updates on attribute changes.
+- `ctx.onDispose(fn)` registers cleanup for raw APIs (`setInterval`,
+  `WebSocket`); `resource()` / `effect()` clean themselves up.
+- `{ shadow: false }` exists for components that MUST live in the light
+  DOM (form participation, host-level styling). It is an escape hatch,
+  not the default.
+
+## Resources and mutations
+
+```ts
+const users = resource(
+  () => `/api/users?page=${page()}`,
+  jsonFetcher<User[]>(),
+  { staleTime: 30_000 },
+);
+
+const create = mutation((u) => api.create(u), {
+  invalidates: ["/api/users*"],
+});
+```
+
+The key is cache identity: same key → shared cache and de-duped
+in-flight request. `mutation().run()` is concurrent by default;
+`{ abortPrevious: true }` keeps only the latest in flight.
+`invalidates` runs after a successful mutation and is best-effort.
+
+## Static snapshot constraints
+
+- `paths()` and `initialData()` run during discovery AND ship in the
+  client bundle. Keep them browser-safe; never read secrets.
+- Pages marked `static` cannot use guards (route- or layout-level) —
+  they are public by definition.
+- `*` and other wildcard routes cannot be static.
+- Discovery uses Vite SSR as a control plane only; nothing is rendered
+  in Node. The actual capture happens in headless Chromium.
+
+## Canonical "hello world"
 
 ```ts
 // src/main.ts
 import { html, render } from "@madojs/mado";
-import routesApi from "./app.routes.js";
-render(html`${routesApi.view}`, document.getElementById("app")!);
+import appRoutes from "./app.routes";
+render(html`${appRoutes.view}`, document.getElementById("app")!);
 
 // src/app.routes.ts
 import { routes } from "@madojs/mado";
+import home from "./pages/home.page";
 export const manifest = {
-  "/": () => import("./modules/home/home.page.js"),
-  "*": () => import("./modules/home/not-found.page.js"),
+  "/":  home,
+  "*":  () => import("./pages/not-found.page"),
 };
 export default routes(manifest);
 
-// src/modules/home/home.page.ts
-import { page, component, html, css, signal } from "@madojs/mado";
-
-component("x-counter", () => {
-  const count = signal(0);
-  return () => html`
-    <button @click=${() => count.update(n => n + 1)}>${count}</button>
-  `;
-}, { styles: css`button { padding: .5rem 1rem; }` });
-
+// src/pages/home.page.ts
+import { html, page, routeUrl } from "@madojs/mado";
 export default page({
+  static: true,
   title: "Home",
-  view: () => html`<x-counter></x-counter>`,
+  view: () => html`
+    <main>
+      <h1>Mado App</h1>
+      <a data-link href=${routeUrl("/about")}>About</a>
+    </main>
+  `,
 });
 ```
 
-## Component registration imports
+## Starters
 
-```ts
-// main.ts: global shell/provider components only
-import "./components/app-shell.js";
-
-// pages/tickets.ts: feature/page-owned components
-import "../components/ticket-list.js";
-```
-
-Do not bulk-import every component in `main.ts` "just in case". Import the
-registration near the route/page that owns the tag. This preserves lazy loading
-and makes the code readable to humans and LLMs.
-
-## Canonical CRUD pattern (for backend developers)
-
-```ts
-import { page, html, resource, mutation, each, useForm, navigate } from "@madojs/mado";
-import { api } from "../lib/api.js";
-
-const users = resource(() => "/api/users", () => api.list(), { staleTime: 30_000 });
-const create = mutation((u) => api.create(u), { invalidates: ["/api/users*"] });
-
-export default page({
-  view: () => {
-    const f = useForm({ name: { required: true } });
-    return html`
-      <form @submit=${f.onSubmit(async v => { await create.run(v); navigate("/"); })}>
-        <input name="name" @input=${f.onInput}>
-        <button ?disabled=${() => !f.isValid()}>Create</button>
-      </form>
-      ${() => each(users.data() ?? [], u => u.id, u => html`<li>${u.name}</li>`)}
-    `;
-  },
-});
-```
+- `mado init my-app` — universal starter (default). One Shadow Component
+  shared between a static landing page and a live SPA route. Folders:
+  `src/pages`, `src/components`, `src/content`.
+- `mado init my-app --starter modular` — long-lived reference
+  architecture: auth shell, guarded zones, billing module, HTTP client,
+  module boundaries. Folders: `src/modules/<name>/`, `src/layouts/`,
+  `src/shared/`. A dev-only mock API is mounted from
+  `vite.config.ts`; disable with `MADO_MOCK_API=0`.
 
 ## Documentation
 
-- README: https://github.com/madojs/mado#readme — full description + cookbook
-- docs/en/00-the-mado-way.md — philosophy and applicability boundaries
-- docs/en/01-routing.md — detailed router documentation
-- docs/en/02-project-layout.md — recommended project structure
-- docs/en/03-static-bake.md — SEO without SSR (static build / edge prerender)
-- docs/en/04-ide-setup.md — VS Code / WebStorm configuration
-- docs/en/05-why-mado.md — honest comparison with Lit / Solid / Svelte / htmx / Alpine / React
-- docs/en/06-for-backenders.md — mental model in 10 minutes for Go/Rust/.NET/Java developers
-- docs/en/07-llm-pitfalls.md — common mistakes when generating Mado code
-- docs/en/10-app-architecture.md — canonical app file layout, routes, auth/API and release shape
-- docs/en/11-layouts.md — blessed layout recipe
-- docs/en/12-auth-and-api.md — blessed auth/API client recipe
-- docs/en/13-deployment.md — deployment recipes and cache rules
-- docs/en/14-testing.md — testing strategy and commands
-- docs/en/15-error-handling.md — route/data/action error boundaries
-- docs/en/16-bake-cookbook.md — static bake recipes and failure modes
-- docs/en/17-shadow-dom-forms.md — Shadow DOM + useForm() patterns (proxy properties, form submit bridge)
-- docs/en/18-api-freeze-map.md — stable public API vs internal implementation details
-- docs/en/19-reactivity-ordering.md — signal ordering, batching and teardown guarantees
-- docs/en/20-v1-stability.md — v1 SemVer contract and what remains internal
-- starters/default/ — canonical generated app shape
+Canonical docs (English only): https://github.com/madojs/mado/tree/main/docs/en
+
+Highlights:
+
+- `docs/en/00-the-mado-way.md`     — philosophy and boundaries
+- `docs/en/01-routing.md`          — router and `routeUrl()`
+- `docs/en/03-static-bake.md`      — static snapshots guide
+- `docs/en/09-shadow-vs-light-dom.md` — when to use Shadow DOM
+- `docs/en/10-app-architecture.md` — canonical app layout
+- `docs/en/13-deployment.md`       — deployment recipes (including base)
+- `docs/en/16-bake-cookbook.md`    — static snapshots cookbook
+- `docs/en/18-api-freeze-map.md`   — stable public API vs internal
+
+The repository is English-only. Older `docs/fr`, `docs/uk`, `docs/ru`
+trees were removed at v0.12 and survive only in git history.
 
 ## What Mado does NOT do (intentionally)
 
-- ❌ JSX → tagged templates instead
-- ❌ Virtual DOM → fine-grained signal updates
-- ❌ SSR with hydration → `bake` static meta-shell or edge-prerender for SEO
-- ❌ Hooks and rules of hooks → signals
-- ❌ Runtime framework dependencies → generated apps use Vite as dev/build tooling
-- ❌ React-Router / TanStack → built-in 500-line `routes()`
-- ❌ React-Query / SWR → built-in `resource()`
-- ❌ Formik / RHF → built-in `useForm()` (HTML5 validation)
-- ❌ Redux / Zustand → `signal()` + `createContext`
-- ❌ Decorators → plain functions
-
-## Version
-
-`0.10.0` — pre-1.0 API-lock release. Phase B closed the public surface,
-package exports, docs and CI gates. SemVer is not guaranteed on minor versions
-before 1.0.
+- ❌ JSX                              → tagged template `html\`...\``
+- ❌ Virtual DOM                      → fine-grained signal updates
+- ❌ SSR with hydration               → browser-rendered static snapshots + atomic takeover
+- ❌ React-style hooks                → signals
+- ❌ Framework-specific compiler      → none; the source is plain TS / Web Components
+- ❌ Runtime framework dependencies   → zero (Vite is dev/build tooling)
+- ❌ React-Router / TanStack          → built-in `routes()`
+- ❌ React-Query / SWR                → built-in `resource()` / `mutation()`
+- ❌ Formik / RHF                     → built-in `useForm()`
+- ❌ Redux / Zustand                  → `signal()` + `createContext`
 
 ## License
 

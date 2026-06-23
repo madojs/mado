@@ -48,6 +48,13 @@ jobs:
           node -e "const fs=require('fs');const path=require('path');const roots=['src','scripts','starters','.github','test','README.md','AGENTS.md','llms.txt','CONTRIBUTING.md','TODO.md','package.json'];const re=/[\u0400-\u04ff]/u;let bad=[];function walk(p){if(!fs.existsSync(p))return;const st=fs.statSync(p);if(st.isDirectory()){for(const e of fs.readdirSync(p))walk(path.join(p,e));return;}const s=fs.readFileSync(p,'utf8');if(re.test(s))bad.push(p)}for(const r of roots)walk(r);if(bad.length){console.error(bad.join('\n'));process.exit(1)}"
           ! grep -RInE 'useState|useEffect|(^|[^?.])(disabled|checked)=' starters --include='*.ts' --include='*.html'
 
+      - name: Documentation contract
+        # Lints README, AGENTS.md, llms.txt, CONTRIBUTING.md, TODO.md,
+        # docs/en/** and the starter READMEs for the post-0.12
+        # vocabulary. Migration guides, CHANGELOG and ADRs are
+        # explicitly allow-listed inside scripts/docs-lint.mjs.
+        run: npm run docs:lint
+
       - name: Package smoke
         run: npm run package:smoke
 

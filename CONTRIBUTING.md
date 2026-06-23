@@ -20,10 +20,24 @@ in one evening.
 ## Welcome Contributions
 
 - Bug fixes with a failing regression test.
-- Documentation fixes, translations and recipes.
+- Documentation fixes and recipes (English only — see below).
 - Examples with a README and a smoke test.
 - Small improvements to existing modules, after discussion when the behavior or
   API surface changes.
+
+## Documentation
+
+Canonical project documentation is maintained in English under
+`docs/en/`. Older translations (`docs/fr`, `docs/uk`, `docs/ru`) were
+removed at v0.12 and live only in git history and the `v0.11.1` tag.
+
+Pull requests are expected to update `docs/en/` alongside any
+behaviour change. The `npm run docs:lint` gate refuses to ship docs
+that still use the pre-0.12 vocabulary; if you intentionally need to
+mention a removed term (e.g. in a migration note), wrap the block in
+`<!-- docs-lint:allow-legacy-mention -->` / `<!-- /docs-lint:allow-legacy-mention -->`.
+
+We do not accept new translation trees at this time.
 
 ## Not Accepted
 

@@ -261,21 +261,20 @@ This is like `context.WithValue` / `ctx.Value` in Go, but reactive.
 
 ---
 
-## SEO — not SSR, but `bake` (like `templ generate` in Go)
+## SEO — not SSR, but static snapshots (like `templ generate` in Go)
 
-If you're used to server-side rendering for SEO, in Mado this is solved differently: **prerender at build time**.
+If you're used to server-side rendering for SEO, in Mado this is solved differently: **browser-rendered prerender at build time**.
 
 ```ts
 // src/modules/<module>/pages/product.ts
 export default page({
-  bake: {
-    paths: () => api.allProductSlugs(), // build-time fetch
-    data: ({ slug }) => api.getProduct(slug),
-    revalidate: 3600,
+  static: {
+    paths: () => api.allProductSlugs(),       // build-time fetch
+    initialData: ({ slug }) => api.getProduct(slug),
   },
-  head: ({ slug }, data) => ({
+  head: (_, data) => ({
     description: data.description,
-    canonical: `/product/${slug}`,
+    canonical: `/product/${data.slug}`,
     og: { title: data.name, image: data.image },
   }),
   view: ({ params }) => html`<x-product data-slug=${params.slug} />`,
@@ -283,7 +282,7 @@ export default page({
 ```
 
 ```bash
-npm run bake   # → out/product/iphone-15/index.html (+ sitemap)
+npm run release   # → out/product/iphone-15/index.html (+ sitemap)
 ```
 
 The crawler sees ready-made HTML with meta tags. The user sees the same thing + interactivity after JS loads.

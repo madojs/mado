@@ -1,249 +1,181 @@
-# Smart Static (`bake`)
+# Static snapshots (`mado static`)
 
-> Baking HTML for SEO without runtime SSR. **Idea: data and view in one file, static output.**
+> Browser-rendered static HTML for SEO and first paint. No SSR, no
+> hydration, no template-language bake.
 
-`bake` is a **build-time prerender**, not SSR. The output is static `*.html` files that any nginx/Cloudflare serves as regular static content. On the client, Web Components come alive and SPA navigation continues to work.
+`mado static` is a *snapshot capture*: at release time Mado runs your
+app in a real headless Chromium, lets the page render to the DOM
+(including any Shadow DOM), then serialises the result — Declarative
+Shadow DOM and all — to one HTML file per route. On first paint the
+live SPA atomically replaces the static tree; there is no hydration
+protocol and no node reconciliation.
 
----
+It is the right tool for content that is the same for every visitor:
+public landing pages, product / catalogue pages, documentation, blog
+posts. It is intentionally **not** an SSR runtime for personalised
+data.
 
-## When `bake` is suitable
+## When `static` is suitable
 
-- **Marketing pages**: landing pages, sub-landings for advertising campaigns, product pages.
-- **Catalog with a relatively stable set of pages**: blog, documentation, portfolio, e-commerce up to **~10k SKUs** with updates less than once an hour.
-- **Content that is the same for all users**: the entire page is identical for a guest and an authenticated user (or authentication is rendered on the client via `effect()`).
-- You need **good SEO** (rich snippets, OG, JSON-LD) and **fast first paint** without running node servers in production.
+- Public pages with a single canonical representation per URL.
+- Pages whose data is known at build time (CMS dump, file system,
+  Markdown, JSON, build-time API call).
+- Pages that need to appear fully rendered in `view-source:`, in
+  social preview crawlers, and to JS-disabled clients.
+- First paint of a page that *later* upgrades into a live SPA route.
 
-## When `bake` is **not** suitable
+## When `static` is **not** suitable
 
-- **Hundreds of thousands of pages with frequent changes**. `bake` traverses all `paths` synchronously in one run. For 100k+ pages this means minutes of rebuild, and invalidating one page either requires a full rebake or separate CI logic (see below on targeted revalidation).
-- **Personalized content in HTML**. If the page should show "Hello, Ivan" in the `<title>` or in meta — that's not for `bake`. Authenticated dashboards, personal feeds, a cart with real prices for the user — keep these as SPA.
-- **Server-only APIs are needed in render**: cookies, headers, real network requests to private APIs. On the bake side only `linkedom` is available, no Node environment for components.
-- **A/B tests and flags that change markup on the first paint**. `bake` will lock in one variant. Handle dynamic behavior on the client via `effect()`.
-- **Real-time / frequently changing data** (stock quotes, warehouse stock by the minute). `bake.revalidate` is metadata, not runtime: the framework does not re-bake anything itself.
-- **Content behind authentication** (admin, internal tools). No need; use SPA mode.
+- Personalised content per visitor (auth, geo, A/B). The capture sees
+  one DOM and would ship it to everyone.
+- Real-time data (chat, dashboards, prices). The snapshot is frozen
+  the moment of capture.
+- Routes behind guards. Static pages are public by definition; the
+  discovery pipeline refuses to capture guarded routes.
 
----
+For those cases keep the route SPA-only — Mado still serves a clean
+`_mado/spa.html` fallback for them.
 
-## Concept
+## Declaring a static page
 
-`page({...})` has four optional slots related to `bake`:
-
-- `head` — meta, OG, JSON-LD.
-- `bake.paths` — list of URL parameters for generation (build-time, can be `async`).
-- `bake.data` — data for a specific URL (build-time, can be `async`).
-- `bake.revalidate` — after how many seconds the cache is stale (written to `<meta>`, real invalidation is handled by your CI/CDN).
-
-The `npm run bake` command traverses all `page` entries with `bake`, generates HTML via `linkedom`, and places it in `out/<path>/index.html`. **No Chromium needed** — `linkedom` is ~50 KB.
-
----
-
-## Example
+A page opts in through the `static` field on `page({ ... })`. Two
+shapes are accepted:
 
 ```ts
-// src/modules/<module>/pages/product.ts
-import { page, component, html } from "@madojs/mado";
-import { findProduct, products, type Product } from "../lib/products.js";
+// Single static page (no params)
+import { html, page } from "@madojs/mado";
 
-component("x-product-page", ({ host }) => {
-  return () => {
-    const p = findProduct(host.dataset.slug);
-    return p
-      ? html`<h1>${p.name}</h1><p>${p.description}</p>`
-      : html`<p>Not found.</p>`;
-  };
-});
-
-export default page<{ slug: string }, Product | undefined>({
-  title: ({ slug }) => `${findProduct(slug)?.name} — MyShop`,
-
-  head: ({ slug }, baked) => {
-    const p = baked ?? findProduct(slug);
-    if (!p) return {};
-    return {
-      description: p.description,
-      canonical: `/product/${p.slug}`,
-      og: { title: p.name, image: p.image, type: "product" },
-      jsonLd: {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        name: p.name,
-        offers: { "@type": "Offer", price: p.price, priceCurrency: p.currency },
-      },
-    };
-  },
-
-  bake: {
-    paths: () => products.map((p) => ({ slug: p.slug })),
-    data: ({ slug }) => findProduct(slug),
-    revalidate: 3600,
-  },
-
-  view: ({ params }) =>
-    html`<x-product-page data-slug=${params.slug}></x-product-page>`,
+export default page({
+  static: true,
+  title: "Pricing",
+  head: () => ({ description: "Plans and pricing." }),
+  view: () => html`<main><h1>Pricing</h1></main>`,
 });
 ```
 
 ```ts
-// src/app.routes.ts
-import { routes, type RoutesMap } from "@madojs/mado";
+// Dynamic static route — one capture per `paths()` entry
+import { html, page } from "@madojs/mado";
 
-// Export BOTH default (RouterApi for runtime) AND manifest (for the bake script).
-export const manifest: RoutesMap = {
-  "/": () => import("./pages/home.js"),
-  "/product/:slug": () => import("./pages/product.js"),
-  "*": () => import("./pages/not-found.js"),
-};
-
-export default routes(manifest, { titleSuffix: " · MyShop" });
+export default page<{ slug: string }, Guide>({
+  static: {
+    paths: async () => guides.map((g) => ({ slug: g.slug })),
+    initialData: async ({ slug }) => loadGuide(slug),
+  },
+  title: ({ slug }) => guides.find((g) => g.slug === slug)?.title ?? slug,
+  head: ({ slug }, seed) => ({
+    description: seed?.summary ?? "",
+  }),
+  view: (ctx) => html`<article>${ctx.data.body}</article>`,
+});
 ```
+
+The seed produced by `initialData()` is JSON-serialised into the
+captured HTML as `<script type="application/json" data-mado-static-data="…">`.
+On first client boot Mado consumes it once so `page.load()` and
+`page.head()` see the same data the snapshot saw — no extra fetch.
 
 ## Running
 
+In normal use `mado static` is invoked through `mado release`:
+
 ```bash
-npm install -D linkedom vite
-npm run bake
+mado release          # vite build + mado static + deployment files
+mado preview          # serve out/ like a real static host
 ```
 
-You get:
+You can also invoke `mado static` on its own (for tighter loops in
+CI), but it operates on the existing `out/` artefact produced by
+`vite build`, so the canonical command is `release`.
 
-```
-out/
-├── product/
-│   ├── mado-mug/index.html        ← HTML with meta + JSON-LD
-│   ├── raw-bundler/index.html
-│   └── shadow-dom/index.html
-└── sitemap.xml
-```
-
-## What's Inside the Generated HTML
-
-```html
-<head>
-  <title>Mado Mug — MyShop</title>
-  <meta name="description" content="..." data-mado-head="baked">
-  <link rel="canonical" href="/product/mado-mug" data-mado-head="baked">
-  <meta property="og:title" content="Mado Mug" data-mado-head="baked">
-  <meta property="og:image" content="..." data-mado-head="baked">
-  <script type="application/ld+json" data-mado-head="baked">
-    {"@context":"https://schema.org","@type":"Product","..."}
-  </script>
-  <meta name="bake-revalidate" content="3600" data-mado-head="baked">
-</head>
-<body>
-  <div id="app">
-    <x-product-page data-slug="mado-mug">
-      <h1>Mado Mug</h1>
-      <p>A mug with the inscription "zero dependencies".</p>
-      <strong>12 EUR</strong>
-    </x-product-page>
-  </div>
-
-  <!-- preloaded data for hydration -->
-  <script id="bake" type="application/json">
-    {"slug":"mado-mug","name":"Mado Mug","price":12,"..."}
-  </script>
-
-  <script type="module" src="/assets/index-HASH.js"></script>
-</body>
-```
-
-After JS loads:
-
-1. Web Components `<x-product-page>` come alive (the browser already knows the custom elements).
-2. `page.load()` receives `baked` as initialData — no unnecessary `fetch` calls.
-3. SPA navigation continues to work as normal.
-
----
-
-## Cookbook: Typical Scenarios
-
-### Blog (Markdown → bake)
+A public origin is required so static documents carry absolute
+canonical URLs. Set it in `vite.config.ts`:
 
 ```ts
-// src/lib/posts.ts
-import { readdirSync, readFileSync } from "node:fs";
-// (this module is imported only from the bake script,
-// it must not end up in the browser graph — put it in lib/server/ or ifdef it out)
+import { defineConfig } from "vite";
+import { mado } from "@madojs/mado/vite";
 
-export const allPosts = () =>
-  readdirSync("content/blog").map((file) => ({
-    slug: file.replace(/\.md$/, ""),
-    ...parseFrontmatter(readFileSync(`content/blog/${file}`, "utf-8")),
-  }));
-```
-
-```ts
-// src/modules/<module>/pages/blog-post.ts
-import { page, html } from "@madojs/mado";
-import { allPosts } from "../lib/posts.js";
-
-export default page<{ slug: string }>({
-  title: ({ slug }) => allPosts().find((p) => p.slug === slug)?.title ?? slug,
-  head: ({ slug }, post) => ({
-    description: post?.excerpt,
-    canonical: `/blog/${slug}`,
-    og: { title: post?.title, type: "article" },
-  }),
-  bake: {
-    paths: () => allPosts().map(({ slug }) => ({ slug })),
-    data: ({ slug }) => allPosts().find((p) => p.slug === slug),
-  },
-  view: ({ params }) =>
-    html`<x-blog-post data-slug=${params.slug}></x-blog-post>`,
+export default defineConfig({
+  plugins: [mado({ site: "https://your-app.example" })],
 });
 ```
 
-### Product Catalog (e-commerce, ≤ 10k SKUs)
+…or override per run:
 
-- `bake.paths` → SELECT slug FROM products
-- `bake.data` → SELECT * FROM products WHERE slug=?
-- Full invalidation every N hours via cron + `npm run bake`
-- Targeted invalidation of a single product: webhook → rebuild only that `paths` entry
+```bash
+mado release --base-url https://staging.example
+MADO_SITE=https://staging.example mado release
+```
 
-### Documentation
+## What the generated HTML contains
 
-- `bake.paths` — traversal of the file system `docs/**/*.md`
-- `bake.data` — Markdown parsing
-- `head.jsonLd` — `TechArticle`
+For every captured route:
 
----
+- The full rendered light DOM.
+- Every open shadow root serialised through Declarative Shadow DOM
+  (`<template shadowrootmode="open">`).
+- Adopted stylesheets materialised into `<style>` tags inside the
+  shadow root.
+- A `<link rel="canonical">` and `<meta property="og:url">` derived
+  from `site + base + pathname` (if the page did not declare its own).
+  Both are marked `data-mado-head="static"` so the runtime `applyHead`
+  removes them on SPA navigation into a page without explicit head
+  metadata.
+- The seed `<script type="application/json" data-mado-static-data="…">`
+  for routes that declared `initialData()`.
+- Vite assets resolved through the active `base`.
 
-## Revalidate / CDN
+`<form>`, `<input>`, `<select>`, `<textarea>` and `<details>` state
+is serialised through attributes so a JS-disabled browser sees the
+same shape the snapshot captured.
 
-`bake.revalidate: 3600` writes `<meta name="bake-revalidate" content="3600">` to the HTML. This is **metadata** — the framework does not re-bake anything itself. Strategies:
+## Constraints and gotchas
 
-1. **Simplest option**: cron in CI — `npm run bake && rsync out/ origin:/var/www/`.
-2. **Via CDN** (Cloudflare/Fastly): serve HTML with `Cache-Control: max-age=3600`. CDN invalidates itself.
-3. **Webhook trigger**: shop API → POST `/_revalidate?path=/product/mado-mug` → CI re-bakes only that page (you can implement `bake.paths` to return a targeted list based on an env parameter).
+- **`paths()` and `initialData()` run during discovery AND ship in the
+  client bundle.** Keep them browser-safe. Never read secrets, never
+  call private services.
+- **Static pages cannot use guards** — route-level or layout-level.
+- **Wildcard routes (`*`) cannot be static.** They are the SPA
+  fallback.
+- **A compatible Chromium is required.** CI should install it through
+  Playwright:
+  ```bash
+  npx playwright install --with-deps chromium
+  ```
+  …or via the framework's installed `playwright-core` for revision
+  parity:
+  ```bash
+  node node_modules/playwright-core/cli.js install --with-deps chromium
+  ```
+- **Capture is strict by default.** Any failed fetch (script, style,
+  resource(), custom element definition) fails the snapshot. A small
+  allow-list covers `/favicon.ico`, `/favicon.svg`, `/robots.txt`
+  and `data:` URLs.
+- **All network calls happen against an internal capture server** that
+  serves the freshly built `out/` tree. There is no real network at
+  capture time.
 
----
+## Comparison
 
-## Comparison with Alternatives
+| Approach                              | Mado static snapshot |
+| ------------------------------------- | -------------------- |
+| Next-style SSR + hydration            | not used             |
+| Astro-style island runtime            | not used             |
+| Build-time HTML from templates only   | not used             |
+| Browser-rendered DOM + DSD + takeover | **used**             |
 
-|                          | Next.js SSG/ISR    | playwright-prerender | **mado static** |
-|--------------------------|--------------------|----------------------|-----------------|
-| Chrome required in CI    | no                 | **yes** (~300 MB)    | **no**          |
-| Node required in production | for ISR         | no                   | **no**          |
-| Time for 1000 pages      | minutes            | minutes              | **seconds**     |
-| Magic level              | high               | low                  | **zero**        |
-| HTML parser              | React renderer     | browser              | linkedom (~50 KB) |
-| Configuration            | next.config.js + … | single script        | single script   |
-| Source of truth view+data | separate          | page                 | **one page**    |
+The result is a plain HTML file. Search engines, social preview
+crawlers and `curl` see exactly what your app renders on first paint;
+no JavaScript step is required to make the document meaningful.
 
----
+## Cookbook
 
-## Limitations and Gotchas
-
-- **There is no browser on the bake side.** The following do not work: `setTimeout` (technically it works, but bake finishes before it fires), `fetch` to relative URLs, any `effect()`/`signal()` side effects, real `requestAnimationFrame`. The render function must be deterministic based on `params` / `data`.
-- **`linkedom` ≠ browser.** Not all DOM APIs are supported (for example, `HTMLElement.click()` behaves more simply). Heavy logic in Web Components will only execute in the browser after `connectedCallback`; only what rendered synchronously on the first pass will end up in the baked HTML.
-- **Render dynamic content on the client.** Current time, A/B tests, geo-banners, the user's cart — these must not be in the baked HTML. Use `effect()` for client-side rendering.
-- **Server-side imports must not end up in the client graph.** If `lib/posts.ts` imports `node:fs`, it cannot be imported from `view`. Keep such modules in a separate folder (`lib/build/`) and use them only from `bake.paths`/`bake.data`.
-- **`paths` and `data` are executed on every bake run.** If they involve a heavy database query — cache at the script level.
-
----
+Concrete recipes for blog, product catalogue, documentation site and
+multi-locale builds live in [16-bake-cookbook.md](./16-bake-cookbook.md).
 
 ## TL;DR
 
-If a page is **the same for all users**, has **a relatively stable set of URLs**, and **SEO + first paint** matter — add `bake: { paths, data }` and get static HTML with meta/JSON-LD/sitemap in milliseconds. No node server, no Chrome, no magic.
-
-If the page is personalized, or there are millions of URLs, or content changes in real time — `bake` is not your tool. Keep it as SPA or bring in a separate SSR framework.
+- Declare `static: true | { paths, initialData }` on `page({ ... })`.
+- Run `mado release`.
+- Ship `out/` to any static host.
+- The live SPA takes over atomically on first paint.

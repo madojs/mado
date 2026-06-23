@@ -79,6 +79,32 @@ test("applyHead({}) removes previous runtime and static head tags", () => {
   );
 });
 
+test("applyHead({}) removes static-fallback canonical and og:url markers", () => {
+  // The static snapshot pipeline marks the fallback `<link rel=canonical>`
+  // and `<meta property=og:url>` it injects with `data-mado-head="static"`
+  // so that the first SPA navigation into a page without an explicit
+  // head() removes them. Without that marker the previous canonical /
+  // og:url would leak into pages that never declared one.
+  installDom("/");
+  document.head.innerHTML = `
+    <link rel="canonical" href="https://example.test/products/foo" data-mado-head="static">
+    <meta property="og:url" content="https://example.test/products/foo" data-mado-head="static">
+  `;
+
+  applyHead({});
+
+  assert.equal(
+    document.head.querySelector('link[rel="canonical"]'),
+    null,
+    "static canonical fallback must be cleared on SPA navigation to a page without its own canonical",
+  );
+  assert.equal(
+    document.head.querySelector('meta[property="og:url"]'),
+    null,
+    "static og:url fallback must be cleared on SPA navigation to a page without its own og:url",
+  );
+});
+
 test("routes(): navigating to a page without head clears previous head tags", async () => {
   installDom("/");
 

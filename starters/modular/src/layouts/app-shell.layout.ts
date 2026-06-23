@@ -9,24 +9,27 @@
 //
 // Layouts live in src/layouts/ because they describe APP ZONES, not domains.
 
-import { html, page } from "@madojs/mado";
+import { html, page, routeUrl } from "@madojs/mado";
 
 import { isAuthed, logout, user } from "../modules/auth/auth.public";
 import "../shared/ui/x-button.component";
 
 export default page({
   title: "Mado App",
+  // Every internal anchor uses `data-link` + `routeUrl()` so SPA
+  // navigation intercepts the click and the href stays correct under
+  // any Vite `base` (e.g. deploying the app under `/admin/`).
   view: ({ child }) => html`
     <div class="layout layout--app">
       <header class="app-header">
-        <a href="/" class="brand">Mado App</a>
+        <a data-link href=${routeUrl("/")} class="brand">Mado App</a>
         <nav>
-          <a href="/billing/invoices">Invoices</a>
+          <a data-link href=${routeUrl("/billing/invoices")}>Invoices</a>
           ${() =>
             isAuthed()
               ? html`<span class="who">${() => user()?.email ?? ""}</span>
                   <x-button variant="ghost" @click=${logout}>Sign out</x-button>`
-              : html`<a href="/login">Sign in</a>`}
+              : html`<a data-link href=${routeUrl("/login")}>Sign in</a>`}
         </nav>
       </header>
       <main class="app-main">${child}</main>

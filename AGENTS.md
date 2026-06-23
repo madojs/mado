@@ -3,14 +3,19 @@
 > This file is read by AI agents in IDEs (Cursor, Cline, Copilot, Continue, etc.).
 > Goal: prevent them from generating React-like code where Mado should be used.
 >
-> / `TODO.md` unless the user explicitly resumes that tracker.
+> Skip `TODO.md` unless the user explicitly resumes that tracker.
 
 ## Project at a glance
 
-- **Mado** — a calm browser-native SPA framework for internal tools, admin panels and business apps.
+- **Mado** — a calm native-first web framework for both static sites
+  and live SPAs. One Web Component model, one page model, one release
+  command.
 - Built on Web Components + signals + tagged-template `html`.
-- Zero runtime dependencies. Generated apps use dev tooling (`typescript`,
-`vite`, `linkedom`) for dev/build/bake/release.
+- **Vite is the canonical transport** for development, build and the
+  static snapshot pipeline. Generated apps depend on `typescript`,
+  `vite` and `playwright-core` (the last only for `mado release`,
+  which captures real Chromium-rendered HTML).
+- Zero runtime dependencies (Vite is dev/build tooling, not bundled).
 - Small TypeScript core in `src/`; production size budgets are enforced in CI.
 
 ## HARD RULES — violation = bug
@@ -384,16 +389,54 @@ Rules:
 - Tiny leaf components used everywhere → importing in `main.ts` is acceptable.
 - Do **not** bulk-import every component "just in case".
 
-### 14. Bake — meta shell, not SSR/SSG runtime
+### 14. Static snapshots — browser-rendered, not SSR/SSG
 
-`mado static` is a static meta-shell/prerender pass for SEO and first paint. It is
-not SSR with hydration and not a Next-style SSG runtime.
+`mado static` (normally invoked through `mado release`) captures real
+HTML by navigating each page in a headless Chromium and serialising
+the resulting DOM, including the Shadow DOM through Declarative Shadow
+DOM (DSD). On first paint the live SPA **atomically replaces** the
+static tree — there is no hydration protocol, no node reconciliation
+and no per-attribute diffing.
 
-- Baked HTML must be deterministic from `params`, `bake.data`, and plain values.
-- Do not rely on browser-only effects, timers, relative `fetch`, or keyed
-  runtime directives such as `each()` during bake.
-- Use `page({ head, bake })` for meta/JSON-LD/sitemap data; render dynamic,
-  personalized, real-time, or auth-dependent content in the client SPA.
+A page opts in by declaring `static` on `page({ ... })`:
+
+```ts
+// Static landing page
+export default page({
+  static: true,
+  title: "Home",
+  head: () => ({ description: "Public landing" }),
+  view: () => html`<main><h1>Hello</h1></main>`,
+});
+
+// Dynamic static route
+export default page({
+  static: {
+    paths: async () => [{ slug: "alpha" }, { slug: "beta" }],
+    initialData: async ({ slug }) => loadGuide(slug),
+  },
+  title: ({ slug }) => `Guide: ${slug}`,
+  view: (ctx) => html`<article>${ctx.data}</article>`,
+});
+```
+
+Important constraints:
+
+- Static pages cannot use guards (route- or layout-level) — they are
+  public by definition.
+- `paths()` and `initialData()` run at discovery AND ship in the
+  client bundle. Keep them browser-safe; never read secrets.
+- Wildcard routes (`*`) cannot be static.
+- The `static` discovery uses Vite SSR as a control plane only;
+  nothing is rendered in Node. The actual capture happens in
+  headless Chromium.
+
+<!-- docs-lint:allow-legacy-mention -->
+There is no `bake`, no `bake.paths`, no `bake.data`, no
+`bake.revalidate`, no `npm run bake`, no `linkedom` renderer, no
+"meta-shell". Those names refer to a removed system; do not generate
+them. If you see them in older docs, treat them as obsolete.
+<!-- /docs-lint:allow-legacy-mention -->
 
 ## SOFT GUIDELINES — recommended, but not critical
 
@@ -409,14 +452,47 @@ not SSR with hydration and not a Next-style SSG runtime.
 
 ## Project structure
 
+Two official starters target the same Mado runtime:
+
 ```
+# universal starter (default — `mado init my-app`)
 src/
-├── main.ts           ← entry: mount to #app
-├── app.routes.ts     ← app map, exports `manifest` + default routes(...)
-├── layouts/          ← app-zone layout modules (`page({ child })`)
-├── shared/           ← ui, http, lib, styles
-└── modules/          ← bounded contexts with pages/data/api/services
+├── main.ts
+├── app.routes.ts
+├── pages/         ← one *.page.ts per route, light DOM
+├── components/    ← reusable Web Components (Shadow DOM)
+├── content/       ← static content (guides, etc.)
+└── styles/
+
+# modular starter (`mado init my-app --starter modular`)
+src/
+├── main.ts
+├── app.routes.ts
+├── layouts/       ← stateless app-zone shells (`page({ child })`)
+├── shared/        ← ui, http, lib, styles
+└── modules/       ← bounded contexts with pages/data/api/services
 ```
+
+The modular starter ships a dev-only mock API in `vite.config.ts`
+(`/api/auth/*`, `/api/billing/*`). Disable with `MADO_MOCK_API=0`
+or remove the `devApiMock()` plugin before pointing at a real backend.
+
+## Internal links — always `routeUrl()`
+
+Vite's `base` flows automatically into `appBase` and `routeUrl()`. App
+code MUST use `routeUrl()` for every internal anchor so the URL stays
+correct under `/`, `/mado/` or any sub-path deployment, and MUST opt
+in with `data-link` for SPA navigation:
+
+```ts
+import { routeUrl } from "@madojs/mado";
+
+html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
+html`<a data-link href=${routeUrl("/")}>Home</a>`;        // → "/mado/" under base
+```
+
+`navigate("/users/42")` for programmatic navigation. Both accept route
+paths (no base) and apply the active base internally.
 
 ## App architecture for LLM
 
@@ -447,7 +523,7 @@ When generating an app, prefer the blessed production shape from
 | How do forms work?               | `src/forms.ts` (212 lines)       |
 | How should an app be structured? | `docs/en/10-app-architecture.md` |
 | How should errors be handled?    | `docs/en/15-error-handling.md`   |
-| How should bake be used?         | `docs/en/16-bake-cookbook.md`    |
+| How should static snapshots be used? | `docs/en/03-static-bake.md` / `docs/en/16-bake-cookbook.md` |
 | What API is stable?              | `docs/en/18-api-freeze-map.md`   |
 | What ordering is guaranteed?     | `docs/en/19-reactivity-ordering.md` |
 | What does v1 stability mean?     | `docs/en/20-v1-stability.md`     |

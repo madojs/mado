@@ -53,10 +53,12 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "TODO.md",
     "AGENTS.md",
     "llms.txt",
-    "docs/**/*.md"
+    "docs/README.md",
+    "docs/en/**/*.md",
+    "docs/architecture/**/*.md",
+    "docs/recipes/**/*"
   ],
   "scripts": {
     "build": "node scripts/cli.mjs build",

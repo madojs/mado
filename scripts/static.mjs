@@ -38,10 +38,12 @@ try {
   const base = pickBase({ flags, buildMeta });
   validateSite(site, "site");
 
-  const { shellHtml, tempRoot, routesDir, stagedSpaPath } =
-    await prepareStaticOutput(outDir);
-  tempRootForCleanup = tempRoot;
-
+  // Ordering matters: discover and validate the manifest BEFORE we
+  // touch the deployed artefact. A manifest that throws (missing
+  // params, duplicate URL, ...) used to leave a half-prepared
+  // staging directory behind because we provisioned the temp tree
+  // before discovery; now the temp tree is created only after we know
+  // the inputs are sound.
   const { records } = await discoverStaticRoutes({
     projectRoot,
     entry: typeof flags.entry === "string" ? flags.entry : undefined,
@@ -58,6 +60,10 @@ try {
         "  mado({ site: \"https://your.site\" }) in vite.config.ts",
     );
   }
+
+  const { shellHtml, tempRoot, routesDir, stagedSpaPath } =
+    await prepareStaticOutput(outDir);
+  tempRootForCleanup = tempRoot;
 
   const publicOrigin = site ?? "";
   const baseUrl = publicOrigin
@@ -117,8 +123,13 @@ try {
   await dropBuildBridge(outDir);
   console.log(`[static] done`);
 } catch (err) {
+  // Defer the actual termination: `process.exit()` is synchronous and
+  // would race the awaited cleanup in the `finally` block, leaving the
+  // OS to garbage-collect a half-promoted staging directory. Setting
+  // `exitCode` lets Node finish the microtask queue (including the
+  // cleanup below) and then exit with the failure status.
   writeSync(2, `${err?.stack ?? err}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   if (tempRootForCleanup) {
     try {

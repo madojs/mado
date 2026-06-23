@@ -106,7 +106,7 @@ belongs in `*.service.ts`.
 
 ### One way to declare routes
 
-See [`01-routing.md`](./01-routing.md).
+See [`12-routing.md`](./12-routing.md).
 
 ## What we do NOT do
 

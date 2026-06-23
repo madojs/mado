@@ -1,6 +1,6 @@
 {
   "name": "@madojs/mado",
-  "version": "0.12.0-rc.1",
+  "version": "0.12.0",
   "description": "A calm native-first web framework for sites and apps. Web Components, signals, routing, data, forms and browser-rendered static snapshots. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",

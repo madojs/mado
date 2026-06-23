@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+### 0.12.0 stable polish
+
+Two rounds of post-rc polish before the 0.12.0 cut:
+
+#### Pre-merge fixes (carried over from the rc.1 review)
+
+- **Router base/prefetch.** `routeUrl()` on `"/"` and hover-prefetch
+  on Vite `base` deployments now resolve correctly under any sub-path
+  (`/`, `/mado/`, `/admin/`).
+- **`mado static` cleanup.** No more race between `process.exit` and
+  capture; canonical `<link>` is stripped on SPA navigation into pages
+  that don't declare their own head metadata.
+- **Discovery.** `mado static` no longer bypasses `fatal()` when
+  Vite SSR import fails; failures abort the snapshot.
+- **Modular starter.** All internal anchors flow through
+  `routeUrl()` + `data-link`; generators are context-aware and
+  refuse to overwrite existing files.
+- **`package:smoke`.** Now exercises both the default and modular
+  starters end to end.
+- **Release publishing.** `next` versions stay on the `next`
+  dist-tag; `latest` is reserved for stable cuts. The release and
+  weekly workflows install a pinned Playwright Chromium so static
+  snapshots never silently skip on CI.
+- **`mado preview`.** Prints the active base URL so users browsing
+  under a sub-path see the right entrypoint.
+- **`TODO.md` / `CONTRIBUTING.md` / `package.json#files`** trimmed
+  to match the post-rc reality.
+
+#### Documentation reorganisation
+
+`docs/en/` was rewritten so users (and LLMs) get one happy path:
+**"don't think `shadow: true` vs `shadow: false`; pick `page()` for
+URLs and `component()` for reusable widgets."**
+
+- **New flagship doc** `docs/en/10-pages-and-components.md` —
+  "the one rule": `page()` for routes, `component()` for reusable
+  `<x-tag>`s. Anti-patterns + decision table + `{ shadow: false }`
+  escape hatch.
+- **New numbering** groups docs into Start here / Concepts /
+  Production / Reference / Meta. Migration map for stale links is in
+  `docs/en/README.md`.
+- **Consolidated pages** —
+  `11-templates-and-signals.md` (NEW), `12-routing.md` (merges old
+  routing + layouts), `13-data.md` (merges old data + auth/api),
+  `14-forms.md` (merges old forms + Shadow-DOM forms),
+  `15-static-snapshots.md`, `16-app-architecture.md` (merges old
+  project-layout), `01-quickstart.md` (merges old IDE-setup),
+  `40-llm-guide.md` (merges old pitfalls + zero-history test).
+- **Deleted** `docs/fr`, `docs/uk`, `docs/ru` — English-only since
+  v0.12. Several legacy `docs/en/*` files were removed; their
+  content lives in the consolidated pages.
+- **Truth pass on retained prose.** Killed obsolete claims:
+  no more "tsc-only", "no bundler", "SSE reload", "tsc → browser",
+  "edge prerender", "import maps". Vite is consistently named as
+  the canonical transport.
+- **`scripts/docs-lint.mjs`** now also blocks the obsolete vocabulary
+  above and any links to renamed `docs/en/*` filenames in active
+  docs; the migration table in `docs/en/README.md` is wrapped in a
+  `docs-lint:allow-legacy-mention` block.
+
 ## 0.12.0-rc.1 - 2026-06-22
 
 The unified pre-merge release. Mado is no longer "a calm browser-native

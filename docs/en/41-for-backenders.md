@@ -287,7 +287,7 @@ npm run release   # → out/product/iphone-15/index.html (+ sitemap)
 
 The crawler sees ready-made HTML with meta tags. The user sees the same thing + interactivity after JS loads.
 
-More details: [`03-static-bake.md`](./03-static-bake.md).
+More details: [`15-static-snapshots.md`](./15-static-snapshots.md).
 
 ---
 
@@ -402,7 +402,8 @@ Module connectors build on this transport and map DTOs to domain types.
 
 - **Hooks and hook rules.** Not in Mado. Signals are ordinary functions.
 - **VDOM and reconciliation.** None. Signals update the DOM directly, surgically.
-- **Webpack/Vite configs.** No build. `tsc → browser`.
+- **Webpack/Babel configs.** Vite is the transport; the starter ships one
+  three-line `vite.config.ts` with `mado()`.
 - **`useEffect` dependency arrays.** `effect()` sees what you read on its own.
 - **State management libraries** (Redux/Zustand). Signals + context.
 - **CSS-in-JS transformations.** Shadow DOM + `css\`\`` + cssVars.
@@ -417,7 +418,7 @@ These are new concepts. Not scary, but they are additions to your React/Vue base
 1. **Custom Elements / Shadow DOM.** `<x-foo>` is not a div, it is a full-fledged element with its own DOM. Slots, scoped CSS. One evening of MDN reading.
 2. **`attribute` vs `property`.** Attribute is a string in HTML (`data-id="5"`), property is a JS property (`el.id = 5`). `?attr=${flag}` and `.prop=${value}` in templates refer to different things. Main rule: **numbers/objects/arrays — via `.prop`, flags — via `?attr`, strings — via `attr`**.
 3. **Signals.** If it's your first time — you'll get stuck for 10 minutes, then it's easier than hooks.
-4. **`html\`\``-templates.** It's just a JS function with highlighting via [lit-plugin](./04-ide-setup.md). Not magic.
+4. **`html\`\``-templates.** It's just a JS function with highlighting via [lit-plugin](./01-quickstart.md#4-ide-setup). Not magic.
 
 Everything else — standard browser + TypeScript.
 
@@ -425,7 +426,6 @@ Everything else — standard browser + TypeScript.
 
 ## What's missing (honestly)
 
-- No hot reload, only full reload via SSE. Sufficient for most cases, but not like Vite.
 - No browser extension dev-tools. Use `localStorage.madoDebug = '1'` + console.
 - No StackBlitz starters (yet).
 - No AI assistant that knows Mado as well as React. When in doubt — read `src/`, it's not scary.
@@ -434,9 +434,9 @@ Everything else — standard browser + TypeScript.
 
 ## Further reading
 
-- **[`01-routing.md`](./01-routing.md)** — the router in detail.
-- **[`02-project-layout.md`](./02-project-layout.md)** — project structure.
-- **[`03-static-bake.md`](./03-static-bake.md)** — SEO without SSR.
+- **[`12-routing.md`](./12-routing.md)** — the router in detail.
+- **[`16-app-architecture.md`](./16-app-architecture.md)** — project structure.
+- **[`15-static-snapshots.md`](./15-static-snapshots.md)** — SEO without SSR.
 - **External `madojs-examples` workspace** — full demos (landing + admin).
 
 If something is unclear — open an issue, or just open the source. It really is readable in an evening.

@@ -90,8 +90,9 @@ Build command:    npm ci && npx mado release
 Output directory: out
 ```
 
-For catalogs too big to bake at build time, keep edge prerender experiments in
-the external examples workspace rather than in the core package.
+For catalogs too big to snapshot at release time, keep on-demand snapshot
+experiments in the external examples workspace rather than in the core
+package.
 
 ---
 
@@ -233,7 +234,7 @@ On the production host:
   the `gh-pages` deploy path; canonical URLs land at
   `https://<user>.github.io/<repo>/...`.
 
-See also: [`02-project-layout.md`](./02-project-layout.md) for the
+See also: [`16-app-architecture.md`](./16-app-architecture.md) for the
 `src/` / `public/` / `out/` model and
-[`03-static-bake.md`](./03-static-bake.md) for the static snapshot
-mechanics.
+[`15-static-snapshots.md`](./15-static-snapshots.md) for the static
+snapshot mechanics.

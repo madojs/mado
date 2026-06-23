@@ -171,7 +171,7 @@ no JavaScript step is required to make the document meaningful.
 ## Cookbook
 
 Concrete recipes for blog, product catalogue, documentation site and
-multi-locale builds live in [16-bake-cookbook.md](./16-bake-cookbook.md).
+multi-locale builds live in [23-cookbook.md](./23-cookbook.md).
 
 ## TL;DR
 

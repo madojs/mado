@@ -106,7 +106,7 @@ import { mado } from "@madojs/mado/vite";
 ```
 
 Everything else under the package is internal and subject to change
-without notice (see `docs/en/18-api-freeze-map.md`).
+without notice (see `docs/en/30-api-freeze-map.md`).
 
 ## Pages and the static snapshot pipeline
 
@@ -280,14 +280,19 @@ Canonical docs (English only): https://github.com/madojs/mado/tree/main/docs/en
 
 Highlights:
 
-- `docs/en/00-the-mado-way.md`     — philosophy and boundaries
-- `docs/en/01-routing.md`          — router and `routeUrl()`
-- `docs/en/03-static-bake.md`      — static snapshots guide
-- `docs/en/09-shadow-vs-light-dom.md` — when to use Shadow DOM
-- `docs/en/10-app-architecture.md` — canonical app layout
-- `docs/en/13-deployment.md`       — deployment recipes (including base)
-- `docs/en/16-bake-cookbook.md`    — static snapshots cookbook
-- `docs/en/18-api-freeze-map.md`   — stable public API vs internal
+- `docs/en/00-the-mado-way.md`        — philosophy and boundaries
+- `docs/en/01-quickstart.md`          — scaffold + dev loop + IDE setup
+- `docs/en/10-pages-and-components.md` — the one rule (page vs component)
+- `docs/en/11-templates-and-signals.md` — bindings, signals, lifecycle
+- `docs/en/12-routing.md`             — router, layouts, guards, `routeUrl()`
+- `docs/en/13-data.md`                — `resource()` / `mutation()` / auth
+- `docs/en/14-forms.md`               — `useForm()` + Shadow DOM inputs
+- `docs/en/15-static-snapshots.md`    — static snapshots guide
+- `docs/en/16-app-architecture.md`    — canonical app layout
+- `docs/en/20-deployment.md`          — deployment recipes (including base)
+- `docs/en/23-cookbook.md`            — static snapshots cookbook
+- `docs/en/30-api-freeze-map.md`      — stable public API vs internal
+- `docs/en/40-llm-guide.md`           — LLM pitfalls and zero-history test
 
 The repository is English-only. Older `docs/fr`, `docs/uk`, `docs/ru`
 trees were removed at v0.12 and survive only in git history.

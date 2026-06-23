@@ -64,6 +64,31 @@ const FORBIDDEN = [
     pattern: /shadow:\s*false[^.\n]*SEO/i,
     replacement: "drop the recommendation; SEO is handled by snapshots",
   },
+
+  // Old pre-Vite transport language.
+  { pattern: /\btsc[- ]only\b/i, replacement: "drop the phrase — Vite is the canonical transport" },
+  { pattern: /\bno bundler\b/i, replacement: "drop the phrase — Vite is the canonical bundler" },
+  { pattern: /\btsc\s*(?:→|->)+\s*browser\b/i,
+    replacement: "drop the phrase — generated apps go through Vite" },
+  { pattern: /\bimport[\s-]?map(?:s)?\b/i, replacement: "drop the phrase — apps use Vite, not import maps" },
+
+  // Old dev / static / edge claims.
+  { pattern: /SSE[- ]?reload/i, replacement: "drop the phrase — dev uses Vite HMR" },
+  { pattern: /\bedge[- ]prerender\b/i, replacement: "drop the phrase — capture is `mado static` only" },
+
+  // Old doc filenames in active docs (the migration table in
+  // docs/en/README.md is allow-listed via docs-lint:allow-legacy-mention
+  // markers around it if needed).
+  { pattern: /\b03-static-bake\.md\b/, replacement: "15-static-snapshots.md" },
+  { pattern: /\b09-shadow-vs-light-dom\.md\b/, replacement: "10-pages-and-components.md" },
+  { pattern: /\b10-app-architecture\.md\b/, replacement: "16-app-architecture.md" },
+  { pattern: /\b13-deployment\.md\b/, replacement: "20-deployment.md" },
+  { pattern: /\b16-bake-cookbook\.md\b/, replacement: "23-cookbook.md" },
+  { pattern: /\b18-api-freeze-map\.md\b/, replacement: "30-api-freeze-map.md" },
+  { pattern: /\b19-reactivity-ordering\.md\b/, replacement: "31-reactivity-ordering.md" },
+  { pattern: /\b20-v1-stability\.md\b/, replacement: "32-v1-stability.md" },
+  { pattern: /\b07-llm-pitfalls\.md\b/, replacement: "40-llm-guide.md" },
+  { pattern: /\b08-llm-zero-history-test\.md\b/, replacement: "40-llm-guide.md" },
 ];
 
 const ALLOW_LISTED = [

@@ -4,7 +4,58 @@ The official starter is the canonical production shape for Mado apps. It is
 not a demo architecture and not a framework inside the framework: it is plain
 files, imports, Mado primitives, and ESLint boundaries.
 
-## File Tree
+## Project layout (universal starter)
+
+Both starters share the same top-level shape. The universal starter is the
+minimum:
+
+```
+my-app/
+├── package.json              # exactly one runtime dep: @madojs/mado
+├── tsconfig.json             # strict TS, ES2022, Bundler resolution
+├── vite.config.ts            # mado() from @madojs/mado/vite
+├── index.html                # Vite entry + SPA shell
+├── public/                   # static assets (favicons, images, robots.txt)
+└── src/
+    ├── main.ts               # entry: mount router into #app
+    ├── app.routes.ts         # one app map (default + named `manifest`)
+    ├── pages/                # *.page.ts files
+    ├── components/           # reusable <x-tag> components
+    └── shared/               # http/, lib/, styles/, ui/
+```
+
+`index.html` belongs at the project root because Vite treats it as an entry
+template, not a static public file. Put only copy-as-is files in `public/`.
+
+### The three artifact states
+
+| Folder    | What it is                                                  | Who writes      | Who reads               | Deploy?       |
+| --------- | ----------------------------------------------------------- | --------------- | ----------------------- | ------------- |
+| `src/`    | your TypeScript source                                      | you             | Vite, `tsc --noEmit`    | ❌ no          |
+| `public/` | static assets copied as-is                                  | you             | Vite build              | ✅ via `out/` |
+| `out/`    | **the deploy artifact**: SPA shell + assets + snapshots     | `mado release`  | nginx / CDN / CF Pages  | ✅ **yes**    |
+
+One-liner: develop with `mado dev`, ship with `mado release`, upload `out/`.
+
+### Naming rules
+
+| What                       | Style              | Example                |
+| -------------------------- | ------------------ | ---------------------- |
+| File                       | kebab-case         | `user-profile.ts`      |
+| Component tag              | `x-` + kebab       | `<x-user-profile>`     |
+| Context                    | PascalCase + `Ctx` | `ThemeCtx`, `AuthCtx`  |
+| Signal                     | camelCase          | `userId`, `isLoggedIn` |
+| Page-internal element      | `x-<route>-page`   | `<x-posts-page>`       |
+
+### What does NOT belong in `src/`
+
+- ❌ Build-tool configs beyond `vite.config.ts` with `mado()`.
+- ❌ `.env` files — read env in `src/shared/lib/config.ts` from
+  `import.meta.env` and import that one module everywhere.
+- ❌ Tests mixed with code — put them in `test/`.
+- ❌ `examples/` folder — keep large demos outside the app repo.
+
+## File tree (modular reference starter)
 
 ```txt
 src/

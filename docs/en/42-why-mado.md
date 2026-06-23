@@ -39,7 +39,7 @@ If your case does not fall into the last point — Mado is most likely not the b
 | Router         | none, you need to find one (`@lit-labs/router`, etc)           | included: `routes()` + layout groups + prefetch        |
 | Data fetching  | none, you need to assemble it                                  | `resource()` + `mutation()` + glob invalidation        |
 | Forms          | none                                                           | `useForm()` with HTML-like constraints                 |
-| SEO / static   | complex (`@lit-labs/ssr`)                                      | `bake` (linkedom) + edge-prerender                     |
+| SEO / static   | complex (`@lit-labs/ssr`)                                      | `mado static` (real Chromium snapshot + DSD)           |
 | Build          | needs framework-specific build plugins                         | Vite transport + native runtime                         |
 | Code style     | classes + decorators                                           | functions + tagged templates                           |
 | Ecosystem      | real (Shoelace, Material Web, etc.)                            | none                                                   |

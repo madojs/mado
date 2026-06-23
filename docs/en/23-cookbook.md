@@ -1,7 +1,7 @@
 # Static snapshots cookbook
 
 > Concrete recipes for `mado static`. Concept and API in
-> [03-static-bake.md](./03-static-bake.md); failure modes and CI
+> [15-static-snapshots.md](./15-static-snapshots.md); failure modes and CI
 > guidance at the end of this file.
 
 Every recipe assumes:

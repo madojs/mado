@@ -497,7 +497,7 @@ paths (no base) and apply the active base internally.
 ## App architecture for LLM
 
 When generating an app, prefer the blessed production shape from
-`docs/en/10-app-architecture.md` and the `starters/default/` example:
+`docs/en/16-app-architecture.md` and the `starters/default/` example:
 
 - `src/main.ts` mounts `routesApi.view` and imports only global styles,
   providers, and tiny shared components.
@@ -521,13 +521,13 @@ When generating an app, prefer the blessed production shape from
 | How does the router work?        | `src/router/`                    |
 | How does resource + cache work?  | `src/resource.ts` (297 lines)    |
 | How do forms work?               | `src/forms.ts` (212 lines)       |
-| How should an app be structured? | `docs/en/10-app-architecture.md` |
-| How should errors be handled?    | `docs/en/15-error-handling.md`   |
-| How should static snapshots be used? | `docs/en/03-static-bake.md` / `docs/en/16-bake-cookbook.md` |
-| What API is stable?              | `docs/en/18-api-freeze-map.md`   |
-| What ordering is guaranteed?     | `docs/en/19-reactivity-ordering.md` |
-| What does v1 stability mean?     | `docs/en/20-v1-stability.md`     |
-| When something goes wrong        | `docs/en/07-llm-pitfalls.md`     |
+| How should an app be structured? | `docs/en/16-app-architecture.md` |
+| How should errors be handled?    | `docs/en/21-error-handling.md`   |
+| How should static snapshots be used? | `docs/en/15-static-snapshots.md` / `docs/en/23-cookbook.md` |
+| What API is stable?              | `docs/en/30-api-freeze-map.md`   |
+| What ordering is guaranteed?     | `docs/en/31-reactivity-ordering.md` |
+| What does v1 stability mean?     | `docs/en/32-v1-stability.md`     |
+| When something goes wrong        | `docs/en/40-llm-guide.md`        |
 
 ## Before committing
 

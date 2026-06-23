@@ -8,8 +8,8 @@ copy, or diagnostic string is frozen forever.
 
 Read this together with:
 
-- [API freeze map](./18-api-freeze-map.md)
-- [Reactivity ordering](./19-reactivity-ordering.md)
+- [API freeze map](./30-api-freeze-map.md)
+- [Reactivity ordering](./31-reactivity-ordering.md)
 
 ## Stable under SemVer
 
@@ -25,7 +25,7 @@ After v1, Mado treats these as SemVer-protected:
   teardown for same-tick moves, cleanup via `ctx.onDispose`.
 - Router/page/resource/form contracts documented in the English docs.
 - CLI command names and broad command intent (`build`, `dev`, `release`,
-  `bake`, `preview`, `init`, `new`).
+  `static`, `preview`, `init`, `new`).
 
 Breaking these requires a major version.
 

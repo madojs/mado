@@ -4,7 +4,7 @@
  *
  * It does not depend on the reactive runtime (signal/each/effect), only on DOM
  * APIs (document.createElement and walking Node trees). That makes it possible
- * to test the parser in isolation and reuse it for bake / SSR through linkedom.
+ * to test the parser in isolation and reuse it for future static tooling.
  *
  * Algorithm:
  *  1. Walk strings[] char-by-char through an explicit finite state machine.
@@ -654,4 +654,3 @@ function rawTextSlotError(rawTagName: string): string {
   }
   return `${base}. Inline <script> with dynamic content is not supported.`;
 }
-

@@ -19,6 +19,7 @@
 import { signal, effect, untracked, type Signal } from "./signal.js";
 import { getCurrentLifecycle } from "./lifecycle.js";
 import { warnOnce } from "./diagnostics.js";
+import { trackStatic } from "./static-runtime.js";
 
 // ---------- Global cache ----------
 
@@ -255,7 +256,7 @@ function retainInFlight<T>(
       controller,
       fetcher,
       consumers: 0,
-      promise: fetcher(key, controller.signal),
+      promise: trackStatic(fetcher(key, controller.signal), `resource ${key}`),
     };
     entry.promise.then(
       () => {

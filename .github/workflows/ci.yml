@@ -31,7 +31,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Tests
+      - name: Tests (non-browser suite)
+        # Browser-gated DSD + base-path tests run in the dedicated
+        # `static-snapshot` job below where Playwright Chromium is
+        # pinned. Skipping them here keeps the matrix fast while still
+        # gating PRs on the deterministic browser environment.
         run: npm test
 
       - name: Size budgets
@@ -44,5 +48,49 @@ jobs:
           node -e "const fs=require('fs');const path=require('path');const roots=['src','scripts','starters','.github','test','README.md','AGENTS.md','llms.txt','CONTRIBUTING.md','TODO.md','package.json'];const re=/[\u0400-\u04ff]/u;let bad=[];function walk(p){if(!fs.existsSync(p))return;const st=fs.statSync(p);if(st.isDirectory()){for(const e of fs.readdirSync(p))walk(path.join(p,e));return;}const s=fs.readFileSync(p,'utf8');if(re.test(s))bad.push(p)}for(const r of roots)walk(r);if(bad.length){console.error(bad.join('\n'));process.exit(1)}"
           ! grep -RInE 'useState|useEffect|(^|[^?.])(disabled|checked)=' starters --include='*.ts' --include='*.html'
 
+      - name: Documentation contract
+        # Lints README, AGENTS.md, llms.txt, CONTRIBUTING.md, TODO.md,
+        # docs/en/** and the starter READMEs for the post-0.12
+        # vocabulary. Migration guides, CHANGELOG and ADRs are
+        # explicitly allow-listed inside scripts/docs-lint.mjs.
+        run: npm run docs:lint
+
       - name: Package smoke
         run: npm run package:smoke
+
+  static-snapshot:
+    # Required merge gate. Proves the full snapshot → live takeover
+    # round-trip (`test/static/dsd-takeover.test.mjs`) and the
+    # base-path contract (`test/static/base-path.test.mjs`) under a
+    # version-pinned Chromium managed by Playwright. CI must never skip
+    # these — `MADO_REQUIRE_BROWSER=1` forces the tests to fail loudly
+    # if no browser is resolvable instead of silently skipping.
+    name: Static snapshot (pinned Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        # Pinned by the playwright-core version in package.json. We use
+        # Playwright's own installer per its CI guidance:
+        # https://playwright.dev/docs/ci-intro
+        run: npx --yes playwright install --with-deps chromium
+
+      - name: Build framework (tsc)
+        run: npm run build
+
+      - name: Static snapshot tests
+        env:
+          MADO_REQUIRE_BROWSER: "1"
+        run: |
+          node --test --test-timeout=180000 \
+            test/static/dsd-takeover.test.mjs \
+            test/static/base-path.test.mjs

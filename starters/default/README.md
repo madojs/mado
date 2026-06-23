@@ -1,74 +1,76 @@
-# Mado Starter
+# Mado universal starter
 
-Canonical starter for Mado business apps: admin panels, internal tools and
-long-lived SPAs.
+A calm native-first web framework for sites and apps. This starter
+proves the whole promise in ~15 files:
 
-## Commands
+- one Shadow Component (`feature-card`) shared by the static landing
+  and the live SPA,
+- one component model end-to-end,
+- a build-time seed for a dynamic static route (`/guide/:slug`),
+- a private SPA route (`/app`) that falls back through `_mado/spa.html`,
+- per-route head metadata, sitemap, canonical and `og:url`
+  auto-fallback.
+
+## Run it
 
 ```bash
 npm install
-npm run dev
-npm run release
+npm run dev          # Vite dev server
+npm run build        # Vite production SPA build
+npm run release      # vite build + browser-rendered snapshots → out/
+npm run preview      # serve out/ like a real static host
 ```
 
-`npm run release` writes the deploy artifact to `out/`.
+`mado release` requires a public origin so it can build absolute
+canonical URLs. Set it once in `vite.config.ts`:
 
-## Shape
-
-```txt
-public/                  static assets copied by Vite
-src/
-  main.ts                imports global CSS and mounts the router
-  app.routes.ts          app map: zones, layouts, guards and modules
-  layouts/               app-zone shells
-  shared/
-    http/                HTTP client and interceptors
-    lib/                 pure utilities
-    styles/              tokens, reset, shell and content CSS
-    ui/                  reusable x-* components
-  modules/               business modules
-    <name>/
-      <name>.routes.ts
-      <name>.public.ts
-      <name>.types.ts
-      pages/
-      data/
-      api/
-      components/
-      _contracts/
+```ts
+mado({ site: "https://your-app.example" })
 ```
 
-## CSS Contract
-
-- `tokens.css` defines CSS custom properties and is safe for Shadow DOM
-  components through `var(...)`.
-- `reset.css` normalizes the document/light DOM surface.
-- `shell.css` styles app-zone layouts from `src/layouts/`.
-- `content.css` styles page-level light DOM: forms, tables, prose and simple
-  states.
-- Reusable leaf components keep their own styles in ``css`...` `` inside
-  `component()` options.
-
-Vite uses Lightning CSS for CSS transforms/minification in this starter.
-
-## Generate Files
+…or override per environment:
 
 ```bash
-npm run new -- module billing
-npm run new -- page billing/pages/invoices-list
-npm run new -- connector billing/api/stripe
-npm run new -- resource billing/data/invoices
-npm run new -- service billing/cart
-npm run new -- form billing/invoice
-npm run new -- component billing/components/invoice-status-badge
-npm run new -- guard billing/billing
-npm run new -- layout admin-shell
+mado release --base-url https://staging.example
+MADO_SITE=https://staging.example mado release
 ```
 
-The generator writes files only. Wire new routes in `src/app.routes.ts` or the
-module route map by hand.
+## File map
 
-## More
+```
+src/
+  main.ts                       # mounts the router into #app
+  app.routes.ts                 # the URL → page table
 
-The full architecture guide lives in the framework docs:
-https://github.com/madojs/mado/tree/main/docs/en
+  pages/
+    home.page.ts                # public, static
+    guide.page.ts               # dynamic static (/guide/:slug)
+    app.page.ts                 # SPA-only interactive route
+    not-found.page.ts           # 404 (SPA fallback)
+
+  components/
+    feature-card.component.ts   # shared by landing + app
+    live-counter.component.ts   # reactivity demo
+
+  content/
+    guides.ts                   # browser-safe content module
+
+  styles/
+    tokens.css                  # design tokens (custom properties)
+    reset.css                   # tiny modern reset
+    document.css                # light-DOM document layout
+```
+
+## Going further
+
+If you need module boundaries, layouts, guards, an auth shell, an HTTP
+client and a Stripe-style billing example, scaffold the modular
+starter instead:
+
+```bash
+mado init my-app --starter modular
+```
+
+The modular starter is the reference architecture for long-lived
+business apps. Both starters target the same Mado runtime — they only
+differ in how much structure they pre-create for you.

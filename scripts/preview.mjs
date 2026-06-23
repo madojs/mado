@@ -9,7 +9,7 @@
 //      PREVIEW_AUTOBUILD=1.
 //   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
-//        - SPA fallback to index.html;
+//        - SPA fallback to _mado/spa.html when present, else index.html;
 //        - exact `out/` route files before SPA fallback;
 //        - precompressed .gz / .br serving via Accept-Encoding.
 //
@@ -17,6 +17,7 @@
 // what a static host (nginx / Cloudflare Pages / S3) would serve.
 
 import { createServer } from "node:http";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile, stat, access } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -55,6 +56,68 @@ const HOST = String(PREVIEW_FLAGS.host ?? process.env.HOST ?? "localhost");
 const AUTOBUILD = process.env.PREVIEW_AUTOBUILD === "1";
 const SKIP_BUILD = process.env.SKIP_BUILD === "1" || !AUTOBUILD;
 
+// Active Vite base. We try the internal build bridge first (the
+// `@madojs/mado/vite` plugin writes `_mado/build.json` during `vite
+// build`); if `mado static` has already dropped that file before
+// shipping the production artifact, we fall back to parsing the asset
+// prefix out of `out/index.html`. Both paths converge on the same
+// canonical "/" or "/prefix/" form so the preview server replays the
+// real deployment URL shape regardless of pipeline stage.
+const BASE = detectDeployedBase(OUT);
+
+function detectDeployedBase(out) {
+  const fromBridge = readBridgeBase(out);
+  if (fromBridge != null) return fromBridge;
+  const fromHtml = readHtmlBase(out);
+  if (fromHtml != null) return fromHtml;
+  return "/";
+}
+
+function readBridgeBase(out) {
+  try {
+    const meta = JSON.parse(
+      readFileSync(join(out, "_mado/build.json"), "utf8"),
+    );
+    return meta?.base ? normalizeBase(meta.base) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readHtmlBase(out) {
+  try {
+    const html = readFileSync(join(out, "index.html"), "utf8");
+    // Look at the first hashed asset; Vite always prefixes it with
+    // the deployed base.
+    const match = /(?:href|src)="(\/[^"]*?\/)assets\//.exec(html);
+    if (match && match[1]) return normalizeBase(match[1]);
+    // No prefix means root-deployed.
+    if (/(?:href|src)="\/assets\//.test(html)) return "/";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBase(raw) {
+  if (!raw) return "/";
+  let s = String(raw).trim();
+  if (!s || s === "/") return "/";
+  if (!s.startsWith("/")) s = "/" + s;
+  if (!s.endsWith("/")) s = s + "/";
+  return s.replace(/\/+/g, "/");
+}
+
+function stripBase(pathname) {
+  if (BASE === "/") return pathname.startsWith("/") ? pathname : "/" + pathname;
+  if (pathname === BASE || pathname === BASE.slice(0, -1)) return "/";
+  if (pathname.startsWith(BASE)) {
+    const rest = pathname.slice(BASE.length - 1);
+    return rest || "/";
+  }
+  return pathname;
+}
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -86,11 +149,13 @@ if (!(await exists(OUT))) {
   process.exit(1);
 }
 
-const spaShell = join(OUT, "index.html");
+const spaShell = existsSync(join(OUT, "_mado", "spa.html"))
+  ? join(OUT, "_mado", "spa.html")
+  : join(OUT, "index.html");
 if (!(await exists(spaShell))) {
   console.error(
     `[preview] missing ${spaShell} — \`mado release\` did not produce an HTML entry.\n` +
-      `[preview] Without it any non-baked route will 404 instead of falling back to the SPA.`,
+      `[preview] Without it any non-static route will 404 instead of falling back to the SPA.`,
   );
   process.exit(1);
 }
@@ -103,7 +168,24 @@ const isImmutable = (filename) =>
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
-    const pathname = decodeURIComponent(url.pathname);
+    const fullPathname = decodeURIComponent(url.pathname);
+    // Honour the deployed Vite base: redirect bare `/` to `/${base}/` and
+    // strip the prefix before any lookup, so `out/index.html`,
+    // `out/assets/...` and `out/docs/index.html` are reachable through
+    // the same URL shape the CDN serves.
+    if (BASE !== "/") {
+      const bareBase = BASE.slice(0, -1);
+      if (fullPathname === "/" || fullPathname === bareBase) {
+        res.writeHead(302, { location: BASE });
+        res.end();
+        return;
+      }
+      if (!fullPathname.startsWith(BASE) && fullPathname !== bareBase) {
+        res.writeHead(404).end("not found");
+        return;
+      }
+    }
+    const pathname = stripBase(fullPathname);
     const accepts = (req.headers["accept-encoding"] ?? "").toString();
 
     const target = await resolveTarget(pathname);
@@ -158,7 +240,12 @@ server.listen(PORT, HOST, async () => {
   const urlHost = HOST === "0.0.0.0" || HOST === "::" ? "localhost" : HOST;
   console.log("");
   console.log("Mado preview (production-like)");
-  console.log(`  url:    http://${urlHost}:${PORT}/`);
+  // Print the URL the server actually serves the app at. When the
+  // deployment uses a non-trivial Vite `base`, the bare root just
+  // 302-redirects to the base prefix, which surprises users who copy
+  // the logged URL into a browser and land on "Not Found".
+  console.log(`  url:    http://${urlHost}:${PORT}${BASE}`);
+  console.log(`  base:   ${BASE}`);
   console.log(`  out:    ${OUT}`);
   console.log("  (Ctrl-C to stop)");
   console.log("");
@@ -216,7 +303,9 @@ async function resolveTarget(pathname) {
   //    extension) deliberately 404 instead — otherwise a 200 on
   //    /missing.png would mask real bugs.
   if (!extname(pathname)) {
-    const spa = join(OUT, "index.html");
+    const spa = existsSync(join(OUT, "_mado", "spa.html"))
+      ? join(OUT, "_mado", "spa.html")
+      : join(OUT, "index.html");
     if (await exists(spa)) return spa;
   }
 

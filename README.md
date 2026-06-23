@@ -6,126 +6,87 @@
   />
 
   <p>
-    <strong>Build business apps. Keep maintenance boring.</strong>
+    <strong>A calm native-first web framework for sites and apps.</strong>
   </p>
 
   <p>
-    Browser-native · TypeScript-first · Zero runtime dependencies
+    Web Components · Signals · Browser-rendered static snapshots · Zero runtime dependencies
   </p>
 </div>
 
 
 # Mado
 
-> A calm frontend stack for internal tools, admin panels and business SPA.
+> A calm native-first web framework for sites and apps.
 
 [![npm](https://img.shields.io/npm/v/@madojs/mado.svg)](https://www.npmjs.com/package/@madojs/mado)
 [![CI](https://github.com/madojs/mado/actions/workflows/ci.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/ci.yml)
-[![Browser Regression](https://github.com/madojs/mado/actions/workflows/browser.yml/badge.svg)](https://github.com/madojs/mado/actions/workflows/browser.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Donate: PayPal](https://img.shields.io/badge/Donate-PayPal-ff3f59.svg)](https://www.paypal.com/paypalme/tsekhmister)
 
-Mado is a browser-native SPA framework for teams that want routing, forms,
-data fetching and state management — without turning their frontend into an
-infrastructure project.
+Build with real Web Components, signals, routing, data and forms.
+Ship live SPAs and browser-rendered static documents from one
+component model.
 
-You write TypeScript, run `tsc`, and open the browser. No JSX transform, no
-Vite required, no hidden build pipeline. The entire runtime is readable in an
-evening. When something breaks, you can read the source and fix it.
+**One component model. One page model. One release command.**
 
-Mado (`窓`) means "window" in Japanese: a calm window into your app, without
-dragging a whole frontend factory into the room.
-
-## When to use Mado
-
-- **Admin panels and dashboards** — forms, tables, filters, auth, role guards.
-- **Internal tools and backoffice** — CRUD workflows, settings, billing UI.
-- **Small SaaS frontends** — where long-term maintainability matters more than
-  ecosystem size.
-- **Embedded widgets** — where small footprint and independence from host
-  frameworks matter.
-
-The common thread: apps where **the frontend should not become its own
-infrastructure problem**.
-
-## When not to use Mado
-
-- **SEO-heavy public sites** that need SSR with hydration.
-- **Large teams optimizing for hiring compatibility** — React/Vue have bigger
-  talent pools.
-- **Projects that need a mature UI-kit ecosystem** comparable to React today.
-- **Beginners learning frontend** — React, Vue and Svelte have far larger
-  learning resources.
-- **Teams uncomfortable with a pre-v1 framework** — Mado is honest about its
-  stage.
-
-## What Mado will not build
-
-Mado stays useful by saying no. These are intentionally out of scope:
-
-- SSR with hydration. Use `bake` or edge prerender for SEO-oriented static
-  output.
-- A template compiler, JSX transform, or VDOM compatibility layer.
-- A separate store library. Use `signal()`, `computed()` and `resource()`.
-- Suspense primitives or a router plugin system.
-- Built-in i18n, animation, or virtual-scroll primitives.
-- Non-evergreen browser support. The baseline is modern evergreen browsers with
-  Baseline 2023 platform features.
-
-## Why teams pick Mado
-
-| What matters to you | Best choice |
-|---|---|
-| Largest ecosystem, most hires available | React or Vue |
-| Reusable design-system components across host frameworks | Lit |
-| Maximum rendering performance, JSX workflow | Solid or Svelte 5 |
-| Progressive enhancement of server-rendered pages | htmx + your backend |
-| Full app stack with minimal infrastructure and calm maintenance | **Mado** |
-
-**Honest tradeoffs:**
-
-- **vs Lit** — Lit is better for design systems. Mado is for whole apps:
-  router, data, forms and prerender in one package, no assembly required.
-- **vs Solid** — Solid is faster and more mature. Mado keeps a smaller runtime
-  and uses Vite only as the development/build transport layer.
-- **vs htmx** — htmx is excellent when your backend owns HTML. Mado is for
-  cases where you want a real SPA: local state, optimistic updates, cached
-  resources, lazy modules and persisted UI state.
+Mado (`窓`) means *window* in Japanese: a calm window into your app,
+without dragging a whole frontend factory into the room.
 
 ## What you get
 
-Routing, forms, state, data fetching and prerendering — without ecosystem tax:
-
-- No runtime dependencies to audit, update or break
-- Vite-powered dev/build without a framework-specific bundler to maintain
-- Fewer Mado-specific moving parts to debug
-- Compact API surface you can learn in a day
-- Lower long-term cognitive load
-
 ```txt
-Runtime budget:
-  enforced in CI with npm run size
-Runtime dependencies: 0
-Required dev dependencies: typescript, vite, linkedom
+Mado component = Custom Element + open Shadow DOM
+Mado page      = route + load + head + view + optional static declaration
+Mado release   = Vite build
+               + browser-rendered static documents
+               + Declarative Shadow DOM
+               + SPA fallback
+               + deployment artifact
+
+Client activation = atomic takeover
+                  ≠ hydration
+                  ≠ SSR reconciliation
 ```
 
-## Quick Start
+Browser-native source, with Vite as the development and delivery
+transport. No framework-specific compiler and zero runtime
+dependencies.
 
-### Start a new app
+## Use cases
+
+- Public landing pages
+- Documentation sites
+- Product / catalog pages
+- SaaS applications
+- Business applications
+- Admin panels and internal tools
+- Dashboards
+- Embedded widgets
+
+## Quick start
 
 ```bash
-npm exec --package @madojs/mado@latest -- mado init my-app
+# Mado 0.12 is currently shipping as a prerelease (`@next` on npm).
+# After 0.12.0 stable lands, swap `@next` for `@latest`.
+npm exec --package @madojs/mado@next -- mado init my-app
 cd my-app
 npm install
 npm run dev
 ```
 
-The default starter is the blessed production shape: app-zone layouts, guards,
-module boundaries, API connectors, resources, forms and a small admin shell.
-Larger demos live outside this package in the separate `madojs-examples`
-workspace/repository.
+The default starter is the universal starter: ~15 source files,
+runnable without a backend, demonstrating one Shadow Component shared
+between a static landing page and a live SPA route.
 
-## How it works
+Need the modular reference architecture (auth shell, guarded zones,
+billing module, HTTP client, module boundaries)?
+
+```bash
+mado init my-app --starter modular
+```
+
+## The Mado way
 
 ### Signals — reactive state
 
@@ -138,9 +99,6 @@ effect(() => console.log(count()));
 
 count.set(1);
 ```
-
-Signals are getter functions: read with `count()`, write with `count.set(v)`
-or `count.update(fn)`.
 
 ### Templates — tagged template html
 
@@ -155,7 +113,7 @@ html`<button @click=${fn} ?disabled=${loading} class=${cls}>${label}</button>`;
 - `?attr=${flag}` — boolean attribute
 - Functions and signals are tracked reactively
 
-### Components — Web Components
+### Components — real Web Components
 
 ```ts
 import { component, css, html } from "@madojs/mado";
@@ -169,25 +127,47 @@ component(
 );
 ```
 
-### Routing — file-based-free
+Open shadow root, scoped styles, slots, attribute reactivity, a real
+custom element under the hood. The same component renders inside the
+static snapshot via Declarative Shadow DOM and inside the live SPA via
+direct DOM attachment.
+
+### Pages — `route + load + head + view`
 
 ```ts
-import { routes } from "@madojs/mado";
+import { html, page } from "@madojs/mado";
 
-export default routes({
-  "/": () => import("./pages/home.js"),
-  "/users/:id": () => import("./pages/user-detail.js"),
-  "*": () => import("./pages/not-found.js"),
+export default page({
+  static: true,                                  // capture as HTML at release
+  title: "Mado Keyboard",
+  head: () => ({ description: "A canonical product page." }),
+  view: () => html`<h1>Welcome</h1>`,
 });
 ```
 
-Lazy loading, layout groups, query params, guards, hover prefetch, scroll
-restoration, error boundary, View Transitions.
+### Routing — explicit, code-split
+
+```ts
+import { routes, routeUrl } from "@madojs/mado";
+
+export default routes({
+  "/":            () => import("./pages/home.page"),
+  "/users/:id":   () => import("./pages/user.page"),
+  "*":            () => import("./pages/not-found.page"),
+});
+
+// Internal links must be base-aware.
+html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
+```
+
+Lazy loading, layout groups, query params, guards, hover prefetch,
+scroll restoration, error boundary, View Transitions, base-path
+awareness (Vite `base` → runtime `import.meta.env.BASE_URL`).
 
 ### Data — resource + mutation
 
 ```ts
-import { resource, mutation, invalidate, jsonFetcher } from "@madojs/mado";
+import { resource, mutation, jsonFetcher } from "@madojs/mado";
 
 const user = resource(
   () => `/api/users/${userId()}`,
@@ -203,10 +183,6 @@ const save = mutation(api.saveUser, {
 Cache, loading/error state, abort, refresh, optimistic `mutate()`,
 glob-based invalidation. Lifecycle-aware inside components.
 
-Resource keys are the cache identity. Use keys that include the endpoint, params
-and data shape; two resources with the same key share cached data and in-flight
-requests.
-
 ### Forms — schema-based validation
 
 ```ts
@@ -216,91 +192,79 @@ const form = useForm({
   email: { required: true, type: "email" },
   age: { type: "number", min: 18 },
 });
-
-html`
-  <form @submit=${form.onSubmit(async (values) => api.save(values))}>
-    <input name="email" @input=${form.onInput} @blur=${form.onBlur}>
-    <button ?disabled=${() => !form.isValid() || form.submitting()}>Save</button>
-  </form>
-`;
 ```
 
-HTML-like constraints (`required`, `min`, `max`, `pattern`, `type`), async
-validators, field arrays. Close to the platform, not fighting it.
-
-### Lists — keyed reconciliation
-
-```ts
-import { each } from "@madojs/mado";
-
-html`<ul>${() => each(items(), (item) => item.id, (item) => html`<li>${item.name}</li>`)}</ul>`;
-```
-
-### Static prerender — SEO without SSR
+### Static snapshots — SEO without SSR
 
 ```bash
 mado release
 ```
 
-Build-time prerender of routes into static HTML with meta tags and JSON-LD.
-No hydration runtime. Keep personalized or real-time content in the client SPA.
+`mado release` runs your app in a real Chromium and freezes the
+rendered HTML — including the Shadow DOM via Declarative Shadow DOM —
+into one file per route. On first paint Mado atomically replaces the
+static tree with the live tree: no hydration protocol, no node
+reconciliation, no per-attribute diffing.
 
-## Production
-
-```bash
-mado release    # typecheck + vite build + bake + static deploy files -> out/
-mado preview    # serve out/ like a static host
-```
-
-One command, one artifact (`out/`). Upload anywhere: VPS, Cloudflare Pages,
-any static CDN.
+- Real search engines see a fully rendered document.
+- Social preview bots see the canonical / og tags inside the raw HTML.
+- JS-disabled browsers see meaningful content.
+- The live app boots from the same snapshot without re-fetching seeded
+  data.
 
 ## CLI
 
 ```bash
-mado init my-app              # scaffold new app
-mado dev                      # Vite dev server
-mado build                    # tsc compile (framework/package work)
-mado typecheck                # type check without emit
-mado test                     # run test suite
-mado new module billing       # scaffold canonical app files
-mado release                  # full production build
-mado preview                  # serve production build locally
+mado init my-app                  # scaffold universal starter
+mado init my-app --starter modular  # scaffold modular reference architecture
+mado dev                          # Vite dev server
+mado build                        # Vite production SPA build
+mado typecheck                    # tsc --noEmit
+mado static [--base-url …]        # low-level snapshot only
+mado release                      # vite build + snapshots + deployment files
+mado preview                      # serve out/ like a real static host
+mado new <kind> <path>            # scaffold canonical files
 ```
+
+## Honest boundaries
+
+- No server renderer.
+- No hydration protocol.
+- No framework compiler.
+- No runtime dependencies.
+- No built-in backend.
+- No UI-kit marketplace.
+- Modern evergreen browsers only.
+- A compatible Chromium is required at release time for static routes.
+- Static `paths()` and `initialData()` callbacks must be browser-safe
+  and secret-free (they run during discovery AND ship in the client
+  bundle).
+
+## Why teams pick Mado
+
+| What matters to you | Best choice |
+|---|---|
+| Largest ecosystem, most hires available | React or Vue |
+| Reusable design-system components across host frameworks | Lit |
+| Maximum rendering performance, JSX workflow | Solid or Svelte 5 |
+| Progressive enhancement of server-rendered pages | htmx + your backend |
+| One component model for sites and apps with calm maintenance | **Mado** |
+
+## Production
+
+```bash
+mado release    # typecheck + vite build + static snapshots + deployment files
+mado preview    # serve out/ like a real static host
+```
+
+One command, one artifact (`out/`). Upload anywhere: VPS, Cloudflare
+Pages, GitHub Pages (with base), any static CDN.
 
 ## Documentation
 
-- [The Mado way](./docs/en/00-the-mado-way.md) — conventions and principles
-- [Routing](./docs/en/01-routing.md)
-- [Project layout](./docs/en/02-project-layout.md)
-- [Static bake & SEO](./docs/en/03-static-bake.md)
-- [App architecture](./docs/en/10-app-architecture.md)
-- [Layouts](./docs/en/11-layouts.md)
-- [Auth and API](./docs/en/12-auth-and-api.md)
-- [Deployment](./docs/en/13-deployment.md)
-- [Testing](./docs/en/14-testing.md)
-- [Error handling](./docs/en/15-error-handling.md)
-- [For backend developers](./docs/en/06-for-backenders.md)
-- [Why Mado (detailed comparison)](./docs/en/05-why-mado.md)
-
-Localized docs: [French](./docs/fr/README.md) · [Ukrainian](./docs/uk/README.md) · [Russian](./docs/ru/README.md) 
+Canonical docs (English) live in [`docs/en/`](./docs/en/README.md).
 
 AI-agent entrypoints: [AGENTS.md](./AGENTS.md) · [llms.txt](./llms.txt)
-
-## Examples
-
-The large examples are kept outside the framework package in `madojs-examples`
-so the core repo stays focused on runtime, tooling, starter and tests.
-
-## Known Limits
-
-| Limit | What it means |
-|---|---|
-| No SSR hydration | Use `bake` or edge prerender for SEO. Server rendering is out of scope. |
-| Small ecosystem | No UI-kit or plugin marketplace. You own your components. |
-| Pre-v1 API | Public API is small and intentional, but may change before v1. |
-| Evergreen browsers only | Modern Chrome, Edge, Firefox, Safari. No IE/legacy. |
-| Template IDE support | `html`` highlighting needs lit-plugin or similar. |
 
 ## Tests
 
@@ -312,15 +276,16 @@ npm run size
 npm run package:smoke
 ```
 
-Covers signals, computed, effects, html parser, keyed reconciliation, resources,
-mutations, forms, router isolation, component lifecycle, release output and
-package smoke tests.
+The full snapshot + takeover round-trip and the base-path contract
+are required CI gates (`.github/workflows/ci.yml → static-snapshot`),
+run under a pinned Playwright-managed Chromium with
+`MADO_REQUIRE_BROWSER=1` so they never silently skip on PRs.
 
 ## Contributing
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md). Bug fixes with tests, docs
-improvements, examples and carefully discussed core changes are welcome.
-Runtime dependencies are not.
+improvements, examples and carefully discussed core changes are
+welcome. Runtime dependencies are not.
 
 ## License
 

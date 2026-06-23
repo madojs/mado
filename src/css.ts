@@ -19,6 +19,8 @@
 
 export type CSSResult = CSSStyleSheet;
 
+const stylesheetText = new WeakMap<CSSStyleSheet, string>();
+
 /**
  * Tagged literal for CSS. Returns a CSSStyleSheet ready for
  * adoptedStyleSheets. Value interpolation — only primitives or
@@ -39,7 +41,7 @@ export function css(
       if (v == null) continue;
       if (v instanceof CSSStyleSheet) {
         // composition — insert all rules
-        for (const rule of v.cssRules) text += rule.cssText;
+        text += getStylesheetText(v) ?? rulesText(v);
         continue;
       }
       const s = String(v);
@@ -52,7 +54,26 @@ export function css(
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(text);
+  stylesheetText.set(sheet, text);
   return sheet;
+}
+
+/** @internal */
+export function createStylesheet(text: string): CSSResult {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(text);
+  stylesheetText.set(sheet, text);
+  return sheet;
+}
+
+/** @internal */
+export function getStylesheetText(sheet: CSSStyleSheet): string | undefined {
+  return stylesheetText.get(sheet);
+}
+
+/** @internal */
+export function getStylesheetHash(sheet: CSSStyleSheet): string {
+  return stableHash(getStylesheetText(sheet) ?? rulesText(sheet));
 }
 
 /**
@@ -112,8 +133,7 @@ const hasScope = (() => {
  *     → 'x-button button { color: red }'
  */
 export function scopeStyles(tagName: string, sheet: CSSResult): CSSResult {
-  let text = "";
-  for (const rule of sheet.cssRules) text += rule.cssText;
+  const text = getStylesheetText(sheet) ?? rulesText(sheet);
 
   let scoped: string;
   if (hasScope) {
@@ -138,5 +158,21 @@ export function scopeStyles(tagName: string, sheet: CSSResult): CSSResult {
 
   const out = new CSSStyleSheet();
   out.replaceSync(scoped);
+  stylesheetText.set(out, scoped);
   return out;
+}
+
+function rulesText(sheet: CSSStyleSheet): string {
+  let text = "";
+  for (const rule of sheet.cssRules) text += rule.cssText;
+  return text;
+}
+
+function stableHash(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }

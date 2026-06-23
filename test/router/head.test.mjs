@@ -54,11 +54,11 @@ const { page } = await import("../../dist/src/page.js");
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("applyHead({}) removes previous runtime and baked head tags", () => {
+test("applyHead({}) removes previous runtime and static head tags", () => {
   installDom("/");
   document.head.innerHTML = `
-    <meta name="description" content="baked" data-mado-head="baked">
-    <link rel="canonical" href="/old" data-mado-head="baked">
+    <meta name="description" content="static" data-mado-head="static">
+    <link rel="canonical" href="/old" data-mado-head="static">
     <meta name="robots" content="index">
   `;
 
@@ -76,6 +76,32 @@ test("applyHead({}) removes previous runtime and baked head tags", () => {
     document.head.querySelector('meta[name="robots"]')?.getAttribute("content"),
     "index",
     "unmarked app-authored head tags should stay intact",
+  );
+});
+
+test("applyHead({}) removes static-fallback canonical and og:url markers", () => {
+  // The static snapshot pipeline marks the fallback `<link rel=canonical>`
+  // and `<meta property=og:url>` it injects with `data-mado-head="static"`
+  // so that the first SPA navigation into a page without an explicit
+  // head() removes them. Without that marker the previous canonical /
+  // og:url would leak into pages that never declared one.
+  installDom("/");
+  document.head.innerHTML = `
+    <link rel="canonical" href="https://example.test/products/foo" data-mado-head="static">
+    <meta property="og:url" content="https://example.test/products/foo" data-mado-head="static">
+  `;
+
+  applyHead({});
+
+  assert.equal(
+    document.head.querySelector('link[rel="canonical"]'),
+    null,
+    "static canonical fallback must be cleared on SPA navigation to a page without its own canonical",
+  );
+  assert.equal(
+    document.head.querySelector('meta[property="og:url"]'),
+    null,
+    "static og:url fallback must be cleared on SPA navigation to a page without its own og:url",
   );
 });
 

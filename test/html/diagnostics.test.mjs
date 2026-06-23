@@ -153,19 +153,19 @@ test("render(): container with unmanaged DOM warns", () => {
   assert.match(warnings[0], /render-unmanaged-dom/);
 });
 
-test("render(): replaces marked baked DOM without unmanaged warning", () => {
+test("render(): replaces marked static DOM without unmanaged warning", () => {
   _testHooks.resetWarnings();
 
   const div = document.createElement("div");
-  div.setAttribute("data-mado-baked", "");
-  div.innerHTML = "<main>Baked landing</main>";
+  div.setAttribute("data-mado-static", "");
+  div.innerHTML = "<main>Static landing</main>";
 
   const warnings = captureWarnings(() => {
     render(html`<section>Live app</section>`, div);
   });
 
   assert.deepEqual(warnings, []);
-  assert.equal(div.hasAttribute("data-mado-baked"), false);
+  assert.equal(div.hasAttribute("data-mado-static"), false);
   assert.equal(div.querySelector("main"), null);
   assert.equal(div.textContent, "Live app");
 });

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
@@ -13,10 +14,53 @@ const KINDS = [
   "layout",
 ];
 
+/**
+ * Generators support two starter shapes:
+ *
+ *   modular  — src/modules/<name>/<...>           (default behaviour)
+ *   universal— src/pages, src/components, src/content (the default starter)
+ *
+ * Detection is structural: a project with `src/modules/` is treated as
+ * modular; otherwise the universal layout is assumed. This lets users of
+ * either starter run `mado new` without configuring anything, and keeps
+ * the modular contract intact for projects that opt into it.
+ */
+function detectStarterShape(ctx) {
+  if (existsSync(join(ctx.projectRoot, "src/modules"))) return "modular";
+  if (existsSync(join(ctx.projectRoot, "src/pages"))) return "universal";
+  // No explicit hint — fall back to modular, which matches the
+  // historical behaviour and is documented in the generator help.
+  return "modular";
+}
+
+/** Generators that only make sense inside the modular starter. */
+const MODULAR_ONLY = new Set([
+  "module",
+  "connector",
+  "resource",
+  "service",
+  "form",
+  "guard",
+]);
+
 export async function runNew(ctx, args) {
   const [kind, target] = args;
   if (!kind || !target) {
     printUsage();
+    process.exit(1);
+  }
+
+  const shape = detectStarterShape(ctx);
+  if (shape === "universal" && MODULAR_ONLY.has(kind)) {
+    console.error(
+      `[mado] '${kind}' is a modular-starter generator and is not ` +
+        "available in the universal starter.",
+    );
+    console.error(
+      "[mado] Either move this project to the modular layout " +
+        "(create src/modules/<name>/) or scaffold a fresh modular " +
+        "project with: mado init my-app --starter modular",
+    );
     process.exit(1);
   }
 
@@ -39,7 +83,7 @@ export async function runNew(ctx, args) {
     process.exit(1);
   }
 
-  await fn(ctx, normalizeTarget(target));
+  await fn(ctx, normalizeTarget(target), shape);
 }
 
 function printUsage() {
@@ -86,8 +130,11 @@ async function scaffoldModule(ctx, name) {
   );
 }
 
-async function scaffoldPage(ctx, target) {
-  const file = moduleFile(ctx, target, ".page.ts");
+async function scaffoldPage(ctx, target, shape) {
+  const file =
+    shape === "universal"
+      ? join(srcDir(ctx), "pages", `${leafName(target)}.page.ts`)
+      : moduleFile(ctx, target, ".page.ts");
   const name = leafName(target);
   await writeOnce(
     file,
@@ -225,8 +272,11 @@ export const ${useName} = () =>
   );
 }
 
-async function scaffoldComponent(ctx, target) {
-  const file = moduleFile(ctx, target, ".component.ts");
+async function scaffoldComponent(ctx, target, shape) {
+  const file =
+    shape === "universal"
+      ? join(srcDir(ctx), "components", `${leafName(target)}.component.ts`)
+      : moduleFile(ctx, target, ".component.ts");
   const name = leafName(target);
   const tag = name.includes("-") ? name : `x-${name}`;
   await writeOnce(

@@ -28,6 +28,7 @@ import type {
   InstantiatedTemplate,
   TemplateResult,
 } from "./template-types.js";
+import { _flushDeferredStaticElements } from "../component.js";
 
 /**
  * `html\`<div>${value}</div>\`` → template descriptor.
@@ -140,26 +141,38 @@ export function render(
     existing.dispose();
   }
 
-  // `mado bake` writes static first-paint markup into #app and marks the
+  // Static snapshots write first-paint markup into #app and mark the
   // container. That markup is not hydrated: once the client app starts, Mado
-  // owns the container again and replaces the baked DOM with live bindings.
-  const isBakedContainer =
+  // owns the container again and atomically replaces it with live bindings.
+  const isStaticContainer =
     !existing &&
     "hasAttribute" in container &&
-    container.hasAttribute("data-mado-baked");
-  if (isBakedContainer) {
-    container.replaceChildren();
-    container.removeAttribute("data-mado-baked");
-  }
+    container.hasAttribute("data-mado-static");
 
-  if (!existing && container.childNodes.length > 0) {
+  if (!isStaticContainer && !existing && container.childNodes.length > 0) {
     warnOnce(
       "render-unmanaged-dom",
       "render() called on a container with existing DOM that was not created by Mado. It will remain alongside the new render output.",
     );
   }
 
+  // Build the live fragment OFF-DOM first. This guarantees that:
+  //   - any new Custom Element inside the fragment is parsed and constructed
+  //     but its connectedCallback() does not fire until insertion,
+  //   - the old static tree (whose deferred children skipped setup()) is
+  //     still in the DOM as inert first-paint markup,
+  //   - we then swap children atomically with replaceChildren(), avoiding
+  //     any frame where the container is visibly empty.
   const inst = instantiate(result);
-  container.appendChild(inst.fragment);
+  if (isStaticContainer) {
+    // Order matters: remove the marker BEFORE inserting the live fragment so
+    // newly-connecting Custom Elements no longer see a static ancestor and
+    // run setup() exactly once.
+    container.removeAttribute("data-mado-static");
+    container.replaceChildren(inst.fragment);
+    _flushDeferredStaticElements();
+  } else {
+    container.appendChild(inst.fragment);
+  }
   rendered.set(container, inst);
 }

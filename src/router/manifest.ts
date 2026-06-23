@@ -32,7 +32,17 @@ import {
   type Routes,
   type RoutesMap,
 } from "./match.js";
+import { stripBase } from "./base.js";
 import { navigate, router, type RouterApi } from "./navigation.js";
+import {
+  beginStaticRoute,
+  consumeStaticSeed,
+  markStaticRouteReady,
+  recordStaticError,
+  setStaticRouterState,
+  trackStatic,
+} from "../static-runtime.js";
+import type { JsonValue } from "../page.js";
 
 export interface RoutesOptions {
   /**
@@ -91,6 +101,19 @@ interface RoutesContext {
    * the page leaves — no leak, no "resource-outside-lifecycle" warning.
    */
   activeLifecycle: LifecycleHandle | null;
+  /**
+   * Build-time seed for the current route commit. Consumed exactly once per
+   * pathname from `<script data-mado-static-data>` (see consumeStaticSeed)
+   * and held here for the duration of the route's render passes so both
+   * head() and load() receive the same value — `routes()` may re-evaluate
+   * `view()` several times (idle → ready, layout re-runs) and re-calling
+   * `consumeStaticSeed()` would return undefined because the script element
+   * is removed on first read.
+   *
+   * Cleared the moment we observe a navigation to a different pathname,
+   * which guarantees SPA navigations never inherit a stale seed.
+   */
+  seedForPathname: { pathname: string; value: JsonValue | undefined } | null;
 }
 
 /**
@@ -116,14 +139,34 @@ export function routes(
     compiledForPrefetch: [],
     renderSeq: 0,
     activeLifecycle: null,
+    seedForPathname: null,
   };
   activeRoutes.add(ctx);
 
   const flat = flatten(manifest);
   const lowLevel: Routes = {};
   for (const [pattern, entry] of flat) {
-    lowLevel[pattern] = (params) =>
-      renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
+    lowLevel[pattern] = (params) => {
+      // Use the ROUTE pathname (Vite base already stripped) so the seed
+      // attribute written at capture time matches the lookup at runtime
+      // boot regardless of which base the app deploys under.
+      const pathname =
+        typeof location !== "undefined" ? stripBase(location.pathname) : "/";
+      // Seed lifecycle: consume exactly once per pathname (the script is
+      // removed on first read), then keep the value in ctx so subsequent
+      // render passes for the same route commit see the same seed. A new
+      // pathname triggers begin-route + a fresh consume; navigating back
+      // to a previous static URL returns undefined because the script is
+      // already gone from the document.
+      if (ctx.seedForPathname?.pathname !== pathname) {
+        ctx.seedForPathname = {
+          pathname,
+          value: consumeStaticSeed(pathname),
+        };
+        beginStaticRoute(pathname);
+      }
+      return renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
+    };
     ctx.pathToFlat.set(pattern, entry);
     if (pattern !== "*") {
       ctx.compiledForPrefetch.push({ regex: patternToRegex(pattern), entry });
@@ -202,7 +245,8 @@ async function loadPage(
 ): Promise<Page> {
   const cached = ctx.moduleCache.get(loader);
   if (cached) return cached;
-  const p = await loader();
+  const loaded = loader();
+  const p = await trackIfPromise(loaded, "route module");
   ctx.moduleCache.set(loader, p);
   return p;
 }
@@ -233,10 +277,15 @@ function tryLoadSync(
 /**
  * Apply the page's title/head. Extracted from renderEntry so it
  * can be called from both the async and sync branch.
+ *
+ * `seed` is the build-time static seed consumed once per route commit and
+ * passed through both head() and load(); it is `undefined` for SPA
+ * navigations and for non-static routes.
  */
 function applyPageMeta(
   page: Page,
   params: RouteParams,
+  seed: JsonValue | undefined,
   options: RoutesOptions,
 ): void {
   const title =
@@ -249,10 +298,10 @@ function applyPageMeta(
     return;
   }
   try {
-    const baked = readBaked<unknown>();
-    applyHead(page.head(params, baked));
+    applyHead(page.head(params, seed));
   } catch (err) {
     applyHead({});
+    recordStaticError(err);
     // eslint-disable-next-line no-console
     console.error("[mado] page.head() threw:", err);
   }
@@ -288,7 +337,9 @@ function renderEntry(
         ? trySyncGuards(entry.guards, params)
         : undefined;
   if (sync && syncGuardVerdict === null) {
-    applyPageMeta(sync.page, params, options);
+    setStaticRouterState("render:sync");
+    const seed = ctx.seedForPathname?.value;
+    applyPageMeta(sync.page, params, seed, options);
     try {
       // Combine sync layouts with any guard-injected page guards' layouts is
       // a future concern; today guards never return a layout.
@@ -310,19 +361,25 @@ function renderEntry(
         }
       }
       const lc = openPageLifecycle(ctx);
-      return runInLifecycle(lc, () =>
-        renderWithLayouts(sync.page, sync.layouts, params),
+      const view = runInLifecycle(lc, () =>
+        renderWithLayouts(sync.page, sync.layouts, params, seed),
       );
+      markStaticRouteReady("ready");
+      return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       return renderError(e, params, options, sync.page);
     }
   }
   if (sync && syncGuardVerdict) {
+    setStaticRouterState("guard");
     return renderGuardVerdictSync(syncGuardVerdict, options);
   }
 
   // ---------- ASYNC PATH ----------
+  setStaticRouterState("loading");
   // 'idle' — first window (until loadingDelay): render empty to avoid
   // progress-bar flicker on fast connections.
   // 'loading' — module didn't arrive in time → show loading.
@@ -365,27 +422,32 @@ function renderEntry(
         | { kind: "halt" }
         | null = null;
       if (entry.guards.length > 0 || pageGuards.length > 0) {
-        verdict = await runGuards(
-          [...entry.guards, ...pageGuards],
-          params,
+        verdict = await trackStatic(
+          runGuards([...entry.guards, ...pageGuards], params),
+          "route guards",
         );
       }
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       if (verdict) {
+        setStaticRouterState(`guard:${verdict.kind}`);
         applyGuardVerdict(verdict);
+        if (verdict.kind === "halt") markStaticRouteReady("halted");
         // After a redirect we leave `idle` so nothing flashes; the new route
         // will start its own render cycle.
         return;
       }
-      applyPageMeta(pg as Page, params, options);
+      applyPageMeta(pg as Page, params, ctx.seedForPathname?.value, options);
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
+      markStaticRouteReady("ready");
     } catch (err: unknown) {
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       state.set({ kind: "error", err: e });
     }
   })();
@@ -401,11 +463,15 @@ function renderEntry(
     }
     try {
       const lc = openPageLifecycle(ctx);
-      return runInLifecycle(lc, () =>
-        renderWithLayouts(s.page, s.layouts, params),
+      const seed = ctx.seedForPathname?.value;
+      const view = runInLifecycle(lc, () =>
+        renderWithLayouts(s.page, s.layouts, params, seed),
       );
+      return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      recordStaticError(e);
+      markStaticRouteReady("error");
       return renderError(e, params, options, s.page);
     }
   }}`;
@@ -555,24 +621,35 @@ function navigateFromGuard(to: string, replace?: boolean): void {
  * Wrap a page's view in layouts (from inner to outer).
  * Each layout receives `child` = TemplateResult of the child page or
  * next layout — composes like a matryoshka.
+ *
+ * `seed` is the build-time static seed (or undefined for SPA navigation).
+ * It is passed to `page.load(params, seed)`; if no `load` is declared the
+ * seed itself becomes the view's data so static-only pages render their
+ * initial data without needing a runtime loader.
  */
 function renderWithLayouts(
   page: Page,
   layouts: Page[],
   params: RouteParams,
+  seed: JsonValue | undefined,
 ): TemplateResult {
-  const baked = readBaked<unknown>();
-  const data = page.load ? page.load(params, baked) : undefined;
+  // Contract: page.load receives the seed; when no load is declared the
+  // seed itself is the runtime data (otherwise static-only pages would
+  // lose their initial data after head() has consumed it).
+  const data = page.load ? page.load(params, seed) : (seed as unknown);
 
   // Expose onDispose to page views so they can clean up timers, manual
   // subscriptions, etc. that aren't auto-managed by resource()/effect().
   const lc = getCurrentLifecycle();
   const onDispose = lc ? (fn: () => void) => lc.onDispose(fn) : undefined;
 
+  // Expose ROUTE pathname (base stripped) to user views so they receive
+  // the same value the matcher works with.
+  const routePath = () => stripBase(location.pathname);
   let view: TemplateResult = page.view({
     params,
     data,
-    path: () => location.pathname,
+    path: routePath,
     child: null,
     onDispose,
   } as PageContext<RouteParams, unknown>);
@@ -583,13 +660,19 @@ function renderWithLayouts(
     view = layout.view({
       params,
       data: layoutData,
-      path: () => location.pathname,
+      path: routePath,
       child: view,
       onDispose,
     } as PageContext<RouteParams, unknown>);
   }
 
   return view;
+}
+
+function trackIfPromise<T>(value: T | Promise<T>, label: string): Promise<T> {
+  return value && typeof (value as Promise<T>).then === "function"
+    ? trackStatic(value as Promise<T>, label)
+    : Promise.resolve(value as T);
 }
 
 // ---------- Default loading view ----------
@@ -632,21 +715,6 @@ function ensureDefaultLoadingStyle(): void {
 function defaultLoadingView(): TemplateResult {
   ensureDefaultLoadingStyle();
   return html`<div class="mado-progress-bar" aria-hidden="true"></div>`;
-}
-
-/**
- * Read baked data from `<script id="bake" type="application/json">`
- * placed by `scripts/bake.mjs` during static generation. Returns
- * undefined in SPA mode.
- */
-function readBaked<T>(): T | undefined {
-  const el = document.getElementById("bake");
-  if (!el || el.textContent == null) return undefined;
-  try {
-    return JSON.parse(el.textContent) as T;
-  } catch {
-    return undefined;
-  }
 }
 
 // ---------- Test hooks ----------

@@ -1,0 +1,39 @@
+/* Document-level layout: header, sections, hero. Component styles
+   live inside their own shadow roots, this stylesheet styles the
+   light-DOM wrappers only. */
+.document {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  display: grid;
+  gap: 2.5rem;
+}
+
+.hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 3rem;
+  letter-spacing: -0.01em;
+}
+
+.hero .lead {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  color: var(--mado-fg-muted);
+}
+
+.features {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.cta {
+  padding: 1.5rem;
+  border: 1px dashed var(--mado-border);
+  border-radius: var(--mado-radius);
+  background: var(--mado-surface);
+}
+
+article p {
+  margin: 0.75rem 0;
+}

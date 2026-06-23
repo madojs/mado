@@ -4,7 +4,12 @@ import { join, resolve } from "node:path";
 
 import { parseFlags } from "../_config.mjs";
 
-const STARTERS = ["default"];
+// `default` is the universal starter: minimal, runnable, zero backend.
+// `modular` is the long-lived business-app reference architecture:
+//   auth, billing, guards, layouts, services, connectors, contracts.
+// Both target the same Mado runtime — they only differ in how much
+// structure they pre-create.
+const STARTERS = ["default", "modular"];
 
 export async function runInit(ctx, rawArgs) {
   const { flags, positional } = parseFlags(rawArgs);
@@ -109,8 +114,8 @@ async function ensureStarterPackageJson(ctx, target) {
   pkg.devDependencies = {
     ...(pkg.devDependencies ?? {}),
     typescript: rootDev.typescript ?? "^6.0.3",
-    linkedom: rootDev.linkedom ?? "^0.18.12",
     lightningcss: rootDev.lightningcss ?? "^1.32.0",
+    "playwright-core": rootDev["playwright-core"] ?? "^1.47.0",
     vite: rootDev.vite ?? "^8.0.16",
   };
 

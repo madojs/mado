@@ -9,8 +9,8 @@ notes when it becomes real.
 - [ ] Run the default starter as a real demo app and feed every friction point
   back into docs, CLI generators, or starter structure.
 - [ ] Add focused tests for every `mado new` generator template.
-- [ ] Audit EN/RU/FR docs after each tooling/runtime change; no old `dist/`,
-  `tsc-only`, custom-bundler, or legacy example wording should remain.
+- [ ] Audit `docs/en` after each tooling/runtime change; no stale references to
+  removed APIs should remain (CI gate: `npm run docs:lint`).
 - [ ] Keep `mado preview` boring and reliable inside generated apps.
 - [ ] Add a short maintainer-only release checklist if manual npm publish stays
   in use.
@@ -44,12 +44,13 @@ notes when it becomes real.
   same small classes often enough to justify it.
 - [ ] CSP-friendly style mode.
 
-## Bake / Smart Static
+## Static snapshots
 
-- [ ] Add bake regression coverage for layout groups, dynamic params, sitemap,
-  and hard-refresh deploy paths.
-- [ ] Incremental bake cache after a real content-heavy app needs it.
-- [ ] Webhook re-bake endpoint only after incremental bake has a concrete use.
+- [ ] Extend regression coverage for layout groups, dynamic params, sitemap,
+  and hard-refresh deploy paths under `mado static`.
+- [ ] Incremental snapshot cache after a real content-heavy app needs it.
+- [ ] Webhook re-capture endpoint only after the incremental cache has a
+  concrete use.
 - [ ] RSS / Atom feed generator for docs/blog/demo content.
 
 ## Operations

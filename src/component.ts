@@ -12,20 +12,106 @@
  * The returned render function is called via an effect, so any signals
  * read inside it automatically re-render the template.
  *
- * Shadow DOM (open) is used by default. It can be disabled, and
- * styles will be scoped via @scope (or a tag-prefix fallback).
+ * Shadow DOM (open, serializable) is used by default. It can be disabled for
+ * advanced integration cases, and styles will be scoped via @scope
+ * (or a tag-prefix fallback).
  */
 
 import { signal, effect, type Signal, type Disposer } from "./signal.js";
 import { html, render } from "./html/template.js";
 import type { TemplateResult } from "./html/template-types.js";
-import { adopt, scopeStyles, type CSSResult } from "./css.js";
+import {
+  adopt,
+  createStylesheet,
+  scopeStyles,
+  type CSSResult,
+} from "./css.js";
 import {
   createLifecycle,
   runInLifecycle,
   type LifecycleHandle,
 } from "./lifecycle.js";
 import { warnOnce } from "./diagnostics.js";
+
+/**
+ * Components upgraded inside a server-side or build-time snapshot live
+ * temporarily under `<#app data-mado-static>`. Their setup() is intentionally
+ * NOT run yet: Mado replaces the snapshot tree atomically when the SPA
+ * boots, and any work performed by setup() before takeover would leak.
+ *
+ * The set lets the runtime double-check, after takeover, that no deferred
+ * element survives — see _flushDeferredStaticElements().
+ */
+const deferredStaticElements = new Set<HTMLElement>();
+
+/**
+ * Walk composed ancestry (Light DOM parentNode plus ShadowRoot.host) and
+ * return true when the element lives inside a tree marked with
+ * `data-mado-static`. Used to defer component activation until the SPA
+ * takeover atomically removes that tree.
+ */
+function isInsideStaticTree(node: Node | null): boolean {
+  let n: Node | null = node;
+  while (n) {
+    if (
+      n instanceof Element &&
+      (n as Element).hasAttribute &&
+      (n as Element).hasAttribute("data-mado-static")
+    ) {
+      return true;
+    }
+    const parent: Node | null =
+      typeof ShadowRoot !== "undefined" && n instanceof ShadowRoot
+        ? n.host
+        : n.parentNode;
+    n = parent;
+  }
+  return false;
+}
+
+/** @internal */
+export function _markDeferredForStatic(host: HTMLElement): void {
+  deferredStaticElements.add(host);
+}
+
+/** @internal */
+export function _isDeferredForStatic(host: HTMLElement): boolean {
+  return deferredStaticElements.has(host);
+}
+
+/**
+ * Called by render() after a root takeover has atomically replaced the
+ * `data-mado-static` tree. By that time every component that was
+ * mid-snapshot must either be:
+ *   1. removed with the static tree (the typical case), or
+ *   2. still connected but no longer under a static ancestor — in which
+ *      case the SPA tree placed it live and we activate it now.
+ * Any element that fails both checks is a stuck snapshot leaf; emit a
+ * single diagnostic so the developer notices the orphan.
+ *
+ * @internal
+ */
+export function _flushDeferredStaticElements(): void {
+  for (const el of [...deferredStaticElements]) {
+    if (!el.isConnected) {
+      deferredStaticElements.delete(el);
+      continue;
+    }
+    if (!isInsideStaticTree(el)) {
+      // Reset the guard so the live connectedCallback runs setup().
+      deferredStaticElements.delete(el);
+      // Force a clean re-enter of connectedCallback. Browsers fire that
+      // callback exactly once per insertion, so we toggle the element out
+      // and back in. Avoid this if the element is the document root.
+      const parent = el.parentNode;
+      const next = el.nextSibling;
+      if (parent) {
+        parent.removeChild(el);
+        parent.insertBefore(el, next);
+      }
+    }
+  }
+}
 
 export interface ComponentContext {
   host: HTMLElement;
@@ -113,7 +199,13 @@ export function component(
 
     constructor() {
       super();
-      this.#root = useShadow ? this.attachShadow({ mode: "open" }) : this;
+      this.#root = useShadow
+        ? this.shadowRoot ??
+          this.attachShadow({
+            mode: "open",
+            serializable: true,
+          } as ShadowRootInit)
+        : this;
     }
 
     connectedCallback() {
@@ -123,6 +215,18 @@ export function component(
       // move and setup() is NOT re-run.
       this.#teardownQueued = false;
       if (this.#connected) return;
+
+      // Deferred activation inside a static snapshot tree. The runtime keeps
+      // setup()/effect() asleep until the SPA performs root takeover; the
+      // existing DSD inside shadowRoot stays as inert first-paint markup.
+      // When the SPA replaces the static root, this element is either
+      // removed with that tree (the common case) or re-inserted live —
+      // in which case connectedCallback() runs again and reaches setup().
+      if (isInsideStaticTree(this)) {
+        _markDeferredForStatic(this);
+        return;
+      }
+
       this.#connected = true;
 
       if (stylesheets.length > 0) {
@@ -181,6 +285,11 @@ export function component(
     }
 
     disconnectedCallback() {
+      // A deferred snapshot leaf was removed by takeover before setup() ever
+      // ran. Clear the deferred marker so the registry does not accumulate
+      // dead references.
+      deferredStaticElements.delete(this);
+
       // Defer teardown to a microtask. A keyed move (each() relocating a node
       // via insertBefore) fires disconnectedCallback → connectedCallback in the
       // same tick; connectedCallback clears #teardownQueued so the teardown is
@@ -223,8 +332,7 @@ function normalizeStyles(
   return arr.map((s) => {
     let sheet: CSSResult;
     if (typeof s === "string") {
-      sheet = new CSSStyleSheet();
-      sheet.replaceSync(s);
+      sheet = createStylesheet(s);
     } else {
       sheet = s;
     }

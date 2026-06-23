@@ -30,6 +30,19 @@ import type { TemplateResult } from "./html/template-types.js";
 export type RouteParams = Record<string, string>;
 
 /**
+ * JSON-compatible value. Static seeds and any data crossing the build-time →
+ * snapshot → client boundary must satisfy this contract: only primitives,
+ * plain arrays and plain object trees. Date, Map, Set, class instances,
+ * functions, undefined values and circular references are not allowed and
+ * fail at serialization time with a route-tagged error.
+ */
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
  * Loaded data. If load returned a Resource — this is `Resource<T>`,
  * otherwise — a plain value. The view decides what to do with it.
  */
@@ -62,8 +75,8 @@ export interface PageContext<P extends RouteParams, D> {
 }
 
 /**
- * Metadata for <head>. Baked into HTML at bake(), and in SPA runtime
- * updated on the fly on route changes.
+ * Metadata for <head>. Static snapshots write it into HTML, and the SPA
+ * runtime updates it on route changes.
  */
 export interface HeadMeta {
   /** If set — overrides page.title. */
@@ -95,27 +108,39 @@ export interface HeadMeta {
 }
 
 /**
- * Bake configuration: gives the build script enough information
- * to pre-render static HTML for all instances of a page.
+ * Static snapshot configuration: gives the build script enough information
+ * to enumerate public routes and seed browser-rendered snapshots.
+ *
+ * `S` is the JSON-safe seed type (build-time → snapshot → client boundary).
+ * It is intentionally decoupled from the runtime `D` data type: a seed of
+ * type `Product` is fine even when `page.load()` returns `Resource<Product>`.
+ *
+ * `static.paths` and `static.initialData` MUST be browser-bundle-safe,
+ * build-executable, and secret-free. They are executed during build
+ * discovery, but their module also remains in the client bundle: do not
+ * import Node-only APIs, do not embed credentials, do not perform side
+ * effects at module top level.
  */
-export interface BakeConfig<P extends RouteParams, D> {
+export interface StaticPageConfig<
+  P extends RouteParams,
+  S extends JsonValue,
+> {
   /**
-   * List of all params for which to bake a page.
-   * Return a ready array (may fetch from API).
+   * Route parameter sets to materialize.
+   *
+   * Optional for literal routes such as "/".
+   * Required for dynamic routes such as "/products/:slug".
    */
-  paths: () => Promise<P[]> | P[];
+  paths?: () => Promise<P[]> | P[];
   /**
-   * Data for specific params. Must be JSON-serialisable —
-   * it is also embedded in the HTML inside
-   * `<script type="application/json" id="bake">`
-   * and used as `initialData` during hydration.
+   * Optional build-time seed. Passed to page.head(params, seed)
+   * and page.load(params, seed).
+   *
+   * Used both at build time (to render the snapshot) and at client boot
+   * (so the runtime does not re-fetch what the snapshot already knows).
+   * The seed is consumed exactly once per route commit.
    */
-  data: (params: P) => Promise<D> | D;
-  /**
-   * How many seconds before the data is considered stale (for CDN/edge cache).
-   * Optional. Metadata only.
-   */
-  revalidate?: number;
+  initialData?: (params: P) => Promise<S> | S;
 }
 
 /**
@@ -151,21 +176,34 @@ export type Guard = (ctx: {
   path: string;
 }) => GuardResult | Promise<GuardResult>;
 
-export interface Page<P extends RouteParams = RouteParams, D = unknown> {
+export interface Page<
+  P extends RouteParams = RouteParams,
+  D = unknown,
+  S extends JsonValue = JsonValue,
+> {
   readonly _page: true;
   title?: string | ((params: P) => string);
-  load?: (params: P, baked?: D) => D;
+  /**
+   * Runtime data loader. Receives params and the optional static seed
+   * (only present on the first client boot of a static route, never
+   * during SPA navigation).
+   */
+  load?: (params: P, seed?: S) => D;
   view: (ctx: PageContext<P, D>) => TemplateResult;
   /**
-   * <head> metadata. Receives params and (opt.) data if pre-loaded
-   * via bake.
+   * <head> metadata. Receives params and the optional static seed.
+   *
+   * `head` is intentionally built from `(params, seed)` and not from the
+   * runtime `load()` result: head must be deterministic and JSON-derivable
+   * so that it appears in the raw snapshot HTML for SEO and social
+   * crawlers.
    */
-  head?: (params: P, data?: D) => HeadMeta;
+  head?: (params: P, seed?: S) => HeadMeta;
   /**
-   * Static HTML bake config. Used only in the bake script.
-   * Ignored at runtime.
+   * Static HTML snapshot declaration. Used only by build-time discovery.
+   * Non-static routes remain ordinary SPA routes.
    */
-  bake?: BakeConfig<P, D>;
+  static?: true | StaticPageConfig<P, S>;
   /**
    * Local error boundary. Catches errors from view() and load() of this page.
    * If not set — the global `error` from routes() is used.
@@ -181,10 +219,17 @@ export interface Page<P extends RouteParams = RouteParams, D = unknown> {
 /**
  * Page factory. A typed wrapper over a plain object —
  * needed only for type inference and the single "_page" stamp.
+ *
+ * The three generic parameters are inferred from `spec` in the common case:
+ *   page({ static: true, view: () => html`...` })
+ * Provide them explicitly only for non-trivial shapes:
+ *   page<{ slug: string }, Resource<Product>, Product>({ ... })
  */
-export function page<P extends RouteParams = RouteParams, D = unknown>(
-  spec: Omit<Page<P, D>, "_page">,
-): Page<P, D> {
+export function page<
+  P extends RouteParams = RouteParams,
+  D = unknown,
+  S extends JsonValue = JsonValue,
+>(spec: Omit<Page<P, D, S>, "_page">): Page<P, D, S> {
   return { _page: true, ...spec };
 }
 
@@ -204,7 +249,7 @@ export const isPage = (v: unknown): v is Page =>
  * due to parameter contravariance).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPage = Page<any, any>;
+export type AnyPage = Page<any, any, any>;
 
 export type RouteEntry =
   | AnyPage

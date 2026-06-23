@@ -2,6 +2,163 @@
 
 ## Unreleased
 
+### 0.12.0 stable polish
+
+Two rounds of post-rc polish before the 0.12.0 cut:
+
+#### Pre-merge fixes (carried over from the rc.1 review)
+
+- **Router base/prefetch.** `routeUrl()` on `"/"` and hover-prefetch
+  on Vite `base` deployments now resolve correctly under any sub-path
+  (`/`, `/mado/`, `/admin/`).
+- **`mado static` cleanup.** No more race between `process.exit` and
+  capture; canonical `<link>` is stripped on SPA navigation into pages
+  that don't declare their own head metadata.
+- **Discovery.** `mado static` no longer bypasses `fatal()` when
+  Vite SSR import fails; failures abort the snapshot.
+- **Modular starter.** All internal anchors flow through
+  `routeUrl()` + `data-link`; generators are context-aware and
+  refuse to overwrite existing files.
+- **`package:smoke`.** Now exercises both the default and modular
+  starters end to end.
+- **Release publishing.** `next` versions stay on the `next`
+  dist-tag; `latest` is reserved for stable cuts. The release and
+  weekly workflows install a pinned Playwright Chromium so static
+  snapshots never silently skip on CI.
+- **`mado preview`.** Prints the active base URL so users browsing
+  under a sub-path see the right entrypoint.
+- **`TODO.md` / `CONTRIBUTING.md` / `package.json#files`** trimmed
+  to match the post-rc reality.
+
+#### Documentation reorganisation
+
+`docs/en/` was rewritten so users (and LLMs) get one happy path:
+**"don't think `shadow: true` vs `shadow: false`; pick `page()` for
+URLs and `component()` for reusable widgets."**
+
+- **New flagship doc** `docs/en/10-pages-and-components.md` —
+  "the one rule": `page()` for routes, `component()` for reusable
+  `<x-tag>`s. Anti-patterns + decision table + `{ shadow: false }`
+  escape hatch.
+- **New numbering** groups docs into Start here / Concepts /
+  Production / Reference / Meta. Migration map for stale links is in
+  `docs/en/README.md`.
+- **Consolidated pages** —
+  `11-templates-and-signals.md` (NEW), `12-routing.md` (merges old
+  routing + layouts), `13-data.md` (merges old data + auth/api),
+  `14-forms.md` (merges old forms + Shadow-DOM forms),
+  `15-static-snapshots.md`, `16-app-architecture.md` (merges old
+  project-layout), `01-quickstart.md` (merges old IDE-setup),
+  `40-llm-guide.md` (merges old pitfalls + zero-history test).
+- **Deleted** `docs/fr`, `docs/uk`, `docs/ru` — English-only since
+  v0.12. Several legacy `docs/en/*` files were removed; their
+  content lives in the consolidated pages.
+- **Truth pass on retained prose.** Killed obsolete claims:
+  no more "tsc-only", "no bundler", "SSE reload", "tsc → browser",
+  "edge prerender", "import maps". Vite is consistently named as
+  the canonical transport.
+- **`scripts/docs-lint.mjs`** now also blocks the obsolete vocabulary
+  above and any links to renamed `docs/en/*` filenames in active
+  docs; the migration table in `docs/en/README.md` is wrapped in a
+  `docs-lint:allow-legacy-mention` block.
+
+## 0.12.0-rc.1 - 2026-06-22
+
+The unified pre-merge release. Mado is no longer "a calm browser-native
+SPA framework for internal tools"; it becomes **"a calm native-first
+web framework for sites and apps"** with one component model end to end.
+The full plan is preserved as
+[ADR 0001 — Browser-rendered static snapshots](./docs/architecture/adr/0001-browser-static-snapshots.md).
+
+### Positioning
+
+- New tagline: **One component model. One page model. One release command.**
+- README, `package.json` (description + keywords), CLI help and starter
+  READMEs all updated to the sites-and-apps positioning.
+- `MADO_UNIFIED_PRE_MERGE_PLAN.MD` moved to
+  `docs/architecture/adr/0001-browser-static-snapshots.md`.
+
+### Added
+
+- **`src/router/base.ts`** — single source of truth for the Vite base.
+  Exports `appBase`, `normalizeBase`, `stripBase`, `withBase` and the
+  new public `routeUrl()` helper. The runtime reads
+  `import.meta.env.BASE_URL` once and exposes it through these helpers
+  so every internal link is base-aware without any application
+  configuration.
+- **Production-served snapshot → live takeover E2E gate.**
+  `test/static/dsd-takeover.test.mjs` now scaffolds a real app, runs
+  `mado release`, hosts it through `mado preview` and asserts the
+  takeover contract through headless Chromium with strict
+  no-`.catch()` assertions.
+- **Base-path fixture.** `test/static/base-path.test.mjs` proves the
+  whole `/mado/` deployment shape end to end: build, sitemap, capture,
+  preview redirects, SPA fallback, runtime stripBase/withBase.
+- **Canonical / `og:url` auto-fallback.** When a page does not declare
+  either, the snapshot pipeline derives an absolute
+  `site + base + pathname` URL, deduplicates duplicates and rejects
+  localhost / capture-origin values.
+- **Strict `JsonValue` validator** with path-aware errors. Date / Map /
+  Set / class instances / undefined / NaN / Infinity / cycles all fail
+  the build with the exact JSON path that broke
+  (`[mado:static] /products/keyboard: seed.product.createdAt is Date`).
+- **Universal default starter** (`mado init my-app`). ~15 source
+  files, no backend required, demonstrates one Shadow Component shared
+  between a static landing page and a live SPA route.
+- **Modular starter preserved** (`mado init my-app --starter modular`)
+  as the long-lived business-application reference architecture.
+- **HTTP policy documented** in `scripts/static/browser.mjs`: fatal
+  vs ignored vs quality-hint classes are explicit, with bounded
+  timeouts for fonts and paint frames.
+- **`scripts/docs-lint.mjs`** refuses the old vocabulary in current
+  docs (page.bake, mado bake, out/baked, "No Vite required",
+  "internal tools only") while still allowing it in migration guides
+  and ADRs.
+- **Required CI gate** `.github/workflows/ci.yml → static-snapshot`
+  installs Playwright-managed Chromium with
+  `npx playwright install --with-deps chromium` and runs the static
+  tests under `MADO_REQUIRE_BROWSER=1` so they cannot silently skip.
+
+### Changed (breaking)
+
+- **`mado build`** in app contexts now performs a Vite production
+  build of the deployable SPA (`vite build`). Inside the framework
+  repository it still calls `tsc`. The internal tsc compile is
+  exposed via `npm run build` in the repo. Use `mado typecheck` if
+  you only wanted `tsc --noEmit`.
+- **`out/_mado/build.json`** is dropped from the final release
+  artifact. It is internal CLI plumbing emitted by the
+  `@madojs/mado/vite` plugin so `mado static` and `mado preview` can
+  read the resolved Vite base/site without parsing `vite.config.ts`.
+  `mado preview` now derives the base from the build bridge OR from
+  the asset prefix in `out/index.html`, so the preview works on the
+  shipped artifact.
+- **Static output staging.** `out/_mado/spa.html` is no longer touched
+  until every static route captures cleanly; a failure mid-pipeline
+  leaves the previous deployment intact. `cleanupTemp()` always runs
+  in `finally`.
+- **`whenStable()` phase-bounded.** The runtime now waits for
+  routeReady (cap: 15s) and tracked resources (cap: 15s) separately
+  so timeout diagnostics name the failing phase. Fonts and paint
+  frames are best-effort with bounded timeouts (5s / 1s); on timeout
+  the snapshot proceeds with a diagnostic instead of failing.
+- **Browser launch order.** `chromium.launch()` (Playwright-managed)
+  is tried *before* `channel: "chrome"` so CI determinism does not
+  depend on whatever branded Chrome happens to be installed.
+
+### Migration
+
+| Before | After |
+|---|---|
+| `page.bake` | `page.static` |
+| `mado bake` | `mado static` |
+| `out/baked/...` | `out/<route>/index.html` |
+| `#bake` data | `data-mado-static-data` script |
+| `shadow: false` for SEO | open Shadow DOM (snapshotted as DSD) |
+| `site` was optional | required for any `static` route |
+| Vite plugin optional | canonical transport |
+| `mado build` ≈ `tsc` | `mado build` ≈ `vite build` |
+
 ## 0.11.1 - 2026-06-21
 
 Patch release for CI/release workflow cleanup after the Vite migration.

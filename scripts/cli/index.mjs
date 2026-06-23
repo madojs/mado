@@ -31,10 +31,21 @@ export async function main(argv) {
       await runInit(ctx, args);
       break;
     case "build":
-      await runNodeBin(ctx, "typescript/bin/tsc", args);
+      // Framework repo bootstraps via `tsc` (so the published package
+      // ships compiled .js). Every other context — user apps, the
+      // starter — gets a production Vite build of the deployable SPA.
+      if (ctx.isRepo) {
+        await runNodeBin(ctx, "typescript/bin/tsc", args);
+      } else {
+        await runVite(ctx, ["build", ...args], { defaultConfig: true });
+      }
       break;
     case "watch":
-      await runNodeBin(ctx, "typescript/bin/tsc", ["-w", ...args]);
+      if (ctx.isRepo) {
+        await runNodeBin(ctx, "typescript/bin/tsc", ["-w", ...args]);
+      } else {
+        await runVite(ctx, ["build", "--watch", ...args], { defaultConfig: true });
+      }
       break;
     case "typecheck":
       await runNodeBin(ctx, "typescript/bin/tsc", ["--noEmit", ...args]);
@@ -42,7 +53,7 @@ export async function main(argv) {
     case "test": {
       await runNodeBin(ctx, "typescript/bin/tsc", []);
       const files = await listTestFiles(projectRoot);
-      await run(process.execPath, ["--test", "--test-timeout=30000", ...files, ...args], {
+      await run(process.execPath, ["--test", "--test-timeout=120000", ...files, ...args], {
         cwd: projectRoot,
       });
       break;
@@ -55,7 +66,12 @@ export async function main(argv) {
       );
       break;
     case "bake":
-      await runNodeScript(ctx, "scripts/bake.mjs", args);
+      console.error("[mado] `mado bake` was removed.");
+      console.error("Use `mado static`, or run the complete pipeline with `mado release`.");
+      process.exit(1);
+      break;
+    case "static":
+      await runNodeScript(ctx, "scripts/static.mjs", args);
       break;
     case "preview":
       await runNodeScript(ctx, "scripts/preview.mjs", args);

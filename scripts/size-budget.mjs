@@ -8,7 +8,11 @@ import { gzipSync } from "node:zlib";
 
 const API_ENTRY = "src/index.ts";
 const SAMPLE_ENTRY = "starters/default/src/main.ts";
-const API_GZIP_LIMIT = readLimit("MADO_SIZE_API_GZIP_LIMIT", 16 * 1024);
+// Public API budget bumped from 16 KiB → 17 KiB to accommodate the
+// base-aware router/navigation pack added in 0.12.0 (`src/router/base.ts`,
+// stripBase/withBase wiring in navigation, manifest and static-runtime).
+// Override per-environment via MADO_SIZE_API_GZIP_LIMIT.
+const API_GZIP_LIMIT = readLimit("MADO_SIZE_API_GZIP_LIMIT", 17 * 1024);
 const SAMPLE_GZIP_LIMIT = readLimit("MADO_SIZE_SAMPLE_GZIP_LIMIT", 42 * 1024);
 
 let failed = false;

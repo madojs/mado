@@ -1,0 +1,30 @@
+/* Design tokens. Override these to re-skin the app without touching
+   component CSS. Custom properties penetrate shadow roots, so every
+   component reads them automatically. */
+:root {
+  --mado-bg: #fafafa;
+  --mado-surface: #ffffff;
+  --mado-surface-hover: #f1f5f9;
+  --mado-fg: #0f172a;
+  --mado-fg-muted: #475569;
+  --mado-border: #e2e8f0;
+  --mado-accent: #1d4ed8;
+
+  --mado-radius: 0.625rem;
+
+  --mado-font-body:
+    system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mado-bg: #0b1220;
+    --mado-surface: #111827;
+    --mado-surface-hover: #1f2937;
+    --mado-fg: #e2e8f0;
+    --mado-fg-muted: #94a3b8;
+    --mado-border: #1f2937;
+    --mado-accent: #60a5fa;
+  }
+}

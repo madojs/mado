@@ -3,7 +3,7 @@
 // Verifies:
 //   - In a scaffolded app with the default starter, `mado release` produces a
 //     working out/ directory containing index.html, Vite assets,
-//     directly promoted baked HTML (when bake routes exist), public assets,
+//     browser-captured static HTML (when static routes exist), public assets,
 //     and the generated _headers + _redirects CDN config files.
 //   - `mado preview` remains a thin static preview of the final out/.
 //
@@ -34,21 +34,26 @@ const CLI = resolve(REPO_ROOT, "scripts/cli.mjs");
 async function scaffoldApp() {
   const dir = mkdtempSync(join(tmpdir(), "mado-release-"));
 
-  // Use the framework CLI to scaffold the minimal starter — it already does
-  // not pull our admin guard chain, so we don't need to patch much.
+  // The release pipeline test exercises the modular starter end to end:
+  // it already has the auth / billing / layout / module-boundary shape
+  // that real business apps deploy, so any regression here surfaces in
+  // the most realistic possible artifact. The universal starter is
+  // exercised separately by `test/static/dsd-takeover.test.mjs`.
   try {
-    await exec(process.execPath, [CLI, "init", "app"], { cwd: dir });
+    await exec(process.execPath, [CLI, "init", "app", "--starter", "modular"], {
+      cwd: dir,
+    });
     const app = join(dir, "app");
 
-    // Replace the starter home page with one that defines a bake route,
-    // so we exercise scripts/bake.mjs end-to-end.
+    // Replace the starter home page with a compact static route,
+    // so we exercise scripts/static.mjs end-to-end.
     const homePage = `
       import { html, page } from "@madojs/mado";
       export default page({
+        static: true,
         title: "Home",
         head: () => ({ description: "Home page" }),
         view: () => html\`<h1>Welcome</h1>\`,
-        bake: { paths: () => [{}], data: () => ({ greeting: "hi" }) },
       });
     `;
     writeFileSync(join(app, "src/modules/home/home.page.ts"), homePage);
@@ -84,7 +89,15 @@ async function runCli(cwd, args) {
   try {
     const execResult = await exec(process.execPath, [CLI, ...args], {
       cwd,
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: {
+        ...process.env,
+        FORCE_COLOR: "0",
+        // mado static now requires an explicit public origin for static
+        // routes. The fixture's home page declares `static: true`, so we
+        // bind a stable test origin (matches the deterministic-output
+        // assertion).
+        MADO_SITE: "https://release-fixture.test",
+      },
     });
     return { code: 0, stdout: execResult.stdout ?? "", stderr: execResult.stderr ?? "" };
   } catch (e) {
@@ -96,7 +109,7 @@ async function runCli(cwd, args) {
   }
 }
 
-test("mado release: produces out/ with Vite assets, baked HTML, public assets, _headers, _redirects", async () => {
+test("mado release: produces out/ with Vite assets, static HTML, public assets, _headers, _redirects", { timeout: 120_000 }, async () => {
   const { root, app } = await scaffoldApp();
   try {
     const result = await runCli(app, ["release"]);
@@ -117,7 +130,7 @@ test("mado release: produces out/ with Vite assets, baked HTML, public assets, _
     assert.ok(existsSync(join(out, "_redirects")), "_redirects generated");
     assert.match(
       readFileSync(join(out, "_redirects"), "utf8"),
-      /\/\* \/index\.html 200/,
+      /\/\* \/_mado\/spa\.html 200/,
     );
     assert.ok(existsSync(join(out, "_headers")), "_headers generated");
     assert.match(
@@ -125,19 +138,22 @@ test("mado release: produces out/ with Vite assets, baked HTML, public assets, _
       /immutable/,
     );
 
-    // Bake step produced directly deployable HTML + sitemap.
-    assert.equal(existsSync(join(out, "baked")), false, "out/baked is not written by default");
+    // Static step produced directly deployable HTML + sitemap.
+    assert.equal(existsSync(join(out, "baked")), false, "out/baked is not written");
+    assert.equal(existsSync(join(out, ".mado")), false, "temporary static output is cleaned");
+    assert.ok(existsSync(join(out, "_mado/spa.html")), "SPA shell is preserved");
+    assert.ok(existsSync(join(out, "404.html")), "GitHub Pages fallback is written");
     const html = readFileSync(join(out, "index.html"), "utf8");
     assert.match(html, /Welcome/);
-    assert.match(html, /"greeting":"hi"/);
-    assert.match(html, /data-mado-baked/);
+    assert.match(html, /data-mado-static/);
     assert.match(html, /\/assets\/[^"]+\.js/);
     assert.doesNotMatch(html, /<script[^>]+src="\/dist\/main\.js"/);
+    assert.doesNotMatch(html, /__MADO_STATIC_MODE__/);
     assert.ok(existsSync(join(out, "sitemap.xml")), "sitemap.xml written to out/");
 
     const rootHtml = readFileSync(join(out, "index.html"), "utf8");
     assert.match(rootHtml, /Welcome/);
-    assert.match(rootHtml, /data-mado-baked/);
+    assert.match(rootHtml, /data-mado-static/);
     assert.match(rootHtml, /\/assets\/[^"]+\.js/);
     assert.doesNotMatch(rootHtml, /<script[^>]+src="\/dist\/main\.js"/);
 

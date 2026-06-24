@@ -4,6 +4,8 @@
 > generating Mado code, and a practical zero-history test you can hand to a
 > fresh model.
 
+Current stable release: **0.12.0**.
+
 This document is for **two audiences**:
 
 1. **AI agents in the IDE** that read `AGENTS.md` / `.cursorrules` /

@@ -5,6 +5,8 @@
 > Browser-native source, Vite as the canonical development and delivery
 > transport, zero runtime dependencies.
 
+Current stable release: **0.12.0**.
+
 Mado deliberately rejects compilers (no JSX, no special template
 language), VDOM diffing, and SSR/hydration. Static documents are
 captured by a real headless Chromium during `mado release`, including

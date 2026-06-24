@@ -10,6 +10,7 @@
 - **Mado** — a calm native-first web framework for both static sites
   and live SPAs. One Web Component model, one page model, one release
   command.
+- Current stable release: **0.12.0**.
 - Built on Web Components + signals + tagged-template `html`.
 - **Vite is the canonical transport** for development, build and the
   static snapshot pipeline. Generated apps depend on `typescript`,

@@ -67,9 +67,7 @@ dependencies.
 ## Quick start
 
 ```bash
-# Mado 0.12 is currently shipping as a prerelease (`@next` on npm).
-# After 0.12.0 stable lands, swap `@next` for `@latest`.
-npm exec --package @madojs/mado@next -- mado init my-app
+npm exec --package @madojs/mado -- mado init my-app
 cd my-app
 npm install
 npm run dev

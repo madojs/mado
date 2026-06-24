@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-06-24
 
-### 0.12.0 stable polish
+### Stable polish
 
-Two rounds of post-rc polish before the 0.12.0 cut:
+Two rounds of post-rc polish for the 0.12.0 cut:
 
 #### Pre-merge fixes (carried over from the rc.1 review)
 

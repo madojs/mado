@@ -21,9 +21,6 @@ cd my-app
 npm install
 ```
 
-> While 0.12 is still on the `next` dist-tag, pin the version:
-> `npm exec --package @madojs/mado@next -- mado init my-app`.
-
 What you get either way:
 
 - exactly one runtime dependency: `@madojs/mado`;

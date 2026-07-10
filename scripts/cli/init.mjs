@@ -3,6 +3,7 @@ import { copyFile, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { parseFlags } from "../_config.mjs";
+import { logger } from "../logger.mjs";
 
 // `default` is the universal starter: minimal, runnable, zero backend.
 // `modular` is the long-lived business-app reference architecture:
@@ -15,30 +16,30 @@ export async function runInit(ctx, rawArgs) {
   const { flags, positional } = parseFlags(rawArgs);
   const targetArg = positional[0];
   if (!targetArg) {
-    console.error("[mado] usage: mado init <name> [--starter default] [--force]");
+    logger.error("mado", "usage", "usage: mado init <name> [--starter default] [--force]");
     process.exit(1);
   }
 
   const starter = String(flags.starter ?? "default");
   if (!STARTERS.includes(starter)) {
-    console.error(`[mado] unknown starter: ${starter}`);
-    console.error(`[mado] available starters: ${STARTERS.join(", ")}`);
+    logger.error("mado", "unknown-starter", `unknown starter: ${starter}`);
+    logger.info("mado", "available-starters", `available starters: ${STARTERS.join(", ")}`);
     process.exit(1);
   }
 
   const target = resolve(ctx.projectRoot, targetArg);
   const source = join(ctx.packageRoot, "starters", starter);
   if (!existsSync(source)) {
-    console.error(`[mado] missing starter template: ${starter}`);
+    logger.error("mado", "missing-starter", `missing starter template: ${starter}`);
     process.exit(1);
   }
   if (existsSync(target) && statSync(target).isFile()) {
-    console.error(`[mado] target exists and is a file: ${target}`);
+    logger.error("mado", "target-is-file", `target exists and is a file: ${target}`);
     process.exit(1);
   }
   if (existsSync(target) && readdirSync(target).length > 0 && !flags.force) {
-    console.error(`[mado] target directory is not empty: ${target}`);
-    console.error("[mado] use --force to write into it");
+    logger.error("mado", "target-not-empty", `target directory is not empty: ${target}`);
+    logger.info("mado", "force-hint", "use --force to write into it");
     process.exit(1);
   }
 
@@ -50,7 +51,7 @@ export async function runInit(ctx, rawArgs) {
 
   const packageName = packageNameFromDir(target);
   if (!isValidPackageName(packageName)) {
-    console.error(`[mado] invalid package name derived from target: ${packageName}`);
+    logger.error("mado", "invalid-package-name", `invalid package name derived from target: ${packageName}`);
     process.exit(1);
   }
 

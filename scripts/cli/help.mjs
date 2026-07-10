@@ -28,6 +28,8 @@ ${buildLine}
   Configuration:
     Put app/dev/build settings in vite.config.ts.
     Mado CLI flags are explicit per command.
+    --log-level debug|info|warn|error|silent
+    --log-format pretty|plain|json   --no-color
 
   Docs: README.md and docs/en/README.md.`);
 }

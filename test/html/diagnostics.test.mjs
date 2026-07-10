@@ -77,7 +77,7 @@ test("warnOnce(): prints once per code", () => {
   });
 
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /\[mado:same-code\] first/);
+  assert.match(warnings[0], /\[mado:runtime:same-code\].*first/);
 });
 
 test("resource(): outside lifecycle warns once", () => {

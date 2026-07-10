@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { detectContext } from "../_config.mjs";
+import { configureLogger, logger } from "../logger.mjs";
 import { runInit } from "./init.mjs";
 import { runNew } from "./generate.mjs";
 import { printHelp } from "./help.mjs";
@@ -12,6 +13,7 @@ import { hasFlag, listTestFiles, run, runNodeBin, runNodeScript, runVite } from 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export async function main(argv) {
+  argv = configureLogger(argv);
   const projectRoot = resolve(process.cwd());
   const context = detectContext(projectRoot);
   const packageJson = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
@@ -71,8 +73,8 @@ export async function main(argv) {
       );
       break;
     case "bake":
-      console.error("[mado] `mado bake` was removed.");
-      console.error("Use `mado static`, or run the complete pipeline with `mado release`.");
+      logger.error("mado", "command-removed", "`mado bake` was removed.");
+      logger.info("mado", "replacement", "Use `mado static`, or run the complete pipeline with `mado release`.");
       process.exit(1);
       break;
     case "static":
@@ -93,7 +95,7 @@ export async function main(argv) {
       printHelp(ctx);
       break;
     default:
-      console.error(`[mado] unknown command: ${command}`);
+      logger.error("mado", "unknown-command", `unknown command: ${command}`);
       printHelp(ctx);
       process.exit(1);
   }

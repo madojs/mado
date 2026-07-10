@@ -14,6 +14,7 @@
  */
 
 import { signal } from "../signal.js";
+import { reportError } from "../diagnostics.js";
 import { html } from "../html/template.js";
 import type { TemplateResult } from "../html/template-types.js";
 import type { Guard, GuardResult, Page, PageContext } from "../page.js";
@@ -302,8 +303,7 @@ function applyPageMeta(
   } catch (err) {
     applyHead({});
     recordStaticError(err);
-    // eslint-disable-next-line no-console
-    console.error("[mado] page.head() threw:", err);
+    reportError("router", "page-head", "page.head() threw", err);
   }
 }
 
@@ -516,8 +516,7 @@ async function runGuards(
     } catch (err) {
       // A guard that throws is treated like "halt" — surface the error to the
       // console but do not render the page.
-      // eslint-disable-next-line no-console
-      console.error("[mado] guard threw:", err);
+      reportError("router", "guard", "guard threw", err);
       return { kind: "halt" };
     }
     const verdict = normalizeGuardResult(v);
@@ -548,8 +547,7 @@ function trySyncGuards(
     try {
       v = g({ params, path });
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[mado] guard threw:", err);
+      reportError("router", "guard", "guard threw", err);
       return { kind: "halt" };
     }
     if (v && typeof (v as Promise<unknown>).then === "function") return undefined;
@@ -606,10 +604,11 @@ function navigateFromGuard(to: string, replace?: boolean): void {
 
   guardRedirectsThisTick++;
   if (guardRedirectsThisTick > MAX_GUARD_REDIRECTS_PER_TICK) {
-    // eslint-disable-next-line no-console
-    console.error(
-      "[mado] guard redirect loop detected: more than " +
-        `${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}.`,
+    reportError(
+      "router",
+      "guard-redirect-loop",
+      `more than ${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}`,
+      undefined,
     );
     return;
   }

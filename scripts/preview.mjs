@@ -22,6 +22,8 @@ import { readFile, stat, access } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { configureLogger, logger } from "./logger.mjs";
+
 // Tiny argv parser. Supports --flag, --flag=value, --flag value.
 function parsePreviewArgs(argv) {
   const flags = {};
@@ -47,7 +49,7 @@ function parsePreviewArgs(argv) {
   return flags;
 }
 
-const PREVIEW_FLAGS = parsePreviewArgs(process.argv.slice(2));
+const PREVIEW_FLAGS = parsePreviewArgs(configureLogger(process.argv.slice(2)));
 
 const ROOT = resolve(process.cwd());
 const OUT = resolve(ROOT, process.env.OUT_DIR ?? "out");
@@ -138,14 +140,12 @@ const MIME = {
 // ---------- Optional release ----------
 
 if (!SKIP_BUILD) {
-  console.log("[preview] PREVIEW_AUTOBUILD=1 — running mado release");
+  logger.info("preview", "autobuild", "PREVIEW_AUTOBUILD=1 — running mado release");
   run("node", ["scripts/cli.mjs", "release"]);
 }
 
 if (!(await exists(OUT))) {
-  console.error(
-    `[preview] missing ${OUT}/ — run \`mado release\` first.`,
-  );
+  logger.error("preview", "missing-output", `missing ${OUT}/ — run \`mado release\` first`);
   process.exit(1);
 }
 
@@ -153,10 +153,7 @@ const spaShell = existsSync(join(OUT, "_mado", "spa.html"))
   ? join(OUT, "_mado", "spa.html")
   : join(OUT, "index.html");
 if (!(await exists(spaShell))) {
-  console.error(
-    `[preview] missing ${spaShell} — \`mado release\` did not produce an HTML entry.\n` +
-      `[preview] Without it any non-static route will 404 instead of falling back to the SPA.`,
-  );
+  logger.error("preview", "missing-shell", `missing ${spaShell}; mado release did not produce an HTML entry`);
   process.exit(1);
 }
 
@@ -216,22 +213,17 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, headers);
     res.end(data);
   } catch (err) {
-    console.error("[preview] error:", err);
+    logger.error("preview", "request", "request failed", err);
     res.writeHead(500).end(String(err));
   }
 });
 
 server.on("error", (err) => {
   if (err.code === "EPERM" || err.code === "EACCES") {
-    console.error(
-      `[preview] failed to bind ${HOST}:${PORT}: ${err.message}\n` +
-        `[preview] tip: this sandbox may disallow binding "${HOST}".\n` +
-        `[preview] try:  mado preview --host 127.0.0.1`,
-    );
+    logger.error("preview", "bind", `failed to bind ${HOST}:${PORT}: ${err.message}`);
+    logger.info("preview", "bind-hint", "try: mado preview --host 127.0.0.1");
   } else {
-    console.error(
-      `[preview] failed to listen on ${HOST}:${PORT}: ${err.message}`,
-    );
+    logger.error("preview", "listen", `failed to listen on ${HOST}:${PORT}: ${err.message}`);
   }
   process.exit(1);
 });
@@ -256,7 +248,7 @@ server.listen(PORT, HOST, async () => {
 function run(cmd, args, { allowFail = false } = {}) {
   const r = spawnSync(cmd, args, { stdio: "inherit" });
   if (r.status !== 0 && !allowFail) {
-    console.error(`[preview] command "${cmd} ${args.join(" ")}" exited with ${r.status}`);
+    logger.error("preview", "child-exit", `command "${cmd} ${args.join(" ")}" exited with ${r.status}`);
     process.exit(r.status ?? 1);
   }
 }

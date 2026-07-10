@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, writeSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { parseFlags } from "./_config.mjs";
+import { configureLogger, logger } from "./logger.mjs";
 import { discoverStaticRoutes } from "./static/discover.mjs";
 import { createStaticCaptureServer } from "./static/server.mjs";
 import { captureStaticRoutes } from "./static/browser.mjs";
@@ -17,7 +18,7 @@ import {
   writeStaticDeploymentFiles,
 } from "./static/output.mjs";
 
-const { flags } = parseFlags(process.argv.slice(2));
+const { flags } = parseFlags(configureLogger(process.argv.slice(2)));
 const projectRoot = resolve(process.cwd());
 const outDir = resolve(
   projectRoot,
@@ -27,7 +28,7 @@ const timeout = Number(flags.timeout ?? 30_000);
 
 let tempRootForCleanup = null;
 try {
-  console.log(`[static] artifact: ${outDir}`);
+  logger.info("static", "artifact", `artifact: ${outDir}`);
 
   // Source the public origin and Vite base from (in order):
   //   --base-url, --base / MADO_SITE env, _mado/build.json (the bridge
@@ -49,7 +50,7 @@ try {
     entry: typeof flags.entry === "string" ? flags.entry : undefined,
   });
 
-  console.log(`[static] discovered ${records.length} static route(s)`);
+  logger.info("static", "discover", `discovered ${records.length} static route(s)`);
 
   if (records.length > 0 && !site) {
     throw new Error(
@@ -99,7 +100,7 @@ try {
       // existing deployment files are touched.
       await writeCapturedRoutes(routesDir, captured);
       await promoteCapturedRoutes({ outDir, routesDir, captured });
-      console.log(`[static] captured ${captured.length} route snapshot(s)`);
+      logger.info("static", "capture", `captured ${captured.length} route snapshot(s)`);
     } finally {
       await server.close();
     }
@@ -121,14 +122,14 @@ try {
   // Drop the internal build bridge so the production artifact does not
   // ship Vite's resolved view of the project (site, base, assetsDir).
   await dropBuildBridge(outDir);
-  console.log(`[static] done`);
+  logger.info("static", "done", "done");
 } catch (err) {
   // Defer the actual termination: `process.exit()` is synchronous and
   // would race the awaited cleanup in the `finally` block, leaving the
   // OS to garbage-collect a half-promoted staging directory. Setting
   // `exitCode` lets Node finish the microtask queue (including the
   // cleanup below) and then exit with the failure status.
-  writeSync(2, `${err?.stack ?? err}\n`);
+  logger.error("static", "failed", err instanceof Error ? err.message : String(err), err);
   process.exitCode = 1;
 } finally {
   if (tempRootForCleanup) {

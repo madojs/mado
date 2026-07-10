@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
+import { logger } from "../logger.mjs";
+
 const KINDS = [
   "module",
   "page",
@@ -52,15 +54,8 @@ export async function runNew(ctx, args) {
 
   const shape = detectStarterShape(ctx);
   if (shape === "universal" && MODULAR_ONLY.has(kind)) {
-    console.error(
-      `[mado] '${kind}' is a modular-starter generator and is not ` +
-        "available in the universal starter.",
-    );
-    console.error(
-      "[mado] Either move this project to the modular layout " +
-        "(create src/modules/<name>/) or scaffold a fresh modular " +
-        "project with: mado init my-app --starter modular",
-    );
+    logger.error("mado", "generator-shape", `'${kind}' is not available in the universal starter`);
+    logger.info("mado", "generator-hint", "Create src/modules/<name>/ or run: mado init my-app --starter modular");
     process.exit(1);
   }
 
@@ -78,8 +73,8 @@ export async function runNew(ctx, args) {
 
   const fn = generators[kind];
   if (!fn) {
-    console.error(`[mado] unknown generator: ${kind}`);
-    console.error(`[mado] available generators: ${KINDS.join(", ")}`);
+    logger.error("mado", "unknown-generator", `unknown generator: ${kind}`);
+    logger.info("mado", "available-generators", `available generators: ${KINDS.join(", ")}`);
     process.exit(1);
   }
 
@@ -350,7 +345,7 @@ function moduleFile(ctx, target, suffix) {
 
 async function writeOnce(path, content) {
   if (await exists(path)) {
-    console.error(`[mado] file already exists: ${path}`);
+    logger.error("mado", "file-exists", `file already exists: ${path}`);
     process.exit(2);
   }
   await mkdir(dirname(path), { recursive: true });
@@ -383,7 +378,7 @@ function leafName(target) {
 
 function assertSingleSegment(label, name) {
   if (name.includes("/")) {
-    console.error(`[mado] ${label.toLowerCase()} name must be a single path segment`);
+    logger.error("mado", "invalid-name", `${label.toLowerCase()} name must be a single path segment`);
     process.exit(1);
   }
 }

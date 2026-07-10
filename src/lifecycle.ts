@@ -74,7 +74,7 @@ export function createLifecycle(): LifecycleHandle {
           fn();
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.error("[mado] cleanup threw:", err);
+          reportError("lifecycle", "cleanup", "cleanup threw", err);
         }
         return;
       }
@@ -89,10 +89,11 @@ export function createLifecycle(): LifecycleHandle {
           disposers[i]!();
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.error("[mado] cleanup threw:", err);
+          reportError("lifecycle", "cleanup", "cleanup threw", err);
         }
       }
       disposers.length = 0;
     },
   };
 }
+import { reportError } from "./diagnostics.js";

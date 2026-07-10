@@ -24,6 +24,8 @@
  *   batch(() => { a.set(1); b.set(2); });
  */
 
+import { reportError } from "./diagnostics.js";
+
 type Subscriber = () => void;
 
 const MAX_FLUSH_RUNS_PER_SUBSCRIBER = 100;
@@ -107,8 +109,7 @@ function drainDeferredEquals(): void {
       try {
         fn();
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("[mado] deferred computed reconcile threw:", err);
+        reportError("reactivity", "computed-reconcile", "deferred computed reconcile threw", err);
       }
     }
   }
@@ -138,10 +139,11 @@ function flush(): void {
       const runs = (runCounts.get(sub) ?? 0) + 1;
       runCounts.set(sub, runs);
       if (runs > MAX_FLUSH_RUNS_PER_SUBSCRIBER) {
-        // eslint-disable-next-line no-console
-        console.error(
-          "[mado] effect cycle detected: subscriber re-ran more than " +
-            `${MAX_FLUSH_RUNS_PER_SUBSCRIBER} times in one flush.`,
+        reportError(
+          "reactivity",
+          "effect-cycle",
+          `effect cycle detected: subscriber re-ran more than ${MAX_FLUSH_RUNS_PER_SUBSCRIBER} times in one flush`,
+          undefined,
         );
         continue;
       }
@@ -149,8 +151,7 @@ function flush(): void {
         sub();
       } catch (err) {
         // a subscriber must not crash the others
-        // eslint-disable-next-line no-console
-        console.error("[mado] effect threw:", err);
+        reportError("reactivity", "effect-run", "effect threw", err);
       }
     }
   }
@@ -221,8 +222,7 @@ export function signal<T>(initial: T): Signal<T> {
         try {
           e.run();
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error("[mado] sync subscriber threw:", err);
+          reportError("reactivity", "sync-subscriber", "sync subscriber threw", err);
         }
       }
     }
@@ -351,8 +351,7 @@ export function computed<T>(
         try {
           e.run();
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error("[mado] sync subscriber threw:", err);
+          reportError("reactivity", "sync-subscriber", "sync subscriber threw", err);
         }
       } else {
         schedule(e.run);

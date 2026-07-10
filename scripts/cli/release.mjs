@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { brotliCompressSync, constants as zlibConst, gzipSync } from "node:zlib";
 
 import { parseFlags } from "../_config.mjs";
+import { logger } from "../logger.mjs";
 import { runNodeBin, runNodeScript, runVite, writeIfMissing } from "./run.mjs";
 
 export async function runRelease(ctx, rawArgs) {
@@ -13,33 +14,32 @@ export async function runRelease(ctx, rawArgs) {
     typeof releaseFlags.out === "string" ? releaseFlags.out : "out",
   );
 
-  console.log(`[release] context: ${ctx.context}`);
-  console.log(`[release] artifact: ${outDir}`);
-  console.log("");
+  logger.info("release", "context", `context: ${ctx.context}`);
+  logger.info("release", "artifact", `artifact: ${outDir}`);
 
   if (!releaseFlags["no-clean"]) {
     if (existsSync(outDir)) {
       await rm(outDir, { recursive: true, force: true });
-      console.log(`[release] cleaned ${outDir}`);
+      logger.info("release", "clean", `cleaned ${outDir}`);
     }
   } else {
-    console.log("[release] --no-clean: keeping existing out/");
+    logger.info("release", "clean-skip", "--no-clean: keeping existing out/");
   }
 
-  console.log("[release] step 1/5  typecheck");
+  logger.info("release", "step", "step 1/5  typecheck");
   await runNodeBin(ctx, "typescript/bin/tsc", ["--noEmit"]);
 
-  console.log("[release] step 2/5  vite build");
+  logger.info("release", "step", "step 2/5  vite build");
   await runVite(ctx, ["build", "--outDir", outDir], { defaultConfig: true });
 
-  console.log("[release] step 3/5  static snapshots");
+  logger.info("release", "step", "step 3/5  static snapshots");
   await runNodeScript(ctx, "scripts/static.mjs", [
     ...rawArgs.filter((a) => a !== "--no-clean"),
     "--out",
     outDir,
   ]);
 
-  console.log("[release] step 4/5  deployment files");
+  logger.info("release", "step", "step 4/5  deployment files");
   // GitHub Pages / Netlify / Cloudflare Pages fallback. SPA fallback shell
   // is written by `mado static`; here we only register the deployment
   // bindings, and respect user-supplied files (writeIfMissing).
@@ -61,12 +61,11 @@ export async function runRelease(ctx, rawArgs) {
     "[release]  ",
   );
 
-  console.log("[release] step 5/5  precompress assets");
+  logger.info("release", "step", "step 5/5  precompress assets");
   await precompressOut(outDir);
 
-  console.log("");
-  console.log(`[release] done. Deploy artifact: ${outDir}`);
-  console.log("[release] try:  mado preview");
+  logger.info("release", "done", `done. Deploy artifact: ${outDir}`);
+  logger.info("release", "next", "try: mado preview");
 }
 
 async function precompressOut(outDir) {
@@ -84,7 +83,7 @@ async function precompressOut(outDir) {
     );
     count++;
   }
-  console.log(`[release]   compressed ${count} file(s)`);
+  logger.info("release", "compress", `compressed ${count} file(s)`);
 }
 
 async function listCompressibleFiles(dir) {

@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { logger } from "../logger.mjs";
+
 export async function run(cmd, args, options = {}) {
   const child = spawn(cmd, args, {
     cwd: options.cwd,
@@ -48,7 +50,7 @@ export function resolvePackageBin(ctx, pkg, binPath) {
   if (existsSync(projectPath)) return projectPath;
   const packagePath = join(ctx.packageRoot, "node_modules", pkg, binPath);
   if (existsSync(packagePath)) return packagePath;
-  console.error(`[mado] missing ${pkg}. Install it in this project: npm i -D ${pkg}`);
+  logger.error("mado", "missing-package", `missing ${pkg}. Install it in this project: npm i -D ${pkg}`);
   process.exit(1);
 }
 
@@ -57,7 +59,7 @@ export function resolveBin(ctx, bin) {
   if (existsSync(projectPath)) return projectPath;
   const packagePath = join(ctx.packageRoot, "node_modules", bin);
   if (!existsSync(packagePath)) {
-    console.error(`[mado] missing ${bin}. Run npm install first.`);
+    logger.error("mado", "missing-binary", `missing ${bin}. Run npm install first.`);
     process.exit(1);
   }
   return packagePath;

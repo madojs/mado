@@ -31,6 +31,8 @@
  */
 import { existsSync } from "node:fs";
 
+import { logger } from "../logger.mjs";
+
 const KNOWN_CHROMIUM_PATHS = [
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
@@ -52,7 +54,7 @@ export async function captureStaticRoutes(options) {
     const browserVersion =
       typeof browser.version === "function" ? browser.version() : null;
     if (browserVersion) {
-      console.log(`[static] browser: chromium ${browserVersion}`);
+      logger.info("static", "browser", `browser: chromium ${browserVersion}`);
     }
     for (const record of options.records) {
       const html = await captureRoute(browser, record, options);
@@ -229,7 +231,7 @@ async function runWithTimeout(promise, timeout, swallowMessage) {
     ]);
   } catch (err) {
     if (err && err.message === "timeout") {
-      console.warn(swallowMessage);
+      logger.warn("static", "browser-resource", swallowMessage);
       return;
     }
     throw err;

@@ -34,6 +34,7 @@
  */
 
 import { signal, computed, type Signal, type Computed } from "./signal.js";
+import { reportError } from "./diagnostics.js";
 
 export type FormValue =
   | string
@@ -300,8 +301,7 @@ export function useForm<V extends FormValues>(
       }
     } catch (err) {
       next[name] = "validation failed";
-      // eslint-disable-next-line no-console
-      console.error("[mado] field validator threw:", err);
+      reportError("forms", "field-validator", "field validator threw", err);
     } finally {
       if (fieldRuns.get(name) === run) {
         setAsyncErrors([name], next);
@@ -335,8 +335,7 @@ export function useForm<V extends FormValues>(
           setAsyncErrors(formAsyncPaths, { $form: "validation failed" });
           formAsyncPaths = ["$form"];
         }
-        // eslint-disable-next-line no-console
-        console.error("[mado] form validator threw:", err);
+        reportError("forms", "form-validator", "form validator threw", err);
       } finally {
         if (formRun === run) setFieldValidating("$form", false);
       }
@@ -391,8 +390,7 @@ export function useForm<V extends FormValues>(
           try {
             await handler(values.peek());
           } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error("[mado] form submit threw:", err);
+            reportError("forms", "submit", "form submit threw", err);
           } finally {
             submitting.set(false);
           }

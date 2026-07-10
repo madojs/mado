@@ -18,7 +18,7 @@
 
 import { signal, effect, untracked, type Signal } from "./signal.js";
 import { getCurrentLifecycle } from "./lifecycle.js";
-import { warnOnce } from "./diagnostics.js";
+import { reportError, warnOnce } from "./diagnostics.js";
 import { trackStatic } from "./static-runtime.js";
 
 // ---------- Global cache ----------
@@ -377,8 +377,7 @@ export function mutation<TArgs, TResult>(
             patterns = typeof inv === "function" ? inv(result, args) : inv;
           } catch (err) {
             // Invalidation is best-effort. Don't fail the mutation because of it.
-            // eslint-disable-next-line no-console
-            console.error("[mado] mutation.invalidates threw:", err);
+            reportError("resource", "mutation-invalidates", "mutation invalidation threw", err);
           }
           for (const p of patterns) invalidate(p);
         }

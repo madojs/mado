@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 
 import { parseFlags } from "./_config.mjs";
 import { configureLogger, logger } from "./logger.mjs";
+import { claimOutputDirectory, validateOutputDirectory } from "./output-guard.mjs";
 import { discoverStaticRoutes } from "./static/discover.mjs";
 import { createStaticCaptureServer } from "./static/server.mjs";
 import { captureStaticRoutes } from "./static/browser.mjs";
@@ -28,6 +29,11 @@ const timeout = Number(flags.timeout ?? 30_000);
 
 let tempRootForCleanup = null;
 try {
+  await validateOutputDirectory({
+    projectRoot,
+    outDir,
+    force: flags["force-output"] === true,
+  });
   logger.info("static", "artifact", `artifact: ${outDir}`);
 
   // Source the public origin and Vite base from (in order):
@@ -51,6 +57,12 @@ try {
   });
 
   logger.info("static", "discover", `discovered ${records.length} static route(s)`);
+
+  await claimOutputDirectory({
+    projectRoot,
+    outDir,
+    force: flags["force-output"] === true,
+  });
 
   if (records.length > 0 && !site) {
     throw new Error(

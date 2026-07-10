@@ -27,6 +27,12 @@ function mkTempProject(layout) {
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, content);
   }
+  if (existsSync(join(dir, "out"))) {
+    writeFileSync(
+      join(dir, "out", ".mado-output"),
+      `${JSON.stringify({ owner: "@madojs/mado", projectRoot: dir })}\n`,
+    );
+  }
   return dir;
 }
 

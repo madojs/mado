@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { brotliCompressSync, constants as zlibConst, gzipSync } from "node:zlib";
 
 import { parseFlags } from "../_config.mjs";
 import { logger } from "../logger.mjs";
+import { prepareOutputDirectory } from "../output-guard.mjs";
 import { runNodeBin, runNodeScript, runVite, writeIfMissing } from "./run.mjs";
 
 export async function runRelease(ctx, rawArgs) {
@@ -17,13 +18,16 @@ export async function runRelease(ctx, rawArgs) {
   logger.info("release", "context", `context: ${ctx.context}`);
   logger.info("release", "artifact", `artifact: ${outDir}`);
 
-  if (!releaseFlags["no-clean"]) {
-    if (existsSync(outDir)) {
-      await rm(outDir, { recursive: true, force: true });
-      logger.info("release", "clean", `cleaned ${outDir}`);
-    }
-  } else {
+  await prepareOutputDirectory({
+    projectRoot: ctx.projectRoot,
+    outDir,
+    clean: !releaseFlags["no-clean"],
+    force: releaseFlags["force-output"] === true,
+  });
+  if (releaseFlags["no-clean"]) {
     logger.info("release", "clean-skip", "--no-clean: keeping existing out/");
+  } else {
+    logger.info("release", "clean", `prepared ${outDir}`);
   }
 
   logger.info("release", "step", "step 1/5  typecheck");

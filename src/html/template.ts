@@ -131,14 +131,20 @@ const rendered = new WeakMap<Element | ShadowRoot, InstantiatedTemplate>();
 export function render(
   result: TemplateResult,
   container: Element | ShadowRoot,
-): void {
-  const existing = rendered.get(container);
-  if (existing && existing.nodes[0]?.parentNode === container) {
+): Disposer {
+  let existing = rendered.get(container);
+  if (existing && !isMountedIn(existing, container)) {
+    existing.dispose();
+    rendered.delete(container);
+    existing = undefined;
+  }
+  if (existing) {
     if (existing._strings === result.strings) {
       existing.update(result.values);
-      return;
+      return renderDisposer(container, existing);
     }
     existing.dispose();
+    rendered.delete(container);
   }
 
   // Static snapshots write first-paint markup into #app and mark the
@@ -175,4 +181,34 @@ export function render(
     container.appendChild(inst.fragment);
   }
   rendered.set(container, inst);
+  return renderDisposer(container, inst);
+}
+
+/** Dispose the template currently owned by a render container. */
+export function unmount(container: Element | ShadowRoot): void {
+  const instance = rendered.get(container);
+  if (!instance) return;
+  rendered.delete(container);
+  instance.dispose();
+}
+
+function renderDisposer(
+  container: Element | ShadowRoot,
+  instance: InstantiatedTemplate,
+): Disposer {
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    if (rendered.get(container) !== instance) return;
+    unmount(container);
+  };
+}
+
+function isMountedIn(
+  instance: InstantiatedTemplate,
+  container: Element | ShadowRoot,
+): boolean {
+  return instance.nodes.length === 0 ||
+    instance.nodes.every((node) => node.parentNode === container);
 }

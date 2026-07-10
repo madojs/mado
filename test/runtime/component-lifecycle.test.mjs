@@ -68,6 +68,7 @@ test("component(): repeated connectedCallback does not duplicate setup", async (
   el.disconnectedCallback();
   await microtasks();
   assert.equal(disposes, 1);
+  assert.equal(el.shadowRoot.childNodes.length, 0, "teardown unmounts owned template DOM");
 
   document.body.appendChild(el);
   el.connectedCallback();
@@ -78,6 +79,27 @@ test("component(): repeated connectedCallback does not duplicate setup", async (
   el.disconnectedCallback();
   await microtasks();
   assert.equal(disposes, 2);
+});
+
+test("component(): setup failure rolls back and can retry after reconnect", () => {
+  let attempts = 0;
+  let cleanups = 0;
+  component("x-setup-rollback", (ctx) => {
+    attempts++;
+    ctx.onDispose(() => cleanups++);
+    if (attempts === 1) throw new Error("setup failed");
+    return () => html`<span>ready</span>`;
+  });
+
+  const el = document.createElement("x-setup-rollback");
+  assert.throws(() => el.connectedCallback(), /setup failed/);
+  assert.equal(cleanups, 1);
+  assert.equal(el.shadowRoot.childNodes.length, 0);
+
+  el.connectedCallback();
+  assert.equal(attempts, 2);
+  assert.equal(el.shadowRoot.querySelector("span")?.textContent, "ready");
+  el.disconnectedCallback();
 });
 
 
@@ -161,4 +183,25 @@ test("ctx.attr(): reads initial value and updates on external setAttribute", asy
 
   el.disconnectedCallback();
   document.body.removeChild(el);
+});
+
+test("ctx.attr(): distinguishes an absent attribute from an empty attribute", async () => {
+  let current;
+  component("x-attr-nullable", ({ attr }) => {
+    current = attr("enabled");
+    return () => html`<span>${() => String(current())}</span>`;
+  });
+
+  const el = document.createElement("x-attr-nullable");
+  document.body.appendChild(el);
+  el.connectedCallback();
+  assert.equal(current(), null);
+
+  el.setAttribute("enabled", "");
+  await microtasks();
+  assert.equal(current(), "");
+
+  el.remove();
+  el.disconnectedCallback();
+  await microtasks();
 });

@@ -14,7 +14,7 @@ globalThis.DocumentFragment = w.DocumentFragment ?? class {};
 globalThis.Element = w.Element ?? class {};
 globalThis.customElements = w.customElements;
 
-const { html, render } = await import("../../dist/src/html/template.js");
+const { html, render, unmount } = await import("../../dist/src/html/template.js");
 const {
   unsafeHTML,
   ref,
@@ -28,6 +28,28 @@ function renderIn(tpl) {
   render(tpl, div);
   return div;
 }
+
+test("render(): disposer and unmount release bindings and owned DOM", () => {
+  const root = document.createElement("div");
+  const value = signal("one");
+  let clicks = 0;
+  const dispose = render(
+    html`<button @click=${() => clicks++}>${value}</button>`,
+    root,
+  );
+  const button = root.querySelector("button");
+  assert.ok(button);
+
+  dispose();
+  dispose();
+  value.set("two");
+  flushSync();
+  button.click();
+
+  assert.equal(root.childNodes.length, 0);
+  assert.equal(clicks, 0);
+  unmount(root);
+});
 
 test("unsafeHTML(): renders trusted HTML and cleans stale nodes", () => {
   const raw = signal("<strong>One</strong>");

@@ -18,7 +18,7 @@
  */
 
 import { signal, effect, type Signal, type Disposer } from "./signal.js";
-import { html, render } from "./html/template.js";
+import { html, render, unmount } from "./html/template.js";
 import type { TemplateResult } from "./html/template-types.js";
 import {
   adopt,
@@ -127,7 +127,8 @@ export interface ComponentContext {
    * No MutationObserver boilerplate needed. The signal updates via a
    * per-instance MutationObserver registered during setup().
    */
-  attr(name: string, defaultValue?: string): Signal<string>;
+  attr(name: string): Signal<string | null>;
+  attr(name: string, defaultValue: string): Signal<string>;
 }
 
 export type SetupFn = (ctx: ComponentContext) => () => TemplateResult;
@@ -194,8 +195,8 @@ export function component(
     // disconnectedCallback. Used to cancel teardown when the element is
     // re-inserted in the same tick (a keyed move via insertBefore).
     #teardownQueued = false;
-    #attrSignals = new Map<string, Signal<string>>();
-    #attrDefaults = new Map<string, string>();
+    #attrSignals = new Map<string, Signal<string | null>>();
+    #attrDefaults = new Map<string, string | null>();
 
     constructor() {
       super();
@@ -227,8 +228,6 @@ export function component(
         return;
       }
 
-      this.#connected = true;
-
       if (stylesheets.length > 0) {
         if (useShadow) {
           adopt(this.#root as ShadowRoot, ...stylesheets);
@@ -241,9 +240,18 @@ export function component(
       // called from setup() (resource, ...) will see it via
       // getCurrentLifecycle() and register its own cleanup.
       const lifecycle = createLifecycle();
-      this.#lifecycle = lifecycle;
-
       const host = this;
+
+      const attr = ((name: string, defaultValue?: string) => {
+        let s = host.#attrSignals.get(name);
+        if (!s) {
+          const fallback = defaultValue ?? null;
+          host.#attrDefaults.set(name, fallback);
+          s = signal(host.getAttribute(name) ?? fallback);
+          host.#attrSignals.set(name, s);
+        }
+        return s;
+      }) as ComponentContext["attr"];
 
       const ctx: ComponentContext = {
         host: this,
@@ -251,37 +259,48 @@ export function component(
         // for component cleanups (including auto-cleanup from
         // resource(), navigator listeners, etc.).
         onDispose: (fn) => lifecycle.onDispose(fn),
-        attr(name: string, defaultValue = ""): Signal<string> {
-          let s = host.#attrSignals.get(name);
-          if (!s) {
-            host.#attrDefaults.set(name, defaultValue);
-            s = signal(host.getAttribute(name) ?? defaultValue);
-            host.#attrSignals.set(name, s);
-          }
-          return s;
-        },
+        attr,
       };
 
-      this.#renderer = runInLifecycle(lifecycle, () => setup(ctx));
+      try {
+        const renderer = runInLifecycle(lifecycle, () => setup(ctx));
+        if (typeof renderer !== "function") {
+          throw new TypeError(`component("${tagName}") setup must return a renderer function`);
+        }
 
-      // After setup(), install a single MutationObserver for all attrs
-      // registered via ctx.attr().
-      if (this.#attrSignals.size > 0) {
-        const attrNames = [...this.#attrSignals.keys()];
-        const obs = new MutationObserver((mutations) => {
-          for (const m of mutations) {
-            const s = this.#attrSignals.get(m.attributeName!);
-            const fallback = this.#attrDefaults.get(m.attributeName!) ?? "";
-            if (s) s.set(this.getAttribute(m.attributeName!) ?? fallback);
-          }
-        });
-        obs.observe(this, { attributes: true, attributeFilter: attrNames });
-        lifecycle.onDispose(() => obs.disconnect());
+        // After setup(), install a single MutationObserver for all attrs
+        // registered via ctx.attr().
+        if (this.#attrSignals.size > 0) {
+          const attrNames = [...this.#attrSignals.keys()];
+          const obs = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+              const s = this.#attrSignals.get(m.attributeName!);
+              const fallback = this.#attrDefaults.get(m.attributeName!) ?? null;
+              if (s) s.set(this.getAttribute(m.attributeName!) ?? fallback);
+            }
+          });
+          obs.observe(this, { attributes: true, attributeFilter: attrNames });
+          lifecycle.onDispose(() => obs.disconnect());
+        }
+
+        const effectDispose = runInLifecycle(lifecycle, () => effect(() => {
+          render(renderer(), this.#root);
+        }));
+        this.#renderer = renderer;
+        this.#effectDispose = effectDispose;
+        this.#lifecycle = lifecycle;
+        this.#connected = true;
+      } catch (err) {
+        unmount(this.#root);
+        lifecycle.dispose();
+        this.#renderer = null;
+        this.#effectDispose = null;
+        this.#lifecycle = null;
+        this.#attrSignals.clear();
+        this.#attrDefaults.clear();
+        this.#connected = false;
+        throw err;
       }
-
-      this.#effectDispose = effect(() => {
-        render(this.#renderer!(), this.#root);
-      });
     }
 
     disconnectedCallback() {
@@ -309,8 +328,12 @@ export function component(
     #teardown() {
       this.#effectDispose?.();
       this.#effectDispose = null;
+      unmount(this.#root);
       this.#lifecycle?.dispose();
       this.#lifecycle = null;
+      this.#renderer = null;
+      this.#attrSignals.clear();
+      this.#attrDefaults.clear();
       this.#connected = false;
     }
 

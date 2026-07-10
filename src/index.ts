@@ -23,7 +23,7 @@ export {
 export type { Signal, Computed, ComputedOptions, Disposer } from "./signal.js";
 
 // --- rendering ---
-export { html, render, instantiate } from "./html/template.js";
+export { html, render, unmount, instantiate } from "./html/template.js";
 export {
   unsafeHTML,
   ref,

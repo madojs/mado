@@ -16,6 +16,9 @@ const {
   flushSync,
   untracked,
 } = await import("../../dist/src/signal.js");
+const { createLifecycle, runInLifecycle } = await import(
+  "../../dist/src/lifecycle.js"
+);
 
 test("signal: get/set/update/peek", () => {
   const s = signal(1);
@@ -75,6 +78,58 @@ test("effect: cleanup runs before the next run and on dispose", () => {
     "run:2",
     "cleanup:2",
   ]);
+});
+
+test("effect: a disposed pending effect cannot run or resubscribe", () => {
+  const source = signal(0);
+  let runs = 0;
+  const dispose = effect(() => {
+    source();
+    runs++;
+  });
+
+  source.set(1);
+  dispose();
+  flushSync();
+  source.set(2);
+  flushSync();
+
+  assert.equal(runs, 1);
+});
+
+test("effect: disposer and cleanup are idempotent", () => {
+  let cleanups = 0;
+  const dispose = effect(() => () => cleanups++);
+  dispose();
+  dispose();
+  assert.equal(cleanups, 1);
+});
+
+test("effect: initial failure rolls back subscriptions", () => {
+  const source = signal(0);
+  let runs = 0;
+  assert.throws(() => effect(() => {
+    source();
+    runs++;
+    throw new Error("boom");
+  }), /boom/);
+  source.set(1);
+  flushSync();
+  assert.equal(runs, 1);
+});
+
+test("effect: current lifecycle disposes it automatically", () => {
+  const lifecycle = createLifecycle();
+  const source = signal(0);
+  let runs = 0;
+  runInLifecycle(lifecycle, () => effect(() => {
+    source();
+    runs++;
+  }));
+  lifecycle.dispose();
+  source.set(1);
+  flushSync();
+  assert.equal(runs, 1);
 });
 
 test("batch: several sets in one pass produce one run", () => {

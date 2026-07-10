@@ -607,7 +607,7 @@ function navigateFromGuard(to: string, replace?: boolean): void {
     reportError(
       "router",
       "guard-redirect-loop",
-      `more than ${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}`,
+      `guard redirect loop detected: more than ${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}`,
       undefined,
     );
     return;

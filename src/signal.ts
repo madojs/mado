@@ -25,6 +25,7 @@
  */
 
 import { reportError } from "./diagnostics.js";
+import { getCurrentLifecycle } from "./lifecycle.js";
 
 type Subscriber = () => void;
 
@@ -403,16 +404,23 @@ export type Disposer = () => void;
 
 export function effect(fn: () => void | Disposer): Disposer {
   let cleanup: Disposer | void;
+  let disposed = false;
 
   const run: Subscriber = () => {
+    if (disposed) return;
     cleanupTracker(tracker);
 
-    if (typeof cleanup === "function") cleanup();
+    const previousCleanup = cleanup;
+    cleanup = undefined;
+    if (typeof previousCleanup === "function") previousCleanup();
 
     const prev = activeTracker;
     activeTracker = tracker;
     try {
       cleanup = fn();
+    } catch (err) {
+      cleanupTracker(tracker);
+      throw err;
     } finally {
       activeTracker = prev;
     }
@@ -423,12 +431,19 @@ export function effect(fn: () => void | Disposer): Disposer {
     entry: { run, sync: false },
   };
 
-  run();
-
-  return () => {
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    pending.delete(run);
     cleanupTracker(tracker);
-    if (typeof cleanup === "function") cleanup();
+    const finalCleanup = cleanup;
+    cleanup = undefined;
+    if (typeof finalCleanup === "function") finalCleanup();
   };
+
+  run();
+  getCurrentLifecycle()?.onDispose(dispose);
+  return dispose;
 }
 
 /**

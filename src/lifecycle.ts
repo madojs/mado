@@ -22,6 +22,7 @@
  */
 
 import type { Disposer } from "./signal.js";
+import { reportError } from "./diagnostics.js";
 
 export interface Lifecycle {
   /** Register a cleanup function. Called when the lifecycle is disposed. */
@@ -96,4 +97,3 @@ export function createLifecycle(): LifecycleHandle {
     },
   };
 }
-import { reportError } from "./diagnostics.js";

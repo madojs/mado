@@ -16,7 +16,4 @@ export default defineConfig({
       // site: "https://your-app.example",
     }),
   ],
-  css: {
-    transformer: "lightningcss",
-  },
 });

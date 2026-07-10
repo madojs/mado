@@ -76,6 +76,7 @@ function devApiMock(): Plugin {
         if (url === "/api/auth/me" && req.method === "GET") {
           if (!token) return json(res, 401, { error: "unauthenticated" });
           const entry = users.values().next().value;
+          if (!entry) return json(res, 500, { error: "mock_user_missing" });
           return json(res, 200, entry.user);
         }
         if (url === "/api/auth/logout" && req.method === "POST") {
@@ -110,6 +111,9 @@ function devApiMock(): Plugin {
 }
 
 export default defineConfig({
+  resolve: {
+    tsconfigPaths: true,
+  },
   plugins: [
     devApiMock(),
     mado({
@@ -125,7 +129,4 @@ export default defineConfig({
       // site: "https://your-app.example",
     }),
   ],
-  css: {
-    transformer: "lightningcss",
-  },
 });

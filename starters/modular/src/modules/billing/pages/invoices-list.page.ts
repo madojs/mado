@@ -1,7 +1,7 @@
 import { each, html, page, routeUrl, signal, untracked } from "@madojs/mado";
 
 import { formatDate, formatMoney } from "../../../shared/lib/format-date";
-import "../../../shared/ui/x-spinner.component";
+import "@/shared/ui/x-spinner.component";
 
 import "../components/invoice-status-badge.component";
 import { useInvoices } from "../data/invoices.resource";

@@ -1,8 +1,8 @@
 import { html, page, signal } from "@madojs/mado";
 
 import { formatDate, formatMoney } from "../../../shared/lib/format-date";
-import "../../../shared/ui/x-button.component";
-import "../../../shared/ui/x-spinner.component";
+import "@/shared/ui/x-button.component";
+import "@/shared/ui/x-spinner.component";
 
 import { hasPermission } from "../../auth/auth.public";
 

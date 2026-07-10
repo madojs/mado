@@ -76,13 +76,12 @@
     "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "devDependencies": {
-    "@types/node": "^20.19.0",
-    "esbuild": "^0.28.0",
-    "lightningcss": "^1.32.0",
-    "linkedom": "^0.18.12",
-    "playwright-core": "^1.47.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "@types/node": "^22.12.0",
+    "esbuild": "^0.28.1",
+    "linkedom": "^0.18.13",
+    "playwright-core": "^1.61.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
   },
   "peerDependencies": {
     "playwright-core": "^1.47.0",
@@ -97,6 +96,9 @@
     }
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }

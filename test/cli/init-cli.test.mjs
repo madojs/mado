@@ -14,14 +14,7 @@ const CLI = resolve(REPO_ROOT, "scripts/cli.mjs");
 const ROOT_PACKAGE = JSON.parse(
   readFileSync(join(REPO_ROOT, "package.json"), "utf8"),
 );
-const REQUIRED_DEV_DEPS = [
-  "typescript",
-  "vite",
-  "playwright-core",
-  "lightningcss",
-];
-
-test("mado init writes required dev dependencies for every starter", async () => {
+test("mado init preserves each starter toolchain", async () => {
   for (const starter of ["default", "modular"]) {
     const root = mkdtempSync(join(tmpdir(), `mado-init-${starter}-`));
     try {
@@ -32,6 +25,9 @@ test("mado init writes required dev dependencies for every starter", async () =>
       const pkg = JSON.parse(
         readFileSync(join(root, "app", "package.json"), "utf8"),
       );
+      const template = JSON.parse(
+        readFileSync(join(REPO_ROOT, "starters", starter, "package.json"), "utf8"),
+      );
 
       assert.equal(pkg.name, "app");
       assert.equal(
@@ -40,17 +36,16 @@ test("mado init writes required dev dependencies for every starter", async () =>
         `${starter}: @madojs/mado dependency should track the package version`,
       );
 
-      for (const name of REQUIRED_DEV_DEPS) {
-        assert.equal(
-          pkg.devDependencies[name],
-          ROOT_PACKAGE.devDependencies[name],
-          `${starter}: ${name} should be generated as a devDependency`,
-        );
-      }
+      assert.deepEqual(pkg.devDependencies, template.devDependencies);
       assert.equal(
         pkg.devDependencies.esbuild,
         undefined,
         `${starter}: generated apps should not depend on esbuild`,
+      );
+      assert.equal(
+        pkg.devDependencies.lightningcss,
+        undefined,
+        `${starter}: Vite owns the default CSS toolchain`,
       );
     } finally {
       rmSync(root, { recursive: true, force: true });

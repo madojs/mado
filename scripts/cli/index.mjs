@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,9 +47,14 @@ export async function main(argv) {
         await runVite(ctx, ["build", "--watch", ...args], { defaultConfig: true });
       }
       break;
-    case "typecheck":
+    case "typecheck": {
       await runNodeBin(ctx, "typescript/bin/tsc", ["--noEmit", ...args]);
+      const nodeConfig = join(ctx.projectRoot, "tsconfig.node.json");
+      if (existsSync(nodeConfig) && !hasFlag(args, "--project", "-p")) {
+        await runNodeBin(ctx, "typescript/bin/tsc", ["--noEmit", "-p", nodeConfig]);
+      }
       break;
+    }
     case "test": {
       await runNodeBin(ctx, "typescript/bin/tsc", []);
       const files = await listTestFiles(projectRoot);

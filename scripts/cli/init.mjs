@@ -110,15 +110,6 @@ async function ensureStarterPackageJson(ctx, target) {
       process.env.MADOJS_PACKAGE_SPEC ||
       `^${ctx.packageJson.version}`,
   };
-  const rootDev = ctx.packageJson.devDependencies ?? {};
-  pkg.devDependencies = {
-    ...(pkg.devDependencies ?? {}),
-    typescript: rootDev.typescript ?? "^6.0.3",
-    lightningcss: rootDev.lightningcss ?? "^1.32.0",
-    "playwright-core": rootDev["playwright-core"] ?? "^1.47.0",
-    vite: rootDev.vite ?? "^8.0.16",
-  };
-
   await writeFile(file, `${JSON.stringify(pkg, null, 2)}\n`);
 }
 

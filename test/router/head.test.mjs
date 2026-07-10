@@ -79,6 +79,22 @@ test("applyHead({}) removes previous runtime and static head tags", () => {
   );
 });
 
+test("applyHead() escapes JSON-LD script terminators", () => {
+  installDom("/");
+  applyHead({
+    jsonLd: {
+      name: "</script><script>globalThis.PWNED=true</script>",
+      separator: "\u2028",
+    },
+  });
+
+  const script = document.head.querySelector('script[type="application/ld+json"]');
+  assert.ok(script);
+  assert.doesNotMatch(script.textContent, /<\/script>/i);
+  assert.match(script.textContent, /\\u003C\/script\\u003E/);
+  assert.match(script.textContent, /\\u2028/);
+});
+
 test("applyHead({}) removes static-fallback canonical and og:url markers", () => {
   // The static snapshot pipeline marks the fallback `<link rel=canonical>`
   // and `<meta property=og:url>` it injects with `data-mado-head="static"`

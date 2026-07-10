@@ -204,6 +204,7 @@ function mkProject({ base = "/" } = {}) {
       "  head: (_params, seed) => ({",
       "    title: seed?.name,",
       "    description: seed?.description,",
+      '    jsonLd: { "@type": "Product", probe: seed?.xss },',
       "  }),",
       "  view: ({ data }) => html`",
       "    <main>",

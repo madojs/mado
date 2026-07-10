@@ -17,6 +17,7 @@
  */
 
 import type { HeadMeta } from "./page.js";
+import { serializeJsonForScript } from "./json.js";
 
 const MARK = "data-mado-head";
 
@@ -75,7 +76,7 @@ export function applyHead(meta: HeadMeta): void {
     const script = document.createElement("script");
     script.type = "application/ld+json";
     script.setAttribute(MARK, "");
-    script.textContent = JSON.stringify(meta.jsonLd);
+    script.textContent = serializeJsonForScript(meta.jsonLd);
     document.head.appendChild(script);
   }
 }

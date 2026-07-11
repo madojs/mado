@@ -39,6 +39,8 @@ small platform-first API.
   semantics. Persisted signal disposal no longer deletes storage implicitly.
 - Static capture blocks undeclared external requests, preserves form/focus
   takeover state, runs bounded route capture and emits portable build metadata.
+- Capture waits for asynchronous module bootstrap before reading the static
+  runtime handshake, avoiding top-level-await races on slower CI runners.
 - `mado build` and published route discovery now feed the standalone static
   pipeline correctly.
 

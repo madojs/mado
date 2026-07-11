@@ -24,7 +24,31 @@
 // ---------- Markers ----------
 
 
-let markerSequence = 0;
+/**
+ * Stable, template-specific marker token.
+ *
+ * The token must not be a predictable global counter because authored markup
+ * can contain similarly named attributes. It also cannot use randomness:
+ * child anchors survive static capture and must be byte-for-byte reproducible.
+ */
+function markerTokenFor(strings: TemplateStringsArray): string {
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+
+  for (const part of strings) {
+    first ^= part.length;
+    second ^= part.length;
+    for (let index = 0; index < part.length; index++) {
+      const code = part.charCodeAt(index);
+      first = Math.imul(first ^ code, 0x01000193);
+      second = Math.imul(second ^ code, 0x85ebca6b);
+    }
+    first = Math.imul(first ^ 0xffff, 0x01000193);
+    second = Math.imul(second ^ 0xffff, 0xc2b2ae35);
+  }
+
+  return `${(first >>> 0).toString(36)}-${(second >>> 0).toString(36)}`;
+}
 
 // ---------- Binding description ----------
 
@@ -154,7 +178,7 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
   let rawTagName = "";
   let firstTagName = "";
   let nextId = 0;
-  const markerToken = `${(++markerSequence).toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const markerToken = markerTokenFor(strings);
   const childMarkerPrefix = `mado$${markerToken}$`;
   const attrMarkerPrefix = `data-mado-bind-${markerToken}-`;
 

@@ -27,20 +27,24 @@ import { trackStatic } from "./static-runtime.js";
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+  expires: ReturnType<typeof setTimeout> | null;
 }
 
 type ResourceFetcher<T> = (key: string, signal: AbortSignal) => Promise<T>;
 
 interface InFlightEntry<T> {
   controller: AbortController;
-  fetcher: ResourceFetcher<T>;
   promise: Promise<T>;
   consumers: number;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
-const inFlight = new Map<string, InFlightEntry<unknown>>();
-const invalidators = new Set<(key: string) => void>();
+interface FetcherState {
+  cache: Map<string, CacheEntry<unknown>>;
+  inFlight: Map<string, InFlightEntry<unknown>>;
+}
+
+const fetcherStates = new Map<ResourceFetcher<unknown>, FetcherState>();
+const invalidators = new Set<(pattern: string) => void>();
 
 /**
  * Remove from cache all keys matching the pattern, and force
@@ -56,20 +60,16 @@ const invalidators = new Set<(key: string) => void>();
  * or iterate your own keys manually.
  */
 export function invalidate(pattern: string): void {
-  const isGlob = pattern.endsWith("*");
-  const prefix = isGlob ? pattern.slice(0, -1) : pattern;
-
-  const toDelete: string[] = [];
-  for (const key of cache.keys()) {
-    if (isGlob ? key.startsWith(prefix) : key === pattern) {
-      toDelete.push(key);
+  for (const [fetcher, state] of fetcherStates) {
+    for (const [key, entry] of state.cache) {
+      if (matchesPattern(key, pattern)) {
+        if (entry.expires) clearTimeout(entry.expires);
+        state.cache.delete(key);
+      }
     }
+    releaseFetcherState(fetcher, state);
   }
-  for (const k of toDelete) cache.delete(k);
-
-  for (const fn of invalidators) {
-    for (const k of toDelete) fn(k);
-  }
+  for (const fn of invalidators) fn(pattern);
 }
 
 // ---------- resource ----------
@@ -92,7 +92,7 @@ export interface Resource<T> {
   /** Signal: current key (useful for debugging and DI) */
   key: () => string;
   /** Force re-run the request. */
-  refresh(): void;
+  refresh(): Promise<T>;
   /**
    * Locally replace the data (optimistic update).
    * The cache is also updated.
@@ -129,22 +129,23 @@ export function resource<T>(
     );
   }
 
-  const run = (key: string) => {
+  const run = (key: string): Promise<T> => {
     releaseInFlight?.();
     releaseInFlight = null;
     const seq = ++requestSeq;
 
     // if there is a fresh cache and not forced — use it
-    const cached = cache.get(key) as CacheEntry<T> | undefined;
+    const cached = getFetcherState(fetcher).cache.get(key) as CacheEntry<T> | undefined;
     if (
       cached &&
       !force &&
-      (!options.staleTime || Date.now() - cached.timestamp < options.staleTime)
+      (options.staleTime === Infinity ||
+        Date.now() - cached.timestamp < (options.staleTime ?? 0))
     ) {
       data.set(cached.data);
       error.set(null);
       loading.set(false);
-      return;
+      return Promise.resolve(cached.data);
     }
 
     loading.set(true);
@@ -165,7 +166,7 @@ export function resource<T>(
         retained.release();
         if (seq !== requestSeq) return;
         if (key !== lastKey) return;
-        cache.set(key, { data: result, timestamp: Date.now() });
+        writeCache(fetcher, key, result, options.staleTime ?? 0);
         data.set(result);
         loading.set(false);
       },
@@ -177,6 +178,7 @@ export function resource<T>(
         loading.set(false);
       },
     );
+    return retained.promise;
   };
 
   // subscribe to key changes
@@ -185,15 +187,15 @@ export function resource<T>(
     keySig.set(key);
     if (key !== lastKey || force) {
       lastKey = key;
-      run(key);
+      void run(key);
     }
   });
 
   // subscribe to global invalidation
-  const onInv = (invKey: string) => {
-    if (invKey === lastKey) {
+  const onInv = (pattern: string) => {
+    if (matchesPattern(lastKey, pattern)) {
       force = true;
-      run(lastKey);
+      void run(lastKey);
     }
   };
   invalidators.add(onInv);
@@ -218,7 +220,9 @@ export function resource<T>(
       force = true;
       // read key without tracking — otherwise we'd end up inside someone else's effect
       const key = untracked(keyFn);
-      run(key);
+      lastKey = key;
+      keySig.set(key);
+      return run(key);
     },
     mutate(next) {
       const prev = data.peek();
@@ -227,7 +231,7 @@ export function resource<T>(
           ? (next as (p: T | undefined) => T)(prev)
           : next;
       data.set(value);
-      if (lastKey) cache.set(lastKey, { data: value, timestamp: Date.now() });
+      if (lastKey) writeCache(fetcher, lastKey, value, options.staleTime ?? 0);
     },
   };
 }
@@ -237,36 +241,29 @@ function retainInFlight<T>(
   fetcher: ResourceFetcher<T>,
   force: boolean,
 ): { promise: Promise<T>; release: () => void } {
-  let entry = (!force ? inFlight.get(key) : undefined) as
+  const state = getFetcherState(fetcher);
+  let entry = (!force ? state.inFlight.get(key) : undefined) as
     | InFlightEntry<T>
     | undefined;
-
-  if (entry && entry.fetcher !== fetcher) {
-    warnOnce(
-      `resource-key-collision-${key}`,
-      `resource key collision for "${key}": multiple in-flight ` +
-        "resource() calls use different fetchers. Resource keys must uniquely " +
-        "identify both the endpoint and the data shape.",
-    );
-  }
 
   if (!entry) {
     const controller = new AbortController();
     entry = {
       controller,
-      fetcher,
       consumers: 0,
       promise: trackStatic(fetcher(key, controller.signal), `resource ${key}`),
     };
     entry.promise.then(
       () => {
-        if (inFlight.get(key) === entry) inFlight.delete(key);
+        if (state.inFlight.get(key) === entry) state.inFlight.delete(key);
+        releaseFetcherState(fetcher, state);
       },
       () => {
-        if (inFlight.get(key) === entry) inFlight.delete(key);
+        if (state.inFlight.get(key) === entry) state.inFlight.delete(key);
+        releaseFetcherState(fetcher, state);
       },
     );
-    inFlight.set(key, entry as InFlightEntry<unknown>);
+    state.inFlight.set(key, entry as InFlightEntry<unknown>);
   }
 
   entry.consumers++;
@@ -275,13 +272,63 @@ function retainInFlight<T>(
     if (released) return;
     released = true;
     entry.consumers--;
-    if (entry.consumers === 0 && inFlight.get(key) === entry) {
+    if (entry.consumers === 0 && state.inFlight.get(key) === entry) {
       entry.controller.abort();
-      inFlight.delete(key);
+      state.inFlight.delete(key);
+      releaseFetcherState(fetcher, state);
     }
   };
 
   return { promise: entry.promise, release };
+}
+
+function getFetcherState<T>(fetcher: ResourceFetcher<T>): FetcherState {
+  let state = fetcherStates.get(fetcher as ResourceFetcher<unknown>);
+  if (!state) {
+    state = { cache: new Map(), inFlight: new Map() };
+    fetcherStates.set(fetcher as ResourceFetcher<unknown>, state);
+  }
+  return state;
+}
+
+function releaseFetcherState(
+  fetcher: ResourceFetcher<unknown>,
+  state: FetcherState,
+): void {
+  if (state.cache.size === 0 && state.inFlight.size === 0) {
+    fetcherStates.delete(fetcher);
+  }
+}
+
+function writeCache<T>(
+  fetcher: ResourceFetcher<T>,
+  key: string,
+  data: T,
+  staleTime: number,
+): void {
+  const state = getFetcherState(fetcher);
+  const previous = state.cache.get(key);
+  if (previous?.expires) clearTimeout(previous.expires);
+  if (staleTime <= 0) {
+    state.cache.delete(key);
+    releaseFetcherState(fetcher as ResourceFetcher<unknown>, state);
+    return;
+  }
+  const entry: CacheEntry<T> = { data, timestamp: Date.now(), expires: null };
+  if (staleTime !== Infinity) {
+    entry.expires = setTimeout(() => {
+      if (state.cache.get(key) === entry) state.cache.delete(key);
+      releaseFetcherState(fetcher as ResourceFetcher<unknown>, state);
+    }, staleTime);
+    (entry.expires as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+  }
+  state.cache.set(key, entry as CacheEntry<unknown>);
+}
+
+function matchesPattern(key: string, pattern: string): boolean {
+  return pattern.endsWith("*")
+    ? key.startsWith(pattern.slice(0, -1))
+    : key === pattern;
 }
 
 // ---------- mutation ----------
@@ -341,9 +388,11 @@ export function mutation<TArgs, TResult>(
   // counter so `loading` stays true while ANY concurrent run is pending.
   const controllers = new Set<AbortController>();
   let inFlight = 0;
+  let generation = 0;
 
-  const settle = (ac: AbortController): void => {
+  const settle = (ac: AbortController, runGeneration: number): void => {
     controllers.delete(ac);
+    if (runGeneration !== generation) return;
     inFlight--;
     if (inFlight === 0) loading.set(false);
   };
@@ -359,6 +408,7 @@ export function mutation<TArgs, TResult>(
         for (const c of controllers) c.abort();
       }
       const ac = new AbortController();
+      const runGeneration = generation;
       controllers.add(ac);
       inFlight++;
       loading.set(true);
@@ -369,7 +419,7 @@ export function mutation<TArgs, TResult>(
           throw new DOMException("aborted", "AbortError");
         }
         data.set(result);
-        settle(ac);
+        settle(ac, runGeneration);
         const inv = options.invalidates;
         if (inv) {
           let patterns: readonly string[] = [];
@@ -386,11 +436,12 @@ export function mutation<TArgs, TResult>(
         if (!ac.signal.aborted) {
           error.set(err instanceof Error ? err : new Error(String(err)));
         }
-        settle(ac);
+        settle(ac, runGeneration);
         throw err;
       }
     },
     reset() {
+      generation++;
       for (const c of controllers) c.abort();
       controllers.clear();
       inFlight = 0;
@@ -482,11 +533,17 @@ export const _testHooks = {
     return invalidators.size;
   },
   cacheSize(): number {
-    return cache.size;
+    let size = 0;
+    for (const state of fetcherStates.values()) size += state.cache.size;
+    return size;
   },
   clearCache(): void {
-    cache.clear();
-    for (const entry of inFlight.values()) entry.controller.abort();
-    inFlight.clear();
+    for (const state of fetcherStates.values()) {
+      for (const entry of state.cache.values()) {
+        if (entry.expires) clearTimeout(entry.expires);
+      }
+      for (const entry of state.inFlight.values()) entry.controller.abort();
+    }
+    fetcherStates.clear();
   },
 };

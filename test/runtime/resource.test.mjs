@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { signal, flushSync } = await import("../../dist/src/signal.js");
-const { resource, mutation, jsonFetcher, HttpError } = await import(
+const { resource, mutation, invalidate, jsonFetcher, HttpError } = await import(
   "../../dist/src/resource.js"
 );
 
@@ -66,6 +66,18 @@ test("resource: cache is reused when returning to an old key", async () => {
   assert.equal(r.data(), "cached/1");
 });
 
+test("resource: staleTime zero refetches after in-flight deduplication", async () => {
+  let calls = 0;
+  const fetcher = async () => ++calls;
+  const first = resource(() => "no-cache", fetcher);
+  await wait(0);
+  const second = resource(() => "no-cache", fetcher);
+  await wait(0);
+  assert.equal(first.data(), 1);
+  assert.equal(second.data(), 2);
+  assert.equal(calls, 2);
+});
+
 test("resource: concurrent resources with the same key share one in-flight fetch", async () => {
   let calls = 0;
   let resolveFetch;
@@ -92,7 +104,7 @@ test("resource: concurrent resources with the same key share one in-flight fetch
   assert.equal(r2.loading(), false);
 });
 
-test("resource: same in-flight key with a different fetcher warns about a collision", async () => {
+test("resource: same key with different fetchers has isolated identity", async () => {
   let resolveFetch;
   let calls = 0;
   const firstFetcher = async () => {
@@ -106,26 +118,15 @@ test("resource: same in-flight key with a different fetcher warns about a collis
     return "second";
   };
 
-  const warns = [];
-  const origWarn = console.warn;
-  console.warn = (...args) => warns.push(args.join(" "));
-  try {
-    const r1 = resource(() => "dedupe/collision", firstFetcher);
-    const r2 = resource(() => "dedupe/collision", secondFetcher);
-    assert.equal(calls, 1, "second resource should join the in-flight request");
+  const r1 = resource(() => "dedupe/collision", firstFetcher);
+  const r2 = resource(() => "dedupe/collision", secondFetcher);
+  assert.equal(calls, 2, "different fetchers must not share requests or values");
 
-    resolveFetch();
-    await wait(0);
+  resolveFetch();
+  await wait(0);
 
-    assert.equal(r1.data(), "first");
-    assert.equal(r2.data(), "first");
-    assert.ok(
-      warns.some((m) => m.includes("resource key collision")),
-      "same key with a different fetcher must warn about cache-key discipline",
-    );
-  } finally {
-    console.warn = origWarn;
-  }
+  assert.equal(r1.data(), "first");
+  assert.equal(r2.data(), "second");
 });
 
 test("resource: refresh forces a request", async () => {
@@ -141,9 +142,18 @@ test("resource: refresh forces a request", async () => {
   await wait(0);
   assert.equal(r.data(), 1);
 
-  r.refresh();
-  await wait(0);
+  assert.equal(await r.refresh(), 2);
   assert.equal(calls, 2);
+  assert.equal(r.data(), 2);
+});
+
+test("resource: invalidation reaches live resources without cached data", async () => {
+  let calls = 0;
+  const r = resource(() => "live/uncached", async () => ++calls);
+  await wait(0);
+  assert.equal(r.data(), 1);
+  invalidate("live/*");
+  await wait(0);
   assert.equal(r.data(), 2);
 });
 

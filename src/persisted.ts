@@ -46,7 +46,11 @@ export interface PersistedOptions<T> {
 }
 
 export interface PersistedSignal<T> extends Signal<T> {
-  /** Remove the value from storage and unsubscribe from the bus. */
+  /** Stop storage/channel subscriptions while preserving the stored value. */
+  dispose(): void;
+  /** Remove the stored value without disposing the signal. */
+  clear(): void;
+  /** Remove the stored value and dispose all persistence subscriptions. */
   destroy(): void;
 }
 
@@ -81,7 +85,7 @@ export function persisted<T>(
   // never suppresses the echo — without this guard two tabs ping-pong forever.
   // Seeded with the current value so the creation-time publish is a no-op.
   let lastSync = serialize(base.peek());
-  let destroyed = false;
+  let disposed = false;
 
   // Collected so destroy() actually tears everything down. The original code
   // dropped these disposers, so destroy() left the write effect alive and the
@@ -91,7 +95,7 @@ export function persisted<T>(
   // 2) Write on each change (optionally debounced)
   let writeTimer: ReturnType<typeof setTimeout> | null = null;
   const flushWrite = (v: T) => {
-    if (!storage || destroyed) return;
+    if (!storage || disposed) return;
     try {
       storage.setItem(fullKey, serialize(v));
     } catch {
@@ -116,7 +120,9 @@ export function persisted<T>(
   let bc: BroadcastChannel | null = null;
   if (wantSync && typeof BroadcastChannel !== "undefined") {
     try {
-      bc = new BroadcastChannel(`mado:persisted:${key}`);
+      bc = new BroadcastChannel(
+        `mado:persisted:${options.storage ?? "local"}:${fullKey}`,
+      );
       const onMessage = (e: MessageEvent) => {
         try {
           // Record what arrived BEFORE applying it, so the publisher effect
@@ -145,15 +151,19 @@ export function persisted<T>(
   }
 
   const out = base as PersistedSignal<T>;
-  out.destroy = () => {
-    if (destroyed) return;
-    destroyed = true;
+  out.dispose = () => {
+    if (disposed) return;
+    disposed = true;
     if (writeTimer) {
       clearTimeout(writeTimer);
       writeTimer = null;
     }
     // Dispose the write + publish effects so later set() calls are inert.
     for (const d of disposers.splice(0)) d();
+    bc?.close();
+    bc = null;
+  };
+  out.clear = () => {
     if (storage) {
       try {
         storage.removeItem(fullKey);
@@ -161,13 +171,15 @@ export function persisted<T>(
         /* noop */
       }
     }
-    bc?.close();
-    bc = null;
+  };
+  out.destroy = () => {
+    out.clear();
+    out.dispose();
   };
 
-  // Tie destroy() to the surrounding component/page lifecycle when present, so
-  // a persisted() created inside setup() does not leak its effects/channel.
-  getCurrentLifecycle()?.onDispose(() => out.destroy());
+  // Lifecycle cleanup stops subscriptions but deliberately preserves the
+  // persisted value. Removing storage is an explicit clear()/destroy() action.
+  getCurrentLifecycle()?.onDispose(() => out.dispose());
 
   return out;
 }

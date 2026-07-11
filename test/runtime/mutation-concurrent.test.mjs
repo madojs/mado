@@ -136,3 +136,23 @@ test("abortPrevious: true keeps search-as-you-type semantics", async () => {
   await assert.rejects(pOld, (err) => err?.name === "AbortError");
   assert.equal(await pNew, "new");
 });
+
+test("reset isolates later runs from promises started before reset", async () => {
+  const oldGate = deferred();
+  const newGate = deferred();
+  const save = mutation(async (name) => {
+    await (name === "old" ? oldGate.promise : newGate.promise);
+    return name;
+  });
+
+  const oldRun = save.run("old");
+  save.reset();
+  const newRun = save.run("new");
+  oldGate.resolve();
+  await assert.rejects(oldRun, (err) => err?.name === "AbortError");
+  assert.equal(save.loading(), true, "old settlement must not clear new loading state");
+  newGate.resolve();
+  assert.equal(await newRun, "new");
+  assert.equal(save.loading(), false);
+  assert.equal(save.data(), "new");
+});

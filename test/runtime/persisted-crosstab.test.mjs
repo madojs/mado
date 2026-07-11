@@ -40,7 +40,7 @@ test("persisted(): object values do not ping-pong across tabs", async (t) => {
 
   const { persisted } = await import("../../dist/src/persisted.js");
 
-  const channelName = "mado:persisted:c2-theme";
+  const channelName = "mado:persisted:local:mado:c2-theme";
   const seen = [];
   const observer = new BroadcastChannel(channelName);
   observer.onmessage = (e) => seen.push(e.data);
@@ -119,6 +119,34 @@ test("persisted(): destroy() stops further writes to storage", async () => {
       null,
       "after destroy(), set() must NOT write to storage again",
     );
+  } finally {
+    if (prevLocal === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevLocal;
+  }
+});
+
+test("persisted(): lifecycle disposal preserves storage until clear", async () => {
+  const storage = makeStorage();
+  const prevLocal = globalThis.localStorage;
+  globalThis.localStorage = storage;
+  try {
+    const { persisted } = await import("../../dist/src/persisted.js");
+    const { createLifecycle, runInLifecycle } = await import(
+      "../../dist/src/lifecycle.js"
+    );
+    const lifecycle = createLifecycle();
+    const value = runInLifecycle(lifecycle, () =>
+      persisted("lifecycle", signal("saved"), { syncTabs: false }),
+    );
+    flushSync();
+    lifecycle.dispose();
+    assert.equal(storage.getItem("mado:lifecycle"), JSON.stringify("saved"));
+
+    value.set("ignored");
+    flushSync();
+    assert.equal(storage.getItem("mado:lifecycle"), JSON.stringify("saved"));
+    value.clear();
+    assert.equal(storage.getItem("mado:lifecycle"), null);
   } finally {
     if (prevLocal === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = prevLocal;

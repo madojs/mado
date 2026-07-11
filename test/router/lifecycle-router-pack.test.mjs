@@ -222,7 +222,7 @@ test("C8.4: mutually-redirecting guards are halted by a loop detector", async ()
 
   try {
     render(html`${r.view}`, app);
-    for (let i = 0; i < 40; i++) await Promise.resolve();
+    for (let i = 0; i < 120; i++) await Promise.resolve();
 
     assert.ok(
       errors.some((msg) => msg.includes("guard redirect loop detected")),

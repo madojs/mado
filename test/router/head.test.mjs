@@ -154,3 +154,26 @@ test("routes(): navigating to a page without head clears previous head tags", as
   assert.equal(document.title, "Plain");
   r.dispose();
 });
+
+test("routes(): head title honours suffix and untitled routes clear stale title", async () => {
+  installDom("/");
+  const titled = page({
+    title: "Fallback",
+    head: () => ({ title: "Head title" }),
+    view: () => html`<h1>titled</h1>`,
+  });
+  const untitled = page({ view: () => html`<h1>untitled</h1>` });
+  const r = routes({ "/": titled, "/plain": untitled }, { titleSuffix: " · Mado" });
+
+  r.view();
+  await tick();
+  r.view();
+  assert.equal(document.title, "Head title · Mado");
+
+  r.navigate("/plain");
+  r.view();
+  await tick();
+  r.view();
+  assert.equal(document.title, "");
+  r.dispose();
+});

@@ -80,6 +80,20 @@ const { page, layout } = await import("../../dist/src/page.js");
 // queueMicrotask are observable.
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
+function textOf(tpl) {
+  if (tpl == null || tpl === false || tpl === true) return "";
+  if (typeof tpl === "string" || typeof tpl === "number") return String(tpl);
+  if (typeof tpl === "function") return textOf(tpl());
+  if (Array.isArray(tpl)) return tpl.map(textOf).join("");
+  if (tpl._mado) {
+    return tpl.strings.reduce(
+      (out, part, index) => out + part + textOf(tpl.values[index]),
+      "",
+    );
+  }
+  return String(tpl);
+}
+
 test("layout() ships as the route group factory", () => {
   assert.equal(typeof layout, "function");
 });
@@ -234,4 +248,64 @@ test("guard throwing is treated as halt (does not crash router)", async () => {
   } finally {
     console.error = origErr;
   }
+});
+
+test("navigation disposes the old page before an async guard settles", async () => {
+  setUrl("/from");
+  let disposed = 0;
+  let settleGuard;
+  const from = page({
+    view: ({ onDispose }) => {
+      onDispose?.(() => disposed++);
+      return html`<h1>from</h1>`;
+    },
+  });
+  const blocked = page({
+    guard: () => new Promise((resolve) => { settleGuard = resolve; }),
+    view: () => html`<h1>blocked</h1>`,
+  });
+  const r = routes({ "/from": from, "/blocked": blocked }, { loadingDelay: 0 });
+
+  const initial = r.view();
+  await tick();
+  textOf(initial);
+  assert.equal(disposed, 0);
+
+  r.navigate("/blocked");
+  const pending = r.view();
+  assert.equal(disposed, 1, "old page is disposed at navigation start");
+  await tick();
+  assert.equal(typeof settleGuard, "function");
+  settleGuard({ halt: true });
+  await tick();
+  assert.equal(textOf(pending), "", "halt removes an immediate loading view");
+  r.dispose();
+});
+
+test("cached pages with async page guards take the async path", async () => {
+  setUrl("/guarded");
+  let guardCalls = 0;
+  const guarded = page({
+    guard: async () => {
+      guardCalls++;
+      await Promise.resolve();
+    },
+    view: () => html`<h1>guarded ready</h1>`,
+  });
+  const other = page({ view: () => html`<h1>other</h1>` });
+  const r = routes({ "/guarded": guarded, "/other": other });
+
+  let view = r.view();
+  await tick();
+  assert.match(textOf(view), /guarded ready/);
+  r.navigate("/other");
+  view = r.view();
+  await tick();
+  textOf(view);
+  r.navigate("/guarded");
+  view = r.view();
+  await tick();
+  assert.match(textOf(view), /guarded ready/);
+  assert.equal(guardCalls, 2);
+  r.dispose();
 });

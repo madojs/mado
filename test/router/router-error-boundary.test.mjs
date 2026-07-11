@@ -135,3 +135,26 @@ test("routes(): page.errorView wins over global errorPage", async () => {
   assert.doesNotMatch(textOf(view), /global/);
   r.dispose();
 });
+
+test("routes(): rejects Promise-returning page.load with a useful boundary error", async () => {
+  setUrl("/async-load");
+  let viewCalled = false;
+  const r = routes(
+    {
+      "/async-load": page({
+        load: async () => "late",
+        view: () => {
+          viewCalled = true;
+          return html`<h1>should not render</h1>`;
+        },
+      }),
+    },
+    { errorPage: (err) => html`<x-error>${err.message}</x-error>` },
+  );
+
+  const view = r.view();
+  await tick();
+  assert.match(textOf(view), /must return a synchronous value or Resource/);
+  assert.equal(viewCalled, false);
+  r.dispose();
+});

@@ -17,7 +17,7 @@ import { signal } from "../signal.js";
 import { reportError } from "../diagnostics.js";
 import { html } from "../html/template.js";
 import type { TemplateResult } from "../html/template-types.js";
-import type { Guard, GuardResult, Page, PageContext } from "../page.js";
+import type { Guard, GuardResult, HeadMeta, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
   createLifecycle,
@@ -95,6 +95,7 @@ interface RoutesContext {
   pathToFlat: Map<string, FlatEntry>;
   compiledForPrefetch: Array<{ regex: RegExp; entry: FlatEntry }>;
   renderSeq: number;
+  guardRedirects: number;
   /**
    * Lifecycle of the page currently visible on screen. Disposed and
    * replaced on every navigation so that resource() / effect() / persisted()
@@ -123,9 +124,7 @@ interface RoutesContext {
  * the corresponding context is removed from the registry.
  */
 const activeRoutes = new Set<RoutesContext>();
-const MAX_GUARD_REDIRECTS_PER_TICK = 10;
-let guardRedirectsThisTick = 0;
-let guardRedirectResetScheduled = false;
+const MAX_GUARD_REDIRECTS = 10;
 
 /**
  * Create a router from a manifest. Returns the same RouterApi as router().
@@ -139,6 +138,7 @@ export function routes(
     pathToFlat: new Map(),
     compiledForPrefetch: [],
     renderSeq: 0,
+    guardRedirects: 0,
     activeLifecycle: null,
     seedForPathname: null,
   };
@@ -206,11 +206,21 @@ export function routes(
  * `resource()` in view emits a [mado:resource-outside-lifecycle]
  * warning even when used correctly.
  */
-function openPageLifecycle(ctx: RoutesContext): LifecycleHandle {
+function disposeActiveLifecycle(ctx: RoutesContext): void {
   ctx.activeLifecycle?.dispose();
+  ctx.activeLifecycle = null;
+}
+
+function renderInPageLifecycle<T>(ctx: RoutesContext, render: () => T): T {
   const lc = createLifecycle();
-  ctx.activeLifecycle = lc;
-  return lc;
+  try {
+    const value = runInLifecycle(lc, render);
+    ctx.activeLifecycle = lc;
+    return value;
+  } catch (err) {
+    lc.dispose();
+    throw err;
+  }
 }
 
 // ---------- prefetch ----------
@@ -289,22 +299,23 @@ function applyPageMeta(
   seed: JsonValue | undefined,
   options: RoutesOptions,
 ): void {
-  const title =
+  const pageTitle =
     typeof page.title === "function" ? page.title(params) : page.title;
-  if (title) {
-    document.title = title + (options.titleSuffix ?? "");
-  }
+  let head: HeadMeta = {};
   if (!page.head) {
     applyHead({});
-    return;
+  } else {
+    try {
+      head = page.head(params, seed);
+      applyHead(head);
+    } catch (err) {
+      applyHead({});
+      recordStaticError(err);
+      reportError("router", "page-head", "page.head() threw", err);
+    }
   }
-  try {
-    applyHead(page.head(params, seed));
-  } catch (err) {
-    applyHead({});
-    recordStaticError(err);
-    reportError("router", "page-head", "page.head() threw", err);
-  }
+  const title = head.title ?? pageTitle;
+  document.title = title ? title + (options.titleSuffix ?? "") : "";
 }
 
 /**
@@ -324,46 +335,29 @@ function renderEntry(
   options: RoutesOptions,
   seq: number,
 ): TemplateResult {
+  // Navigation owns the currently visible page lifecycle. Dispose it before
+  // loaders/guards begin so halted, redirected and failed navigations cannot
+  // leave the previous page's effects alive behind a loading shell.
+  disposeActiveLifecycle(ctx);
+
   // ---------- SYNC FAST PATH ----------
   // Only available when (a) the page+layouts are cached AND (b) there are no
   // guards OR every guard is synchronous and returns void. Anything more
   // complex (async guards, redirects) must take the async path so we never
   // render a route the guard would have stopped.
   const sync = tryLoadSync(ctx, entry);
-  const syncGuardVerdict =
-    sync && entry.guards.length === 0
-      ? null
-      : sync
-        ? trySyncGuards(entry.guards, params)
-        : undefined;
-  if (sync && syncGuardVerdict === null) {
+  const hasGuards = !!sync && (
+    entry.guards.length > 0 || collectPageGuards(sync.page).length > 0
+  );
+  if (sync && !hasGuards) {
     setStaticRouterState("render:sync");
     const seed = ctx.seedForPathname?.value;
-    applyPageMeta(sync.page, params, seed, options);
     try {
-      // Combine sync layouts with any guard-injected page guards' layouts is
-      // a future concern; today guards never return a layout.
-      // Combine guards' page-level guards as a fast-path check.
-      const pageGuards = collectPageGuards(sync.page);
-      if (pageGuards.length > 0) {
-        const v = trySyncGuards(pageGuards, params);
-        // `v === undefined` would mean an async page-guard slipped past the
-        // outer sync check; today that can't happen, but bail to async path
-        // defensively.
-        if (v) return renderGuardVerdictSync(v, options);
-        if (v === undefined) {
-          // Fall through to async path by skipping the sync return; rebuild
-          // the render via a fresh entry-render call would be ideal, but for
-          // now log and render nothing. Pages with async guards will not hit
-          // sync fast path because trySyncGuards on entry.guards already
-          // returned undefined and we never enter this block in that case.
-          return html``;
-        }
-      }
-      const lc = openPageLifecycle(ctx);
-      const view = runInLifecycle(lc, () =>
+      const view = renderInPageLifecycle(ctx, () =>
         renderWithLayouts(sync.page, sync.layouts, params, seed),
       );
+      applyPageMeta(sync.page, params, seed, options);
+      ctx.guardRedirects = 0;
       markStaticRouteReady("ready");
       return view;
     } catch (err) {
@@ -373,11 +367,6 @@ function renderEntry(
       return renderError(e, params, options, sync.page);
     }
   }
-  if (sync && syncGuardVerdict) {
-    setStaticRouterState("guard");
-    return renderGuardVerdictSync(syncGuardVerdict, options);
-  }
-
   // ---------- ASYNC PATH ----------
   setStaticRouterState("loading");
   // 'idle' — first window (until loadingDelay): render empty to avoid
@@ -387,6 +376,7 @@ function renderEntry(
   const state = signal<
     | { kind: "idle" }
     | { kind: "loading" }
+    | { kind: "guard" }
     | { kind: "error"; err: Error }
     | { kind: "ready"; page: Page; layouts: Page[] }
   >({ kind: "idle" });
@@ -432,20 +422,24 @@ function renderEntry(
       if (isStale(ctx, seq)) return;
       if (verdict) {
         setStaticRouterState(`guard:${verdict.kind}`);
-        applyGuardVerdict(verdict);
-        if (verdict.kind === "halt") markStaticRouteReady("halted");
-        // After a redirect we leave `idle` so nothing flashes; the new route
-        // will start its own render cycle.
+        state.set({ kind: "guard" });
+        applyGuardVerdict(ctx, verdict);
+        if (verdict.kind === "halt") {
+          ctx.guardRedirects = 0;
+          markStaticRouteReady("halted");
+        }
+        // The guard state removes any immediate loading view; a redirect starts
+        // a fresh route transaction, while halt remains intentionally blank.
         return;
       }
       applyPageMeta(pg as Page, params, ctx.seedForPathname?.value, options);
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
-      markStaticRouteReady("ready");
     } catch (err: unknown) {
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
       const e = err instanceof Error ? err : new Error(String(err));
+      ctx.guardRedirects = 0;
       recordStaticError(e);
       markStaticRouteReady("error");
       state.set({ kind: "error", err: e });
@@ -458,18 +452,23 @@ function renderEntry(
     if (s.kind === "loading") {
       return options.loading?.() ?? defaultLoadingView();
     }
+    if (s.kind === "guard") return "";
     if (s.kind === "error") {
       return renderError(s.err, params, options);
     }
     try {
-      const lc = openPageLifecycle(ctx);
       const seed = ctx.seedForPathname?.value;
-      const view = runInLifecycle(lc, () =>
+      const view = renderInPageLifecycle(ctx, () =>
         renderWithLayouts(s.page, s.layouts, params, seed),
       );
+      ctx.guardRedirects = 0;
+      markStaticRouteReady("ready");
       return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
+      disposeActiveLifecycle(ctx);
+      applyHead({});
+      document.title = "";
       recordStaticError(e);
       markStaticRouteReady("error");
       return renderError(e, params, options, s.page);
@@ -526,38 +525,6 @@ async function runGuards(
   return null;
 }
 
-/**
- * Fast-path: run synchronous guards only. Returns:
- *   null      → all passed
- *   verdict   → first non-pass verdict
- *   undefined → at least one guard is async, fall through to async path
- */
-function trySyncGuards(
-  guards: Guard[],
-  params: RouteParams,
-):
-  | { kind: "redirect"; to: string; replace?: boolean }
-  | { kind: "halt" }
-  | null
-  | undefined {
-  const path =
-    typeof location !== "undefined" ? location.pathname + location.search : "/";
-  for (const g of guards) {
-    let v;
-    try {
-      v = g({ params, path });
-    } catch (err) {
-      reportError("router", "guard", "guard threw", err);
-      return { kind: "halt" };
-    }
-    if (v && typeof (v as Promise<unknown>).then === "function") return undefined;
-    const verdict = normalizeGuardResult(v as GuardResult);
-    if (!verdict) continue;
-    return verdict;
-  }
-  return null;
-}
-
 function normalizeGuardResult(
   verdict: GuardResult,
 ): { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" } | null {
@@ -572,42 +539,26 @@ function normalizeGuardResult(
 }
 
 function applyGuardVerdict(
+  ctx: RoutesContext,
   v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
 ): void {
   if (v.kind === "redirect") {
-    navigateFromGuard(v.to, v.replace);
+    navigateFromGuard(ctx, v.to, v.replace);
   }
   // "halt" — render nothing; caller already aborted.
 }
 
-function renderGuardVerdictSync(
-  v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
-  _options: RoutesOptions,
-): TemplateResult {
-  // We can't synchronously navigate during the same render frame without
-  // re-entering router code; queue a microtask so the current render
-  // finishes cleanly, then redirect.
-  if (v.kind === "redirect") {
-    queueMicrotask(() => navigateFromGuard(v.to, v.replace));
-  }
-  return html``;
-}
-
-function navigateFromGuard(to: string, replace?: boolean): void {
-  if (!guardRedirectResetScheduled) {
-    guardRedirectResetScheduled = true;
-    setTimeout(() => {
-      guardRedirectsThisTick = 0;
-      guardRedirectResetScheduled = false;
-    }, 0);
-  }
-
-  guardRedirectsThisTick++;
-  if (guardRedirectsThisTick > MAX_GUARD_REDIRECTS_PER_TICK) {
+function navigateFromGuard(
+  ctx: RoutesContext,
+  to: string,
+  replace?: boolean,
+): void {
+  ctx.guardRedirects++;
+  if (ctx.guardRedirects > MAX_GUARD_REDIRECTS) {
     reportError(
       "router",
       "guard-redirect-loop",
-      `guard redirect loop detected: more than ${MAX_GUARD_REDIRECTS_PER_TICK} redirects in one tick; halted at ${to}`,
+      `guard redirect loop detected: more than ${MAX_GUARD_REDIRECTS} consecutive redirects; halted at ${to}`,
       undefined,
     );
     return;
@@ -636,6 +587,7 @@ function renderWithLayouts(
   // seed itself is the runtime data (otherwise static-only pages would
   // lose their initial data after head() has consumed it).
   const data = page.load ? page.load(params, seed) : (seed as unknown);
+  assertSynchronousLoad(data, "page.load");
 
   // Expose onDispose to page views so they can clean up timers, manual
   // subscriptions, etc. that aren't auto-managed by resource()/effect().
@@ -656,6 +608,7 @@ function renderWithLayouts(
   for (let i = layouts.length - 1; i >= 0; i--) {
     const layout = layouts[i]!;
     const layoutData = layout.load ? layout.load(params) : undefined;
+    assertSynchronousLoad(layoutData, "layout.load");
     view = layout.view({
       params,
       data: layoutData,
@@ -666,6 +619,15 @@ function renderWithLayouts(
   }
 
   return view;
+}
+
+function assertSynchronousLoad(value: unknown, label: string): void {
+  if (value && typeof (value as PromiseLike<unknown>).then === "function") {
+    throw new TypeError(
+      `[mado:router] ${label} must return a synchronous value or Resource; ` +
+        "use resource() for asynchronous data",
+    );
+  }
 }
 
 function trackIfPromise<T>(value: T | Promise<T>, label: string): Promise<T> {

@@ -68,7 +68,7 @@ export function resolveBin(ctx, bin) {
 export async function writeIfMissing(path, content, logPrefix = "[mado]") {
   if (existsSync(path)) return;
   await writeFile(path, content);
-  console.log(`${logPrefix} wrote ${path}`);
+  logger.info("release", "write", `wrote ${path}`, { prefix: logPrefix });
 }
 
 export async function listTestFiles(projectRoot) {

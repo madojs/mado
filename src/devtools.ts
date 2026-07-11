@@ -5,6 +5,7 @@ import {
   type MadoDevtoolsEvent,
   type MadoDevtoolsHook,
 } from "./devtools-hook.js";
+import { reportDiagnostic } from "./diagnostics.js";
 
 export type DevtoolsLogLevel = "debug" | "info" | "warn" | "error" | "silent";
 
@@ -97,8 +98,11 @@ if (typeof window !== "undefined") {
   });
   try {
     if (localStorage.getItem("madoDebug") === "1") {
-      console.warn(
-        "[mado:devtools] localStorage.madoDebug is deprecated; use Alt+Shift+M or devtools.open().",
+      reportDiagnostic(
+        "warn",
+        "devtools",
+        "legacy-debug-flag",
+        "localStorage.madoDebug is deprecated; use Alt+Shift+M or devtools.open().",
       );
       devtools.setLogLevel("debug");
       queueMicrotask(() => devtools.open());

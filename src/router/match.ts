@@ -42,10 +42,7 @@ export function compile(pattern: string, handler: RouteHandler): CompiledRoute {
     return { pattern, regex: /.*/, keys: [], handler };
   }
   const keys: string[] = [];
-  const re = pattern.replace(/\/$/, "").replace(/:[\w]+/g, (m) => {
-    keys.push(m.slice(1));
-    return "([^/]+)";
-  });
+  const re = routePatternSource(pattern, keys);
   return {
     pattern,
     regex: new RegExp(`^${re}/?$`),
@@ -79,8 +76,27 @@ export function matchRoute(
 
 /** Simple regex WITHOUT keys — for prefetch (we only need the match fact). */
 export function patternToRegex(pattern: string): RegExp {
-  const re = pattern.replace(/\/$/, "").replace(/:[\w]+/g, "([^/]+)");
+  const re = routePatternSource(pattern);
   return new RegExp(`^${re}/?$`);
+}
+
+function routePatternSource(pattern: string, keys?: string[]): string {
+  const input = pattern.replace(/\/$/, "");
+  let source = "";
+  let cursor = 0;
+  const params = /:([\w]+)/g;
+  for (const match of input.matchAll(params)) {
+    const index = match.index ?? 0;
+    source += escapeRegex(input.slice(cursor, index));
+    source += "([^/]+)";
+    keys?.push(match[1]!);
+    cursor = index + match[0].length;
+  }
+  return source + escapeRegex(input.slice(cursor));
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

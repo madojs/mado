@@ -11,8 +11,8 @@
  *     For every `${}` slot we know the current context: text, attribute,
  *     attribute value, comment, or raw text.
  *  2. Build the final HTML string with markers:
- *       - `<!--mado$N-->`         for child slots
- *       - `data-mado-bind-N="…"`  for attributes
+ *       - opaque comments for child slots
+ *       - opaque data attributes for attribute slots
  *     and keep a parallel BindingSpec list that describes each slot.
  *  3. Parse HTML through `<template>.innerHTML`, then walk() finds markers in
  *     the DOM and fills BindingSpec.path and childIndex. Marker attributes are
@@ -24,8 +24,7 @@
 // ---------- Markers ----------
 
 
-export const CHILD_MARKER_PREFIX = "mado$";
-export const ATTR_MARKER_PREFIX = "data-mado-bind-";
+let markerSequence = 0;
 
 // ---------- Binding description ----------
 
@@ -90,6 +89,10 @@ type State =
 
 // Tags inside which HTML is not parsed.
 const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
+const VOID_ELEMENTS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+  "meta", "param", "source", "track", "wbr",
+]);
 
 // SVG-only element names. If one of these is the TOP-LEVEL element of a
 // template, the HTML parser (`<template>.innerHTML`) places it in the HTML
@@ -151,12 +154,15 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
   let rawTagName = "";
   let firstTagName = "";
   let nextId = 0;
+  const markerToken = `${(++markerSequence).toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const childMarkerPrefix = `mado$${markerToken}$`;
+  const attrMarkerPrefix = `data-mado-bind-${markerToken}-`;
 
 
   /** Creates a child binding and adds a marker to html. */
   const emitChildMarker = (slot: number): void => {
     const id = nextId++;
-    html += `<!--${CHILD_MARKER_PREFIX}${id}-->`;
+    html += `<!--${childMarkerPrefix}${id}-->`;
     bindings.push({
       type: "child",
       id,
@@ -191,7 +197,7 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
       const escapedName = attr.rawName
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;");
-      html += ` ${ATTR_MARKER_PREFIX}${id}="${escapedName}"`;
+      html += ` ${attrMarkerPrefix}${id}="${escapedName}"`;
       const parts = attr.valueParts.length > 0 ? attr.valueParts : ["", ""];
       // single-part: the attribute is entirely defined by one slot
       // (all static fragments are empty ⇒ value = just values[slot])
@@ -436,6 +442,17 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
       // ---------- SELF_CLOSE ----------
       case "SELF_CLOSE": {
         if (c === ">") {
+          const lower = tagName.toLowerCase();
+          if (
+            !VOID_ELEMENTS.has(lower) &&
+            lower !== "svg" &&
+            !SVG_ONLY_TAGS.has(lower)
+          ) {
+            throw new Error(
+              `[mado] <${tagName}/> is not self-closing in HTML. ` +
+                `Write <${tagName}></${tagName}> instead.`,
+            );
+          }
           html += "/>";
           state = "TEXT";
         } else if (/\s/.test(c)) {
@@ -573,11 +590,20 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
   const tpl = document.createElement("template");
   tpl.innerHTML = html;
 
+  for (const nested of tpl.content.querySelectorAll("template")) {
+    if (containsMarker(nested.content, childMarkerPrefix, attrMarkerPrefix)) {
+      throw new Error(
+        "[mado] Dynamic slots inside <template> are not supported. " +
+          "Move the dynamic value outside <template> or render it after cloning.",
+      );
+    }
+  }
+
 
   // 3) Walk content, find markers, fill path/childIndex for bindings.
   const byId = new Map<number, BindingSpec>();
   for (const b of bindings) byId.set(b.id, b);
-  walk(tpl.content, [], byId);
+  walk(tpl.content, [], byId, childMarkerPrefix, attrMarkerPrefix);
 
   const parsed: ParsedTemplate = { template: tpl, bindings };
   templateCache.set(strings, parsed);
@@ -590,20 +616,22 @@ export function parseTemplate(strings: TemplateStringsArray): ParsedTemplate {
  * reach it from root) and `childIndex` (for child bindings — position
  * of the placeholder comment among the parent's children).
  *
- * Marker attributes `data-mado-bind-N` are removed from elements;
+ * Internal marker attributes are removed from elements;
  * marker comments remain — they serve as an "anchor" for child binding.
  */
 function walk(
   node: Node,
   path: number[],
   byId: Map<number, BindingSpec>,
+  childMarkerPrefix: string,
+  attrMarkerPrefix: string,
 ): void {
   if (node.nodeType === Node.ELEMENT_NODE) {
     const el = node as Element;
     const toRemove: string[] = [];
     for (const attr of [...el.attributes]) {
-      if (attr.name.startsWith(ATTR_MARKER_PREFIX)) {
-        const id = Number(attr.name.slice(ATTR_MARKER_PREFIX.length));
+      if (attr.name.startsWith(attrMarkerPrefix)) {
+        const id = Number(attr.name.slice(attrMarkerPrefix.length));
         const b = byId.get(id);
         if (b && b.type === "attr") {
           b.path = [...path];
@@ -616,8 +644,8 @@ function walk(
 
   if (node.nodeType === Node.COMMENT_NODE) {
     const c = node as Comment;
-    if (c.data.startsWith(CHILD_MARKER_PREFIX)) {
-      const id = Number(c.data.slice(CHILD_MARKER_PREFIX.length));
+    if (c.data.startsWith(childMarkerPrefix)) {
+      const id = Number(c.data.slice(childMarkerPrefix.length));
       const b = byId.get(id);
       if (b && b.type === "child") {
         // Path points to the parent; index is the node position among children.
@@ -629,8 +657,28 @@ function walk(
 
   const children = node.childNodes;
   for (let i = 0; i < children.length; i++) {
-    walk(children[i]!, [...path, i], byId);
+    walk(children[i]!, [...path, i], byId, childMarkerPrefix, attrMarkerPrefix);
   }
+}
+
+function containsMarker(
+  node: Node,
+  childMarkerPrefix: string,
+  attrMarkerPrefix: string,
+): boolean {
+  if (
+    node.nodeType === Node.COMMENT_NODE &&
+    (node as Comment).data.startsWith(childMarkerPrefix)
+  ) return true;
+  if (
+    node.nodeType === Node.ELEMENT_NODE &&
+    [...(node as Element).attributes].some((attr) =>
+      attr.name.startsWith(attrMarkerPrefix))
+  ) return true;
+  for (const child of node.childNodes) {
+    if (containsMarker(child, childMarkerPrefix, attrMarkerPrefix)) return true;
+  }
+  return false;
 }
 
 /**

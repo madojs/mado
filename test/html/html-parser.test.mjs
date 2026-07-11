@@ -199,14 +199,37 @@ test("text with > that is not a closing tag", () => {
   assert.match(p.textContent, /a\s*>\s*b\s*!/);
 });
 
-test("self-closing custom element", () => {
-  // <x-icon name=${n}/>
-  // In HTML, self-closing non-void elements are debatable. At minimum, the name
-  // attribute must land on the outer <x-icon>, not disappear into a nested node.
-  const el = renderIn(html`<div><x-icon name=${"star"}/></div>`);
-  const icon = el.querySelector("x-icon");
-  assert.ok(icon, "<x-icon> should exist");
-  assert.equal(icon.getAttribute("name"), "star");
+test("self-closing non-void elements are rejected", () => {
+  assert.throws(
+    () => renderIn(html`<div><x-icon name=${"star"}/><span>after</span></div>`),
+    /is not self-closing in HTML/,
+  );
+  assert.throws(
+    () => renderIn(html`<div/><span>after</span>`),
+    /is not self-closing in HTML/,
+  );
+});
+
+test("self-closing void and SVG elements remain valid", () => {
+  const el = renderIn(html`<div><input value=${"ok"}/><svg><path d="M0 0"/></svg></div>`);
+  assert.equal(el.querySelector("input")?.value, "ok");
+  assert.ok(el.querySelector("svg path"));
+});
+
+test("user-authored marker-like attributes are preserved", () => {
+  const el = renderIn(
+    html`<div data-mado-bind-0="user" data-value=${"dynamic"}></div>`,
+  );
+  const div = el.querySelector("div");
+  assert.equal(div.getAttribute("data-mado-bind-0"), "user");
+  assert.equal(div.getAttribute("data-value"), "dynamic");
+});
+
+test("dynamic slots inside template content fail loudly", () => {
+  assert.throws(
+    () => renderIn(html`<template><span>${"dynamic"}</span></template>`),
+    /Dynamic slots inside <template>/,
+  );
 });
 
 test("several binding kinds in one tag", () => {

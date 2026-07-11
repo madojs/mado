@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.13.0 - 2026-07-11
+
+The final planned pre-v1 breaking release hardens ownership and freezes the
+small platform-first API.
+
+### Breaking
+
+- Forms now use `useForm({ initial, validate? })`; native controls and
+  `ValidityState` own constraints. The schema and field-array APIs are removed.
+- The root surface drops `lazy`, `list` and accidental low-level exports. The
+  only public subpaths are the package root, `/vite` and `/devtools.js`.
+- `page.load` is synchronous and returns a value or `Resource`; Promises are
+  rejected with a targeted diagnostic.
+
+### Added
+
+- `render()` returns a disposer and public `unmount(container)` releases owned
+  bindings, events, effects and nested templates.
+- Structured browser and CLI diagnostics, including JSON CLI output, log-level
+  controls and `NO_COLOR` support.
+- A development-only Shadow DOM devtools overlay with reactivity, component,
+  router/data and timeline/error views, plus an exported controller.
+- The Web Components `context-request` protocol with subscriptions and
+  lifecycle cleanup.
+
+### Fixed
+
+- Destructive output paths are realpath-checked and cleaned only when owned by
+  a `.mado-output` sentinel.
+- JSON-LD/static seed serialization escapes script-breaking input.
+- Effect, component, render and navigation teardown is transactional and
+  idempotent, including initial failures and same-tick DOM moves.
+- Route literals are escaped, template markers are opaque and deterministic,
+  unsupported self-closing/template-child shapes fail early.
+- Resource cache identity includes the fetcher; `staleTime: 0`, expiry,
+  invalidation, refresh and concurrent mutation generations have defined
+  semantics. Persisted signal disposal no longer deletes storage implicitly.
+- Static capture blocks undeclared external requests, preserves form/focus
+  takeover state, runs bounded route capture and emits portable build metadata.
+- `mado build` and published route discovery now feed the standalone static
+  pipeline correctly.
+
+### Tooling and release
+
+- Framework/default starter use TypeScript 7; the ESLint modular starter stays
+  on TypeScript 6. Node 22.12+ and Vite 8 are the supported baseline.
+- Lightning CSS was removed from starters in favour of Vite's standard CSS
+  pipeline.
+- Reproducible tarballs, inline source maps, API golden files, compiled docs
+  snippets and a single `verify:release` gate were added.
+- CI covers Node 22/24, Chromium/Firefox/WebKit modular flows and Windows
+  package smoke. Runtime and devtools bundles have separate size budgets.
+
+See [the migration guide](./docs/en/33-migration-0.12-0.13.md).
+
 ## 0.12.0 - 2026-06-24
 
 ### Stable polish

@@ -32,22 +32,17 @@
  * child anchors survive static capture and must be byte-for-byte reproducible.
  */
 function markerTokenFor(strings: TemplateStringsArray): string {
-  let first = 0x811c9dc5;
-  let second = 0x9e3779b9;
+  let hash = 0x811c9dc5;
 
   for (const part of strings) {
-    first ^= part.length;
-    second ^= part.length;
+    hash ^= part.length;
     for (let index = 0; index < part.length; index++) {
-      const code = part.charCodeAt(index);
-      first = Math.imul(first ^ code, 0x01000193);
-      second = Math.imul(second ^ code, 0x85ebca6b);
+      hash = Math.imul(hash ^ part.charCodeAt(index), 0x01000193);
     }
-    first = Math.imul(first ^ 0xffff, 0x01000193);
-    second = Math.imul(second ^ 0xffff, 0xc2b2ae35);
+    hash = Math.imul(hash ^ 0xffff, 0x01000193);
   }
 
-  return `${(first >>> 0).toString(36)}-${(second >>> 0).toString(36)}`;
+  return (hash >>> 0).toString(36);
 }
 
 // ---------- Binding description ----------

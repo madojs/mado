@@ -33,6 +33,7 @@ function assertEqual(label, actual, expected) {
 function normaliseDeclarations(source) {
   return source
     .replace(/^\/\*\*[\s\S]*?\*\/\s*/, "")
+    .replace(/^\/\/# sourceMappingURL=.*$/gm, "")
     .replace(/,\s*}/g, " }")
     .replace(/\s+/g, " ")
     .trim();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.1 - 2026-07-11
+
+### Fixed
+
+- Static capture now waits for asynchronous module bootstrap before reading
+  the runtime handshake. This removes a top-level-await race that surfaced on
+  slower Windows CI runners as `window.__MADO_STATIC__ was not installed`.
+
 ## 0.13.0 - 2026-07-11
 
 The final planned pre-v1 breaking release hardens ownership and freezes the
@@ -39,8 +47,6 @@ small platform-first API.
   semantics. Persisted signal disposal no longer deletes storage implicitly.
 - Static capture blocks undeclared external requests, preserves form/focus
   takeover state, runs bounded route capture and emits portable build metadata.
-- Capture waits for asynchronous module bootstrap before reading the static
-  runtime handshake, avoiding top-level-await races on slower CI runners.
 - `mado build` and published route discovery now feed the standalone static
   pipeline correctly.
 

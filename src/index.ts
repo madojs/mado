@@ -23,13 +23,12 @@ export {
 export type { Signal, Computed, ComputedOptions, Disposer } from "./signal.js";
 
 // --- rendering ---
-export { html, render, unmount, instantiate } from "./html/template.js";
+export { html, render, unmount } from "./html/template.js";
 export {
   unsafeHTML,
   ref,
   classMap,
   styleMap,
-  isHtmlDirective,
 } from "./html/bindings.js";
 export type { TemplateResult } from "./html/template-types.js";
 export type {
@@ -43,7 +42,7 @@ export type {
   StyleMapDirective,
 } from "./html/bindings.js";
 
-export { each, list } from "./each.js";
+export { each } from "./each.js";
 
 // --- components ---
 export { component } from "./component.js";
@@ -55,7 +54,7 @@ export type {
 } from "./component.js";
 
 // --- styles ---
-export { css, cssVars, adopt, scopeStyles } from "./css.js";
+export { css, cssVars } from "./css.js";
 export type { CSSResult } from "./css.js";
 
 // --- routing ---
@@ -85,7 +84,7 @@ export type {
 } from "./router/match.js";
 export type { RoutesOptions } from "./router/manifest.js";
 
-export { page, layout, isPage, isLayoutGroup } from "./page.js";
+export { page, layout } from "./page.js";
 export type {
   Page,
   PageContext,
@@ -137,10 +136,6 @@ export type { Context } from "./context.js";
 // --- persistence ---
 export { persisted } from "./persisted.js";
 export type { PersistedOptions, PersistedSignal } from "./persisted.js";
-
-// --- lazy ---
-export { lazy } from "./lazy.js";
-export type { LazyOptions } from "./lazy.js";
 
 // --- lifecycle (advanced API) ---
 //

@@ -3,17 +3,33 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url)));
+const contract = JSON.parse(
+  readFileSync(new URL("../../api/public-api.json", import.meta.url)),
+);
 
 test("package exports expose only the public entrypoints", () => {
-  assert.deepEqual(Object.keys(pkg.exports).sort(), [".", "./devtools.js", "./vite"]);
+  assert.deepEqual(Object.keys(pkg.exports).sort(), contract.subpaths.slice().sort());
   assert.equal(pkg.exports["./*"], undefined);
 });
 
 test("package self-import blocks internal subpaths", async () => {
   const api = await import("@madojs/mado");
+  assert.deepEqual(Object.keys(api).sort(), contract.runtimeExports.slice().sort());
   assert.equal(typeof api.html, "function");
   assert.equal(typeof api.layout, "function");
   assert.equal(api.nested, undefined);
+  for (const removed of [
+    "adopt",
+    "instantiate",
+    "isHtmlDirective",
+    "isLayoutGroup",
+    "isPage",
+    "lazy",
+    "list",
+    "scopeStyles",
+  ]) {
+    assert.equal(api[removed], undefined, `${removed} must not leak from the root API`);
+  }
   await import("@madojs/mado/devtools.js");
   const vite = await import("@madojs/mado/vite");
   assert.equal(typeof vite.mado, "function");

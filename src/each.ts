@@ -19,7 +19,6 @@
  *   html`<ul>${() => each(items(), t => t.id, t => html`<li>${t.text}</li>`)}</ul>`
  */
 
-import { html } from "./html/template.js";
 import type { TemplateResult } from "./html/template-types.js";
 
 export type EachKey = string | number;
@@ -46,16 +45,4 @@ export function each<T>(
   render: (item: T, index: number) => TemplateResult,
 ): EachResult<T> {
   return { _madoEach: true, items, keyOf, render };
-}
-
-/**
- * Sugar: returns a ready TemplateResult with the given list as children.
- * Convenient when you need a list without a wrapping parent.
- */
-export function list<T>(
-  items: readonly T[],
-  keyOf: (item: T, index: number) => EachKey,
-  render: (item: T, index: number) => TemplateResult,
-): TemplateResult {
-  return html`${each(items, keyOf, render)}`;
 }

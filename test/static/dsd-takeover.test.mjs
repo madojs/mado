@@ -213,6 +213,7 @@ function mkProject({ base = "/" } = {}) {
       '        <p>${() => data?.description ?? ""}</p>',
       "      </product-card>",
       '      <pre id="xss-probe">${() => data?.xss ?? ""}</pre>',
+      '      <input id="takeover-input" name="draft" .value=${"snapshot"}>',
       "    </main>",
       "  `,",
       "});",
@@ -411,9 +412,26 @@ test(
       });
 
       try {
-        await page.goto(`http://127.0.0.1:${port}/`, {
+        let releaseScripts;
+        const scriptsReleased = new Promise((resolve) => {
+          releaseScripts = resolve;
+        });
+        await page.route("**/*", async (route) => {
+          if (route.request().resourceType() === "script") await scriptsReleased;
+          await route.continue();
+        });
+        const navigation = page.goto(`http://127.0.0.1:${port}/`, {
           waitUntil: "networkidle",
         });
+        await page.waitForSelector("#takeover-input");
+        await page.fill("#takeover-input", "typed before takeover");
+        await page.evaluate(() => {
+          const input = document.getElementById("takeover-input");
+          input?.focus();
+          input?.setSelectionRange?.(6, 12, "forward");
+        });
+        releaseScripts();
+        await navigation;
 
         // Wait until the live takeover has replaced the static marker.
         await page.waitForFunction(() => {
@@ -458,6 +476,22 @@ test(
           document.getElementById("app")?.hasAttribute("data-mado-static"),
         );
         assert.equal(staticMarker, false, "data-mado-static removed after takeover");
+
+        const takeoverInput = await page.evaluate(() => {
+          const input = document.getElementById("takeover-input");
+          return {
+            value: input?.value,
+            focused: document.activeElement === input,
+            selectionStart: input?.selectionStart,
+            selectionEnd: input?.selectionEnd,
+          };
+        });
+        assert.deepEqual(takeoverInput, {
+          value: "typed before takeover",
+          focused: true,
+          selectionStart: 6,
+          selectionEnd: 12,
+        });
 
         // Click the in-component button and assert the signal/text updates.
         await page.evaluate(() => {

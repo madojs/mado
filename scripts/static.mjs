@@ -98,6 +98,7 @@ try {
         base,
         site: publicOrigin,
         timeout,
+        concurrency: Number(flags.concurrency ?? 4),
         browserChannel:
           typeof flags["browser-channel"] === "string"
             ? flags["browser-channel"]

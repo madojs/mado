@@ -171,17 +171,80 @@ export function render(
   //     any frame where the container is visibly empty.
   const inst = instantiate(result);
   if (isStaticContainer) {
+    const takeoverState = captureTakeoverState(container);
     // Order matters: remove the marker BEFORE inserting the live fragment so
     // newly-connecting Custom Elements no longer see a static ancestor and
     // run setup() exactly once.
     container.removeAttribute("data-mado-static");
     container.replaceChildren(inst.fragment);
     _flushDeferredStaticElements();
+    restoreTakeoverState(container, takeoverState);
   } else {
     container.appendChild(inst.fragment);
   }
   rendered.set(container, inst);
   return renderDisposer(container, inst);
+}
+
+type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+type ControlState = [
+  value: string,
+  checked: boolean | undefined,
+  focused: boolean,
+  selectionStart: number | null | undefined,
+  selectionEnd: number | null | undefined,
+  selectionDirection: "forward" | "backward" | "none" | null | undefined,
+];
+
+function captureTakeoverState(container: Element | ShadowRoot): ControlState[] {
+  const active = document.activeElement;
+  return collectControls(container).map((control) => [
+    control.value,
+    "checked" in control ? control.checked : undefined,
+    control === active,
+    "selectionStart" in control ? control.selectionStart : undefined,
+    "selectionEnd" in control ? control.selectionEnd : undefined,
+    "selectionDirection" in control ? control.selectionDirection : undefined,
+  ]);
+}
+
+function restoreTakeoverState(
+  container: Element | ShadowRoot,
+  states: ControlState[],
+  attempts = 120,
+): void {
+  const controls = collectControls(container);
+  if (controls.length < states.length && attempts > 0) {
+    requestAnimationFrame(() => restoreTakeoverState(container, states, attempts - 1));
+    return;
+  }
+  for (let index = 0; index < states.length; index++) {
+    const state = states[index]!;
+    const control = controls[index];
+    if (!control) continue;
+    if (!(control.localName === "input" && (control as HTMLInputElement).type === "file")) {
+      control.value = state[0];
+    }
+    if (state[1] !== undefined && "checked" in control) control.checked = state[1];
+    if (state[2]) {
+      control.focus();
+      if (state[3] !== undefined && "setSelectionRange" in control) {
+        control.setSelectionRange?.(
+          state[3],
+          state[4] ?? null,
+          state[5] ?? undefined,
+        );
+      }
+    }
+  }
+}
+
+function collectControls(root: Element | ShadowRoot): Control[] {
+  const controls = [...root.querySelectorAll<Control>("input,select,textarea")];
+  for (const element of root.querySelectorAll("*")) {
+    if (element.shadowRoot) controls.push(...collectControls(element.shadowRoot));
+  }
+  return controls;
 }
 
 /** Dispose the template currently owned by a render container. */

@@ -48,7 +48,7 @@ const KNOWN_CHROMIUM_PATHS = [
 export async function captureStaticRoutes(options) {
   const { chromium } = await importPlaywright();
   const browser = await launchBrowser(chromium, options);
-  const captured = [];
+  let captured = [];
 
   try {
     const browserVersion =
@@ -56,15 +56,30 @@ export async function captureStaticRoutes(options) {
     if (browserVersion) {
       logger.info("static", "browser", `browser: chromium ${browserVersion}`);
     }
-    for (const record of options.records) {
-      const html = await captureRoute(browser, record, options);
-      captured.push({ ...record, html });
-    }
+    captured = await mapConcurrent(
+      options.records,
+      options.concurrency ?? 4,
+      async (record) => ({ ...record, html: await captureRoute(browser, record, options) }),
+    );
   } finally {
     await browser.close();
   }
 
   return captured;
+}
+
+export async function mapConcurrent(items, concurrency, task) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await task(items[index], index);
+    }
+  };
+  const count = Math.max(1, Math.min(items.length, Number(concurrency) || 1));
+  await Promise.all(Array.from({ length: count }, worker));
+  return results;
 }
 
 /**
@@ -87,10 +102,21 @@ function withBaseLocal(base, pathname) {
 
 async function captureRoute(browser, record, options) {
   const context = await browser.newContext({ serviceWorkers: "block" });
-  const page = await context.newPage();
   const pageErrors = [];
   const failedRequests = [];
   const consoleErrors = [];
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    if (isCaptureAllowedUrl(request.url(), options.serverOrigin)) {
+      await route.continue();
+      return;
+    }
+    failedRequests.push(
+      `${request.method()} ${request.url()} blocked external request`,
+    );
+    await route.abort("blockedbyclient");
+  });
+  const page = await context.newPage();
 
   page.on("pageerror", (err) => pageErrors.push(err.message));
   page.on("requestfailed", (request) => {
@@ -545,6 +571,19 @@ function isIgnorableResourceUrl(url) {
     return false;
   }
 }
+
+function isCaptureAllowedUrl(url, serverOrigin) {
+  if (!url) return false;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return true;
+  try {
+    return new URL(url).origin === new URL(serverOrigin).origin;
+  } catch {
+    return false;
+  }
+}
+
+/** @internal */
+export const _testHooks = { isCaptureAllowedUrl };
 
 function isIgnorableConsoleError(text) {
   if (!text) return false;

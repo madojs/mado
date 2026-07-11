@@ -71,6 +71,7 @@
     "package:smoke": "node scripts/package-smoke.mjs",
     "docs:lint": "node scripts/docs-lint.mjs",
     "api:check": "node scripts/api-check.mjs",
+    "benchmark:static": "node scripts/benchmark-static.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
     "clean": "rm -rf dist out",

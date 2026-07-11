@@ -649,44 +649,10 @@ function trackIfPromise<T>(value: T | Promise<T>, label: string): Promise<T> {
 
 // ---------- Default loading view ----------
 //
-// Thin progress bar at the top of the screen. Style is injected once
-// globally (lazy, on first show). No animations for prefers-reduced-motion.
-
-const DEFAULT_LOADING_STYLE_ID = "mado-default-loading-style";
-const DEFAULT_LOADING_CSS = `
-  @keyframes mado-progress {
-    0%   { transform: translateX(-100%); }
-    50%  { transform: translateX(0%);    }
-    100% { transform: translateX(100%);  }
-  }
-  .mado-progress-bar {
-    position: fixed; top: 0; left: 0; right: 0;
-    height: 2px; background: rgba(0,0,0,.06);
-    z-index: 2147483647; overflow: hidden;
-    pointer-events: none;
-  }
-  .mado-progress-bar::after {
-    content: ""; display: block; height: 100%; width: 40%;
-    background: currentColor; opacity: .8;
-    animation: mado-progress 1.2s ease-in-out infinite;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .mado-progress-bar::after { animation: none; width: 100%; }
-  }
-`;
-
-function ensureDefaultLoadingStyle(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(DEFAULT_LOADING_STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = DEFAULT_LOADING_STYLE_ID;
-  style.textContent = DEFAULT_LOADING_CSS;
-  document.head.appendChild(style);
-}
+// Thin progress bar at the top of the screen.
 
 function defaultLoadingView(): TemplateResult {
-  ensureDefaultLoadingStyle();
-  return html`<div class="mado-progress-bar" aria-hidden="true"></div>`;
+  return html`<div aria-hidden="true" style="position:fixed;inset:0 0 auto;height:2px;background:currentColor;opacity:.65;z-index:2147483647;pointer-events:none"></div>`;
 }
 
 // ---------- Test hooks ----------

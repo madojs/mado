@@ -82,8 +82,6 @@ export function mado(options: MadoVitePluginOptions = {}): Plugin {
         source: JSON.stringify({
           site: options.site ?? null,
           base: resolved.base,
-          assetsDir: resolved.build.assetsDir,
-          outDir: resolved.build.outDir,
         }),
       });
     },

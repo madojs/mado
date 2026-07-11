@@ -28,7 +28,7 @@ test("package smoke keeps POSIX commands unchanged", () => {
 
 test("Windows direct execution fails with an actionable npm error", () => {
   assert.throws(
-    () => platformInvocation("npm", ["pack"], { platform: "win32", npmExecPath: undefined }),
+    () => platformInvocation("npm", ["pack"], { platform: "win32", npmExecPath: null }),
     /npm run package:smoke/,
   );
 });

@@ -9,11 +9,11 @@ package root:
 import { component, html, resource, routes, signal } from "@madojs/mado";
 ```
 
-The public package subpaths are the side-effect devtools module and the Vite
-tooling integration:
+The public package subpaths are the devtools controller and the Vite tooling
+integration:
 
 ```ts
-import "@madojs/mado/devtools.js";
+import { devtools } from "@madojs/mado/devtools.js";
 import { mado } from "@madojs/mado/vite";
 ```
 
@@ -26,7 +26,7 @@ These names are public and protected by SemVer once v1 ships:
 
 - Reactivity: `signal`, `computed`, `effect`, `untracked`, `batch`,
   `flushSync`.
-- Templates and directives: `html`, `render`, `each`, `list`, `unsafeHTML`,
+- Templates and directives: `html`, `render`, `unmount`, `each`, `unsafeHTML`,
   `ref`, `classMap`, `styleMap`.
 - Components and CSS: `component`, `css`, `cssVars`.
 - Routing and pages: `routes`, `router`, `page`, `layout`,
@@ -37,9 +37,8 @@ These names are public and protected by SemVer once v1 ships:
 - Context: `createContext`, `provide`, `inject`.
 - Advanced lifecycle helpers: `createLifecycle`, `runInLifecycle`,
   `getCurrentLifecycle`.
-- Public TypeScript types exported from `@madojs/mado`, including
-  `StaticPageConfig` (the `static: true | { ... }` option on `page()`)
-  and `HeadMeta` (the head metadata shape returned by pages).
+- Public TypeScript types exported from `@madojs/mado`, including `FormApi`,
+  `Resource`, `ComponentContext`, `StaticPageConfig` and `HeadMeta`.
 
 ## Internal or unstable
 
@@ -66,8 +65,8 @@ Application code should not.
 
 ## What can change
 
-Patch and minor releases may add new root exports, options, diagnostics, docs,
-or starter files. They may also change internals, emitted bundle shape, and
+Patch and minor releases may add compatible options, diagnostics, docs or
+starter files. New root exports require an explicit API review. Releases may change internals, emitted bundle shape, and
 implementation details as long as the stable API and documented behavior remain
 compatible.
 

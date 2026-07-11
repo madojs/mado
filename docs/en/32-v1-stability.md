@@ -17,7 +17,7 @@ After v1, Mado treats these as SemVer-protected:
 
 - Public exports from `@madojs/mado`.
 - Public TypeScript types exported from `@madojs/mado`.
-- The `@madojs/mado/devtools.js` side-effect subpath.
+- The `@madojs/mado/devtools.js` controller subpath and `@madojs/mado/vite`.
 - Template binding syntax: child `${}`, `@event`, `.prop`, `?boolean`,
   attribute bindings, directives and `each()`.
 - Signal semantics documented in the reactivity ordering guide.
@@ -33,7 +33,7 @@ Breaking these requires a major version.
 
 Minor releases may add:
 
-- New root exports.
+- New root exports after explicit API review and golden-file update.
 - New options on existing APIs.
 - New diagnostics and warnings.
 - New starters, examples, docs and CLI flags.

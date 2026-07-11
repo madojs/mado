@@ -10,7 +10,7 @@
 - **Mado** — a calm native-first web framework for both static sites
   and live SPAs. One Web Component model, one page model, one release
   command.
-- Current stable release: **0.12.0**.
+- Current development release: **0.13.0**.
 - Built on Web Components + signals + tagged-template `html`.
 - **Vite is the canonical transport** for development, build and the
   static snapshot pipeline. Generated apps depend on `typescript`,
@@ -301,8 +301,9 @@ const { register, handleSubmit } = useForm({ resolver: yupResolver(schema) });
 import { useForm } from "@madojs/mado";
 
 const f = useForm({
-  email: { required: true, type: "email" },
-  age: { required: true, type: "number", min: 18 },
+  initial: { email: "", age: "" as number | "" },
+  validate: async (values, { signal }) =>
+    await api.valid(values, { signal }) ? null : { email: "Unavailable" },
 });
 
 html`
@@ -311,7 +312,8 @@ html`
       await api.save(v);
     })}
   >
-    <input name="email" @input=${f.onInput} @blur=${f.onBlur} />
+    <input name="email" type="email" required @input=${f.onInput} @blur=${f.onBlur} />
+    <input name="age" type="number" min="18" @input=${f.onInput} />
     ${() =>
       f.touched().email && f.errors().email
         ? html`<small>${f.errors().email}</small>`
@@ -321,7 +323,8 @@ html`
 `;
 ```
 
-Custom validation — `validate: (values) => ({ field: 'error message' } | null)`.
+HTML owns native constraints. Custom validation receives an `AbortSignal`.
+Use `setField`, not a schema/field-array abstraction.
 
 ### 11. Styles — `css\`\`` + Shadow DOM by default
 
@@ -367,6 +370,10 @@ component("x-child", ({ host }) => {
   return () => html`<div>${() => api().version}</div>`;
 });
 ```
+
+This interoperates through the Web Components `context-request` protocol.
+Providers may expose function values; only real Mado Signals are treated as
+reactive sources. Subscriptions are removed with the active lifecycle.
 
 ### 13. Component registration imports
 
@@ -517,11 +524,11 @@ When generating an app, prefer the blessed production shape from
 
 | Question                         | File                             |
 | -------------------------------- | -------------------------------- |
-| How does reactivity work?        | `src/signal.ts` (283 lines)      |
+| How does reactivity work?        | `src/signal.ts`                  |
 | How are templates parsed?        | `src/html/`                      |
 | How does the router work?        | `src/router/`                    |
-| How does resource + cache work?  | `src/resource.ts` (297 lines)    |
-| How do forms work?               | `src/forms.ts` (212 lines)       |
+| How does resource + cache work?  | `src/resource.ts`                |
+| How do forms work?               | `src/forms.ts`                   |
 | How should an app be structured? | `docs/en/16-app-architecture.md` |
 | How should errors be handled?    | `docs/en/21-error-handling.md`   |
 | How should static snapshots be used? | `docs/en/15-static-snapshots.md` / `docs/en/23-cookbook.md` |

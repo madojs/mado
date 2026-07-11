@@ -279,16 +279,15 @@ This means:
 // ❌ No such API
 const f = useForm({ resolver: zodResolver(schema) });
 
-// ✅ HTML-style schema validation
+// ✅ Native constraints in markup, reactive state in Mado
 const f = useForm({
-  email: { required: true, type: "email" },
-  age: { required: true, type: "number", min: 18 },
+  initial: { email: "", age: "" as number | "" },
 });
+html`<input name="email" type="email" required @input=${f.onInput} />`;
 
 // ✅ Or a custom function when HTML5 isn't enough
-const f = useForm(
-  { name: { required: true } },
-  {
+const f = useForm({
+    initial: { name: "" },
     validate: (values) => {
       const errors: Record<string, string> = {};
       if (values.name && /\d/.test(values.name as string)) {
@@ -296,8 +295,7 @@ const f = useForm(
       }
       return Object.keys(errors).length ? errors : null;
     },
-  },
-);
+});
 ```
 
 ---
@@ -705,7 +703,7 @@ automatically on navigation. Only raw browser APIs need explicit
 | `useRouter().query.q`                 | `queryParam('q')`                            |
 | `<input value={v} onChange={...}>`    | `<input .value=${v} @input=${...}>`          |
 | `{items.map(x => ...)}`               | `${() => each(items, x => x.id, x => ...)}`  |
-| `useForm({ resolver: zodResolver })`  | `useForm({...}, { validate: (v) => ... })`   |
+| `useForm({ resolver: zodResolver })`  | `useForm({ initial, validate })` + native constraints |
 | `class extends HTMLElement`           | `component('x-name', setup)`                 |
 | `@customElement('x')`                 | `component('x-name', setup)`                 |
 | `host.getAttribute('x')` in render    | `ctx.attr('x', default)` (reactive)          |

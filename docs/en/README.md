@@ -47,6 +47,7 @@ section you need from the matrix below.
 | Error handling     | [21-error-handling.md](./21-error-handling.md) |
 | Testing            | [22-testing.md](./22-testing.md)               |
 | Cookbook           | [23-cookbook.md](./23-cookbook.md)             |
+| Devtools and diagnostics | [24-devtools-and-diagnostics.md](./24-devtools-and-diagnostics.md) |
 
 ### Reference
 
@@ -55,6 +56,7 @@ section you need from the matrix below.
 | API freeze map         | [30-api-freeze-map.md](./30-api-freeze-map.md)             |
 | Reactivity ordering    | [31-reactivity-ordering.md](./31-reactivity-ordering.md)   |
 | v1 stability contract  | [32-v1-stability.md](./32-v1-stability.md)                 |
+| Migration 0.12 → 0.13  | [33-migration-0.12-0.13.md](./33-migration-0.12-0.13.md)   |
 
 ### Meta
 

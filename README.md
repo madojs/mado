@@ -181,16 +181,24 @@ const save = mutation(api.saveUser, {
 Cache, loading/error state, abort, refresh, optimistic `mutate()`,
 glob-based invalidation. Lifecycle-aware inside components.
 
-### Forms — schema-based validation
+### Forms — browser constraint validation
 
 ```ts
 import { useForm, html } from "@madojs/mado";
 
 const form = useForm({
-  email: { required: true, type: "email" },
-  age: { type: "number", min: 18 },
+  initial: { email: "", age: "" as number | "" },
 });
+
+html`<form @submit=${form.onSubmit(save)}>
+  <input name="email" type="email" required @input=${form.onInput} />
+  <input name="age" type="number" min="18" @input=${form.onInput} />
+  <button type="submit">Save</button>
+</form>`;
 ```
+
+HTML owns constraints and keyboard/form semantics; Mado supplies typed values,
+errors, touched/dirty state and abortable async validation.
 
 ### Static snapshots — SEO without SSR
 
@@ -223,6 +231,20 @@ mado release                      # vite build + snapshots + deployment files
 mado preview                      # serve out/ like a real static host
 mado new <kind> <path>            # scaffold canonical files
 ```
+
+All CLI records share `level`, `scope`, `code`, `message`, `data` and a
+timestamp. Use `--log-level`, `--log-format=pretty|plain|json`,
+`MADO_LOG_LEVEL`, `MADO_LOG_FORMAT` or `NO_COLOR` for automation.
+
+## Devtools
+
+```ts
+import { devtools } from "@madojs/mado/devtools.js";
+devtools.open();
+```
+
+The development-only Shadow DOM overlay is toggled with `Alt+Shift+M` and
+inspects reactivity, components, routing, data and structured diagnostics.
 
 ## Honest boundaries
 

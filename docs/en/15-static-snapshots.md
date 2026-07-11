@@ -151,9 +151,9 @@ same shape the snapshot captured.
   resource(), custom element definition) fails the snapshot. A small
   allow-list covers `/favicon.ico`, `/favicon.svg`, `/robots.txt`
   and `data:` URLs.
-- **All network calls happen against an internal capture server** that
-  serves the freshly built `out/` tree. There is no real network at
-  capture time.
+- **All network calls must target the internal capture origin** serving the
+  freshly built `out/` tree. Undeclared external HTTP(S) requests are blocked;
+  provide deterministic `static.initialData()` instead.
 
 ## Comparison
 

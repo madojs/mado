@@ -190,8 +190,9 @@ Reusable leaf components keep their own styles in ``css`...` `` inside
 `component()` options. They should depend on tokens (`var(--color-text)`)
 rather than global classes.
 
-`vite.config.ts` opts into Vite's Lightning CSS transformer. Mado does not own
-prefixing, CSS lowering or minification.
+Vite 8's standard CSS pipeline owns transforms and minification. Mado adds no
+CSS transformer; applications can configure Vite directly when they have a
+measured need.
 
 ## Growth
 

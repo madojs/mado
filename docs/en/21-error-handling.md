@@ -24,7 +24,7 @@ For a specific page, `page({ errorView })` wins over the global route boundary.
 
 ```ts
 export default page({
-  load: async () => api.get("/reports"),
+  load: () => resource(() => "/reports", jsonFetcher<Report[]>()),
   errorView: (err) => html`<x-report-error .error=${err}></x-report-error>`,
   view: ({ data }) => html`<x-report .data=${data}></x-report>`,
 });
@@ -53,10 +53,10 @@ Validation errors belong in `useForm()`. Server errors from writes belong near
 the submit button.
 
 ```ts
-const form = useForm(
-  { email: { required: true, type: "email" } },
-  { validateAsync: (values) => api.validateUser(values) },
-);
+const form = useForm({
+  initial: { email: "" },
+  validate: (values, { signal }) => api.validateUser(values, { signal }),
+});
 
 const save = mutation((values) => api.post("/users", values), {
   invalidates: ["/api/users*"],
@@ -66,6 +66,7 @@ html`
   <form @submit=${form.onSubmit(async values => {
     await save.run(values);
   })}>
+    <input name="email" type="email" required @input=${form.onInput} />
     <button ?disabled=${() => form.validating() || form.submitting()}>
       Save
     </button>
@@ -97,4 +98,6 @@ component("x-online", (ctx) => {
 
 Log once at the boundary that owns recovery. Avoid logging the same failure in
 the API client, resource, page and component. The user should get one visible
-message and developers should get one useful console error.
+message and developers should get one structured diagnostic. Runtime records
+are visible in the devtools Timeline/Errors panel and as `mado:diagnostic`
+events; CLI automation can select `--log-format=json`.

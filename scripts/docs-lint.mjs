@@ -112,6 +112,9 @@ const ROOTS = [
   "starters/default/README.md",
   "starters/modular/README.md",
 ];
+const docsFiles = [];
+const publicNames = publicNamesFromGolden();
+const publicSubpaths = new Set(["@madojs/mado", "@madojs/mado/vite", "@madojs/mado/devtools.js"]);
 
 let errors = 0;
 
@@ -123,6 +126,11 @@ for (const root of ROOTS) {
     continue;
   }
   scan(full);
+}
+
+for (const file of docsFiles) {
+  validateLinks(file);
+  validateImports(file);
 }
 
 if (errors > 0) {
@@ -138,6 +146,7 @@ function scan(path) {
     return;
   }
   if (!path.endsWith(".md") && !path.endsWith(".txt")) return;
+  docsFiles.push(path);
   const rel = path.slice(REPO_ROOT.length + 1);
   if (ALLOW_LISTED.some((rx) => rx.test(rel))) return;
 
@@ -167,4 +176,48 @@ function scan(path) {
       }
     }
   }
+}
+
+function validateLinks(path) {
+  const body = readFileSync(path, "utf8");
+  for (const match of body.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    let target = match[1].trim().replace(/^<|>$/g, "").split(/\s+["']/)[0];
+    if (!target || target.startsWith("#") || /^(?:https?:|mailto:)/.test(target)) continue;
+    target = decodeURIComponent(target.split("#")[0]);
+    const full = resolve(dirname(path), target);
+    try {
+      statSync(full);
+    } catch {
+      errors++;
+      console.error(`${path.slice(REPO_ROOT.length + 1)}: broken link ${match[1]}`);
+    }
+  }
+}
+
+function validateImports(path) {
+  const body = readFileSync(path, "utf8");
+  for (const match of body.matchAll(/(?:from\s+|import\s+)["'](@madojs\/mado(?:\/[^"']+)?)['"]/g)) {
+    if (!publicSubpaths.has(match[1])) {
+      errors++;
+      console.error(`${path.slice(REPO_ROOT.length + 1)}: non-public package import ${match[1]}`);
+    }
+  }
+  for (const match of body.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["']@madojs\/mado["']/g)) {
+    for (const raw of match[1].split(",")) {
+      const name = raw.replace(/\/\/.*$/s, "").trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0];
+      if (name && !publicNames.has(name)) {
+        errors++;
+        console.error(`${path.slice(REPO_ROOT.length + 1)}: non-public root import ${name}`);
+      }
+    }
+  }
+}
+
+function publicNamesFromGolden() {
+  const body = readFileSync(join(REPO_ROOT, "api/index.d.ts"), "utf8");
+  const names = new Set();
+  for (const match of body.matchAll(/export(?:\s+type)?\s+\{([^}]+)\}/g)) {
+    for (const raw of match[1].split(",")) names.add(raw.trim().split(/\s+as\s+/)[0]);
+  }
+  return names;
 }

@@ -102,8 +102,8 @@ src/
 - Reusable leaf components keep their own styles in ``css`...` ``
   inside `component()` options.
 
-Vite uses Lightning CSS for CSS transforms/minification in this
-starter.
+Vite 8's standard pipeline owns CSS transforms/minification; Mado itself does
+not own CSS processing.
 
 ## Internal links
 

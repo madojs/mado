@@ -195,14 +195,13 @@ We register the `<x-counter>` tag in the browser — it becomes a "function" tha
 
 ## Forms — like `form.Validate()` on the backend
 
-Mado uses **schema-based validation close to native HTML constraints**, plus adds state tracking.
+Mado uses the browser's **constraint validation** and adds reactive state tracking.
 
 ```ts
 import { useForm } from "@madojs/mado";
 
 const f = useForm({
-  email: { required: true, type: "email" },
-  age: { required: true, type: "number", min: 18 },
+  initial: { email: "", age: "" as number | "" },
 });
 
 // in the template:
@@ -215,6 +214,8 @@ html`
   >
     <input
       name="email"
+      type="email"
+      required
       .value=${() => f.values().email ?? ""}
       @input=${f.onInput}
       @blur=${f.onBlur}
@@ -225,12 +226,13 @@ html`
         ? html`<small>${f.errors().email}</small>`
         : null}
 
-    <button ?disabled=${() => !f.isValid() || f.submitting()}>Save</button>
+    <input name="age" type="number" min="18" @input=${f.onInput} />
+    <button type="submit" ?disabled=${() => !f.isValid() || f.submitting()}>Save</button>
   </form>
 `;
 ```
 
-Custom validation — `validate: (values) => errors | null`. No Yup schemas or dependencies.
+Custom validation — `validate: (values, { signal }) => errors | null`. No Yup schemas or dependencies.
 
 ---
 
@@ -258,6 +260,8 @@ component("x-page", ({ host }) => {
 ```
 
 This is like `context.WithValue` / `ctx.Value` in Go, but reactive.
+The transport is the interoperable Web Components `context-request` event, so
+providers and consumers can cross library boundaries.
 
 ---
 
@@ -335,7 +339,7 @@ const createUser = mutation<NewUser, User>(
 );
 
 // in page.view:
-const f = useForm({ name: { required: true } });
+const f = useForm({ initial: { name: "" } });
 
 html`
   <form
@@ -344,8 +348,8 @@ html`
       navigate("/users");
     })}
   >
-    <input name="name" @input=${f.onInput} />
-    <button>Create</button>
+    <input name="name" required @input=${f.onInput} />
+    <button type="submit">Create</button>
   </form>
 `;
 ```
@@ -426,7 +430,7 @@ Everything else — standard browser + TypeScript.
 
 ## What's missing (honestly)
 
-- No browser extension dev-tools. Use `localStorage.madoDebug = '1'` + console.
+- The built-in overlay covers runtime inspection; a browser extension remains post-v1 work.
 - No StackBlitz starters (yet).
 - No AI assistant that knows Mado as well as React. When in doubt — read `src/`, it's not scary.
 

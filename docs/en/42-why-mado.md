@@ -138,7 +138,7 @@ I won't dwell on this for long, because React is in a **different weight class**
 **Mado wins:**
 
 - bundle size dozens of times smaller;
-- zero infrastructure (no Vite, no Babel, no 200 packages);
+- one conventional Vite transport without a framework compiler or Babel layer;
 - readable in an evening — if something breaks, open `src/`;
 - signals instead of hooks (no "can't use in an if" rules, no stale-closure traps);
 - no need to migrate between major versions.
@@ -194,7 +194,7 @@ This is sufficient for most applications. If you're building Excel in the browse
 Mado is a **narrow** tool with honest positioning. It is strongest where:
 
 1. You want to **own** the code and read it in its entirety.
-2. **Infrastructure simplicity** is critical (no Vite/Webpack/Babel).
+2. **Infrastructure simplicity** is critical (one Vite transport, no custom compiler).
 3. You need **batteries in one box** (router + data + forms + SEO).
 4. You are not a junior and are not afraid of Web Components.
 

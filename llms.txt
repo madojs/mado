@@ -84,7 +84,7 @@ import {
   // reactivity
   signal, computed, effect, untracked, batch, flushSync,
   // rendering + templates
-  html, render, each, list, unsafeHTML, ref, classMap, styleMap,
+  html, render, unmount, each, unsafeHTML, ref, classMap, styleMap,
   // components
   component, css, cssVars,
   // routing
@@ -94,14 +94,14 @@ import {
   page, layout, applyHead,
   // data
   resource, mutation, invalidate, jsonFetcher, HttpError,
-  // forms / context / persistence / lazy
+  // forms / context / persistence
   useForm,
   createContext, provide, inject,
-  persisted, lazy,
+  persisted,
 } from "@madojs/mado";
 
-// Side-effect-only:
-import "@madojs/mado/devtools.js";
+// Development overlay/controller:
+import { devtools } from "@madojs/mado/devtools.js";
 
 // Vite plugin:
 import { mado } from "@madojs/mado/vite";
@@ -109,6 +109,10 @@ import { mado } from "@madojs/mado/vite";
 
 Everything else under the package is internal and subject to change
 without notice (see `docs/en/30-api-freeze-map.md`).
+
+`page.load` is synchronous: return a plain value or `Resource`, never a
+Promise. Async work belongs in `resource()` so navigation can commit or roll
+back lifecycle ownership transactionally.
 
 ## Pages and the static snapshot pipeline
 
@@ -219,10 +223,24 @@ const create = mutation((u) => api.create(u), {
 });
 ```
 
-The key is cache identity: same key → shared cache and de-duped
-in-flight request. `mutation().run()` is concurrent by default;
+Cache identity is the key plus fetcher. `staleTime: 0` only de-dupes an
+in-flight request; positive values expire automatically. `mutation().run()` is concurrent by default;
 `{ abortPrevious: true }` keeps only the latest in flight.
 `invalidates` runs after a successful mutation and is best-effort.
+
+## Forms
+
+```ts
+const form = useForm({ initial: { email: "" } });
+html`<form @submit=${form.onSubmit(save)}>
+  <input name="email" type="email" required @input=${form.onInput} />
+  <button type="submit">Save</button>
+</form>`;
+```
+
+Native constraints and `ValidityState` are authoritative. Custom async
+validation is `validate(values, { signal, form })`; reset aborts it. Use native
+controls for checkbox/radio groups, multiple select, files and keyboard submit.
 
 ## Static snapshot constraints
 

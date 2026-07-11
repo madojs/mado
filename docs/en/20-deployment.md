@@ -62,7 +62,7 @@ Key lines of the recipe `nginx.conf`:
 - `gzip_static on;` — serves the precompressed `.gz` files written by
   `mado release`. Zero CPU at request time.
 - `/assets/*` should be cached immutable; Vite filenames are content hashed.
-- `try_files $uri $uri/ /index.html;` — SPA fallback so deep links work
+- `try_files $uri $uri/ /_mado/spa.html;` — SPA fallback so deep links work
   after a hard refresh.
 
 Enable HTTPS with Let's Encrypt / Certbot. Add HSTS once you have it.
@@ -76,7 +76,7 @@ mado release
 npx wrangler pages deploy out --project-name=myapp
 ```
 
-- The generated `_redirects` (`/* /index.html 200`) gives you SPA fallback.
+- The generated `_redirects` (`/* /_mado/spa.html 200`) gives you SPA fallback.
 - The generated `_headers` (immutable cache for `/assets/*`, `no-cache` for
   HTML) is honored by CF Pages.
 - Baked routes are promoted to real route files (`out/<route>/index.html`),
@@ -116,16 +116,15 @@ aws s3 sync out/ s3://my-bucket/ \
   --cache-control "no-cache, must-revalidate" --include '*.html'
 ```
 Configure CloudFront's "Default root object" to `index.html` and add a custom
-error response: 403/404 → `/index.html` with status 200 (SPA fallback).
+error response: 403/404 → `/_mado/spa.html` with status 200 (SPA fallback).
 
 **GitHub Pages**
 ```bash
 mado release
 # Push out/ into the gh-pages branch (or use actions/upload-pages-artifact)
 ```
-Pages handles `index.html` automatically. There is no native SPA fallback;
-add a `404.html` that loads the SPA, or use the
-[`spa-github-pages`](https://github.com/rafgraph/spa-github-pages) trick.
+Pages handles route `index.html` files automatically. `mado release` also writes
+`404.html` from the noindex SPA shell for client-only routes.
 
 ---
 
@@ -177,7 +176,7 @@ jobs:
 
 - **404 on hard refresh of a deep link.** Your host did not pick up SPA
   fallback. nginx: check `try_files`. CF/Netlify: `_redirects` is present?
-  S3+CloudFront: configure the 404 → `/index.html` (200) error response.
+  S3+CloudFront: configure the 404 → `/_mado/spa.html` (200) error response.
 - **HTML is cached forever.** Either your host sent a default
   `Cache-Control: public, max-age=...` or you are sitting behind a CDN that
   ignores `no-cache`. Add an explicit rule mirroring the matrix above.
@@ -188,6 +187,20 @@ jobs:
   non-JSON-serialisable seeds at build time and points at the bad
   field. If you still see it, upgrade `@madojs/mado` and re-run
   `mado release`.
+
+## CSP and trusted content
+
+Mado serialises JSON-LD and static seed JSON with `<`, U+2028 and U+2029
+escaped, so data cannot close its script element. `unsafeHTML()` is different:
+it is an explicit trust boundary and must receive only audited or sanitised
+markup.
+
+Start with a restrictive policy such as `default-src 'self'; script-src
+'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'`
+and tighten styles with nonces/hashes when your deployment supports them.
+Trusted Types can enforce the same application boundary around any code that
+produces trusted HTML. The devtools overlay is development-only and should not
+be imported in production entrypoints.
 
 ## Sub-path deployments and `base`
 
@@ -226,7 +239,7 @@ html`<a data-link href=${routeUrl("/guides/intro")}>Intro</a>`;
 
 On the production host:
 
-- **nginx** — keep `try_files $uri $uri/ /index.html;` but mount the
+- **nginx** — keep `try_files $uri $uri/ /_mado/spa.html;` but mount the
   app under the matching prefix (`location /docs/ { ... }`).
 - **Cloudflare Pages / Netlify** — `_redirects` is generated with the
   base prefix already baked in.

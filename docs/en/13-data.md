@@ -38,13 +38,15 @@ user.mutate((u) => (u ? { ...u, name: "patched" } : u));
 
 Rules:
 
-- The key is the cache identity. Same key → shared cache and shared
-  in-flight request, even across components.
+- Cache identity is the key plus the fetcher function. Matching pairs share
+  completed data and an in-flight request across components.
 - Distinct data needs distinct keys. Encode query params, auth scope
   and tenant in the key string itself.
-- `staleTime` is "how long after a successful fetch the cached value
-  is reused without a re-fetch". `0` means "always re-fetch on
-  remount".
+- A positive `staleTime` is how long completed data is reused; expiry removes
+  it automatically. `0` means in-flight deduplication only, never completed
+  value reuse.
+- `refresh()` resolves to the fetched `T`; `invalidate()` notifies every live
+  matching resource, including resources without a completed cache entry.
 - `resource()` inside a `component()` / `page()` cleans itself up
   when the host leaves the DOM.
 

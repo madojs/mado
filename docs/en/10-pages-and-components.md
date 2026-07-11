@@ -164,6 +164,14 @@ Why: the page becomes invisible to the router, the static snapshot
 pipeline cannot find it, and shared CSS (`content.css`) does not
 cross the Shadow boundary.
 
+## Synchronous `page.load`
+
+`page.load(params, seed)` must return a value or a `Resource` synchronously.
+Returning a Promise is rejected because navigation commit and rollback need a
+clear lifecycle owner. Put asynchronous work in `resource()` and render its
+`loading()`, `error()` and `data()` signals. Guards may remain async; head/title
+are committed only after guards succeed.
+
 ### 2. Component used as a route
 
 ```ts

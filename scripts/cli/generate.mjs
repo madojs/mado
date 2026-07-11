@@ -261,7 +261,9 @@ async function scaffoldForm(ctx, target) {
 // Call inside a page view: const form = ${useName}();
 export const ${useName} = () =>
   useForm({
-    // name: { required: true },
+    initial: {
+      // name: "",
+    },
   });
 `,
   );

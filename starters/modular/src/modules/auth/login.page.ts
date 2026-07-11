@@ -16,15 +16,12 @@ import { login } from "./auth.service";
 export default page({
   title: "Sign in",
   view: () => {
-    const submitting = signal(false);
     const error = signal<string | null>(null);
     const form = useForm({
-      email: { required: true, type: "email" },
-      password: { required: true, minLength: 6 },
+      initial: { email: "", password: "" },
     });
 
     const onSubmit = form.onSubmit(async (values) => {
-      submitting.set(true);
       error.set(null);
       try {
         await login({
@@ -34,8 +31,6 @@ export default page({
         navigate("/");
       } catch (err) {
         error.set(err instanceof Error ? err.message : "Login failed");
-      } finally {
-        submitting.set(false);
       }
     });
 
@@ -49,11 +44,11 @@ export default page({
           </label>
           <label>
             Password
-            <input name="password" type="password" required @input=${form.onInput} />
+            <input name="password" type="password" required minlength="6" @input=${form.onInput} />
           </label>
           ${() => (error() ? html`<p class="error">${error()}</p>` : null)}
-          <x-button ?disabled=${() => submitting() || !form.isValid()}>
-            ${() => (submitting() ? "Signing in…" : "Sign in")}
+          <x-button ?disabled=${() => form.submitting() || !form.isValid()}>
+            ${() => (form.submitting() ? "Signing in…" : "Sign in")}
           </x-button>
         </form>
       </section>

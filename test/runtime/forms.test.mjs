@@ -1,249 +1,183 @@
-// useForm() tests.
-
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// DOM stub is needed because forms.ts checks `el instanceof HTMLInputElement`.
-const { parseHTML } = await import("linkedom");
-const { window: w } = parseHTML(
-  "<!doctype html><html><head></head><body></body></html>",
-);
-globalThis.window = w;
-globalThis.document = w.document;
-globalThis.HTMLInputElement = w.HTMLInputElement ?? class {};
-globalThis.HTMLSelectElement = w.HTMLSelectElement ?? class {};
-globalThis.HTMLTextAreaElement = w.HTMLTextAreaElement ?? class {};
-
-const { flushSync } = await import("../../dist/src/signal.js");
 const { useForm } = await import("../../dist/src/forms.js");
 
-// Helper: creates a real input through linkedom, so instanceof passes.
-function input(attrs = {}) {
-  const el = document.createElement("input");
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  if (attrs.value !== undefined) el.value = String(attrs.value);
-  if (attrs.type !== undefined) el.type = attrs.type;
-  if (attrs.name !== undefined) el.name = attrs.name;
-  return el;
+function control(overrides = {}) {
+  return {
+    tagName: "INPUT",
+    name: "field",
+    type: "text",
+    value: "",
+    valueAsNumber: Number.NaN,
+    checked: false,
+    multiple: false,
+    files: null,
+    validityOk: true,
+    validationMessage: "",
+    checkValidity() {
+      return this.validityOk;
+    },
+    ...overrides,
+  };
 }
 
-function event(type, target) {
-  return { type, target, preventDefault() {} };
+function form(elements) {
+  return {
+    tagName: "FORM",
+    elements,
+    reports: 0,
+    resets: 0,
+    reportValidity() {
+      this.reports++;
+      return elements.every((item) => item.checkValidity?.() ?? true);
+    },
+    reset() {
+      this.resets++;
+    },
+  };
 }
 
-function inputEvent(name, value, type = "text") {
-  return event("input", input({ name, value, type }));
-}
-function blurEvent(name) {
-  return event("blur", input({ name }));
-}
-
-async function waitFor(assertion, timeoutMs = 100) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      flushSync();
-      assertion();
-      return;
-    } catch (err) {
-      lastError = err;
-      await new Promise((r) => setTimeout(r, 1));
-    }
-  }
-  flushSync();
-  try {
-    assertion();
-  } catch (err) {
-    throw lastError ?? err;
-  }
+function eventFor(target, currentTarget = null) {
+  return {
+    target,
+    currentTarget,
+    composedPath: () => [target, currentTarget].filter(Boolean),
+    preventDefault() {},
+  };
 }
 
-test("useForm: defaults + initial isValid with required", () => {
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test("useForm: initial values, dirty state, setField and reset", () => {
+  const f = useForm({ initial: { name: "Ada", tags: ["web"] } });
+  assert.deepEqual(f.values(), { name: "Ada", tags: ["web"] });
+  assert.equal(f.dirty(), false);
+
+  f.setField("name", "Grace");
+  assert.equal(f.values().name, "Grace");
+  assert.equal(f.dirty(), true);
+
+  f.reset();
+  assert.deepEqual(f.values(), { name: "Ada", tags: ["web"] });
+  assert.equal(f.dirty(), false);
+});
+
+test("useForm: input coercion follows native control types", () => {
   const f = useForm({
-    name: { required: true, default: "" },
-    email: { required: true, type: "email", default: "" },
+    initial: { age: 0, enabled: false, roles: [], colour: "" },
   });
+  const age = control({ name: "age", type: "number", value: "42", valueAsNumber: 42 });
+  const enabled = control({ name: "enabled", type: "checkbox", checked: true });
+  const admin = control({ name: "roles", type: "checkbox", checked: true, value: "admin" });
+  const editor = control({ name: "roles", type: "checkbox", checked: true, value: "editor" });
+  const colour = control({ name: "colour", type: "radio", checked: true, value: "blue" });
+  const host = form([age, enabled, admin, editor, colour]);
+  for (const item of host.elements) item.form = host;
+
+  f.onInput(eventFor(age, host));
+  f.onInput(eventFor(enabled, host));
+  f.onInput(eventFor(admin, host));
+  f.onInput(eventFor(colour, host));
+
+  assert.deepEqual(f.values(), {
+    age: 42,
+    enabled: true,
+    roles: ["admin", "editor"],
+    colour: "blue",
+  });
+});
+
+test("useForm: native validationMessage is the source of constraint errors", async () => {
+  const email = control({
+    name: "email",
+    value: "bad",
+    validityOk: false,
+    validationMessage: "Enter an email address",
+  });
+  const host = form([email]);
+  email.form = host;
+  const f = useForm({ initial: { email: "" } });
+
+  assert.equal(await f.validate(host), false);
+  assert.equal(f.errors().email, "Enter an email address");
   assert.equal(f.isValid(), false);
-  assert.equal(f.values().name, "");
-});
 
-test("useForm: onInput updates values, onBlur updates touched", () => {
-  const f = useForm({ name: { required: true, default: "" } });
-  f.onInput(inputEvent("name", "Vasya"));
-  flushSync();
-  assert.equal(f.values().name, "Vasya");
-  assert.equal(f.touched().name, undefined);
-
-  f.onBlur(blurEvent("name"));
-  flushSync();
-  assert.equal(f.touched().name, true);
-});
-
-test("useForm: email validation", () => {
-  const f = useForm({ email: { required: true, type: "email", default: "" } });
-  f.onInput(inputEvent("email", "x"));
-  flushSync();
-  assert.equal(f.errors().email, "invalid email");
-
-  f.onInput(inputEvent("email", "a@b.c"));
-  flushSync();
+  email.validityOk = true;
+  email.validationMessage = "";
+  email.value = "ok@example.test";
+  f.onInput(eventFor(email, host));
+  assert.equal(f.values().email, "ok@example.test");
   assert.equal(f.errors().email, undefined);
   assert.equal(f.isValid(), true);
 });
 
-test("useForm: number with min/max", () => {
+test("useForm: async validation is cancellable and stale results are ignored", async () => {
+  const slow = deferred();
   const f = useForm({
-    age: { required: true, type: "number", min: 18, max: 99, default: "" },
-  });
-  f.onInput(inputEvent("age", "10", "number"));
-  flushSync();
-  assert.equal(f.errors().age, "minimum 18");
-
-  f.onInput(inputEvent("age", "150", "number"));
-  flushSync();
-  assert.equal(f.errors().age, "maximum 99");
-
-  f.onInput(inputEvent("age", "42", "number"));
-  flushSync();
-  assert.equal(f.errors().age, undefined);
-});
-
-test("useForm: custom validate", () => {
-  const f = useForm(
-    { name: { required: true, default: "" } },
-    {
-      validate: (v) =>
-        v.name === "admin" ? { name: "forbidden" } : null,
-    },
-  );
-  f.onInput(inputEvent("name", "admin"));
-  flushSync();
-  assert.equal(f.errors().name, "forbidden");
-
-  f.onInput(inputEvent("name", "Vasya"));
-  flushSync();
-  assert.equal(f.errors().name, undefined);
-});
-
-test("useForm: onSubmit calls handler only when valid", async () => {
-  let called = 0;
-  const f = useForm({ name: { required: true, default: "" } });
-  const submit = f.onSubmit(async () => {
-    called++;
-  });
-
-  // Invalid: handler is not called.
-  submit(event("submit", null));
-  assert.equal(called, 0);
-
-  // Now valid.
-  f.setField("name", "ok");
-  flushSync();
-  submit(event("submit", null));
-  // Wait a tick so submitting resets.
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(called, 1);
-});
-
-test("useForm: reset returns to defaults", () => {
-  const f = useForm({ name: { default: "X" } });
-  f.setField("name", "Y");
-  flushSync();
-  assert.equal(f.values().name, "Y");
-  f.reset();
-  flushSync();
-  assert.equal(f.values().name, "X");
-});
-
-test("useForm: async field validator updates errors and ignores stale results", async () => {
-  const f = useForm({
-    username: {
-      default: "",
-      validateAsync: async (value) => {
-        await new Promise((r) =>
-          setTimeout(r, value === "taken" ? 20 : 1),
-        );
-        return value === "taken" ? "already taken" : null;
-      },
+    initial: { username: "" },
+    validate: async (values) => {
+      if (values.username === "taken") {
+        await slow.promise;
+        return { username: "already taken" };
+      }
+      return null;
     },
   });
 
   f.setField("username", "taken");
-  const slow = f.validateField("username");
+  const stale = f.validate();
   f.setField("username", "free");
-  const fast = f.validateField("username");
-
-  assert.equal(f.validating(), true);
-  assert.equal(await fast, true);
-  assert.equal(await slow, true);
-  flushSync();
-
+  const fresh = f.validate();
+  assert.equal(await fresh, true);
+  slow.resolve();
+  assert.equal(await stale, false);
   assert.equal(f.errors().username, undefined);
   assert.equal(f.validating(), false);
 });
 
-test("useForm: onSubmit waits for validateAsync and blocks invalid submit", async () => {
-  let called = 0;
-  const f = useForm(
-    { email: { required: true, default: "a@b.c" } },
-    {
-      validateAsync: async (values) => {
-        await new Promise((r) => setTimeout(r, 1));
-        return values.email === "blocked@b.c"
-          ? { email: "blocked" }
-          : null;
-      },
+test("useForm: reset aborts validation and preserves the new baseline", async () => {
+  const gate = deferred();
+  const f = useForm({
+    initial: { name: "old" },
+    validate: async () => {
+      await gate.promise;
+      return { name: "stale" };
     },
-  );
-  const submit = f.onSubmit(async () => {
-    called++;
   });
-
-  f.setField("email", "blocked@b.c");
-  flushSync();
-  submit(event("submit", null));
-  assert.equal(f.validating(), true);
-  await waitFor(() => assert.equal(f.validating(), false));
-
-  assert.equal(called, 0);
-  assert.equal(f.errors().email, "blocked");
-
-  f.setField("email", "ok@b.c");
-  flushSync();
-  submit(event("submit", null));
-  await waitFor(() => assert.equal(called, 1));
-
-  assert.equal(f.errors().email, undefined);
+  const pending = f.validate();
+  f.reset({ name: "new" });
+  gate.resolve();
+  assert.equal(await pending, false);
+  assert.deepEqual(f.values(), { name: "new" });
+  assert.deepEqual(f.errors(), {});
+  assert.equal(f.validating(), false);
 });
 
-test("useForm: field arrays use path names and wildcard validation", () => {
-  const f = useForm({
-    items: { default: [] },
-    "items.*.title": { required: true },
+test("useForm: submit validates, marks touched and tracks concurrent handlers", async () => {
+  const gate = deferred();
+  const email = control({ name: "email", value: "ok@example.test" });
+  const host = form([email]);
+  email.form = host;
+  const f = useForm({ initial: { email: "ok@example.test" } });
+  let submits = 0;
+  const submit = f.onSubmit(async () => {
+    submits++;
+    await gate.promise;
   });
-  const items = f.array("items");
 
-  items.append({ title: "First" });
-  items.append({ title: "" });
-  flushSync();
-
-  assert.equal(items.path(1, "title"), "items.1.title");
-  assert.equal(f.values().items[0].title, "First");
-  assert.equal(f.errors()["items.1.title"], "required field");
-
-  f.onInput(inputEvent(items.path(1, "title"), "Second"));
-  flushSync();
-  assert.equal(f.values().items[1].title, "Second");
-  assert.equal(f.errors()["items.1.title"], undefined);
-
-  items.move(1, 0);
-  flushSync();
-  assert.equal(f.values().items[0].title, "Second");
-  assert.equal(f.values().items[1].title, "First");
-
-  items.remove(1);
-  flushSync();
-  assert.equal(f.values().items.length, 1);
-  assert.equal(f.values().items[0].title, "Second");
+  submit(eventFor(host, host));
+  await tick();
+  assert.equal(submits, 1);
+  assert.equal(f.submitting(), true);
+  assert.equal(f.touched().email, true);
+  gate.resolve();
+  await tick();
+  assert.equal(f.submitting(), false);
 });

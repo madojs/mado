@@ -124,11 +124,9 @@ export type {
   FormValue,
   FormValues,
   FormErrors,
-  FieldValidator,
-  AsyncFieldValidator,
-  FieldSchema,
-  FieldArrayApi,
-  Schema,
+  FormTouched,
+  FormValidator,
+  FormValidationContext,
   UseFormOptions,
 } from "./forms.js";
 

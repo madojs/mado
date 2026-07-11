@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,10 +77,16 @@ try {
     initArgs: ["mado", "init", "smoke-universal"],
     after: async (appRoot) => {
       await run("npm", ["run", "typecheck"], { cwd: appRoot });
+      await run("npm", ["run", "build"], { cwd: appRoot });
+      await run("npx", ["mado", "static"], {
+        cwd: appRoot,
+        env: { ...process.env, MADO_SITE: "https://package-smoke.test" },
+      });
       await run("npm", ["run", "release"], {
         cwd: appRoot,
         env: { ...process.env, MADO_SITE: "https://package-smoke.test" },
       });
+      await smokePreview(appRoot);
     },
     installRoot,
     tarball,
@@ -138,4 +146,53 @@ async function run(cmd, args, options) {
     if (err.stderr) process.stderr.write(err.stderr);
     throw err;
   }
+}
+
+async function smokePreview(appRoot) {
+  const port = await availablePort();
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const child = spawn(
+    npm,
+    ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    {
+      cwd: appRoot,
+      detached: process.platform !== "win32",
+      env: { ...process.env, FORCE_COLOR: "0" },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  let output = "";
+  child.stdout.on("data", (chunk) => (output += chunk));
+  child.stderr.on("data", (chunk) => (output += chunk));
+  try {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (child.exitCode !== null) throw new Error(`[package-smoke] preview exited\n${output}`);
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}`);
+        if (response.ok && (await response.text()).includes("data-mado-static")) return;
+      } catch {
+        // Preview is still starting.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`[package-smoke] preview did not start\n${output}`);
+  } finally {
+    if (process.platform === "win32") child.kill("SIGTERM");
+    else if (child.pid) process.kill(-child.pid, "SIGTERM");
+    await Promise.race([once(child, "exit"), new Promise((resolve) => setTimeout(resolve, 2_000))]);
+    child.stdout.destroy();
+    child.stderr.destroy();
+  }
+}
+
+function availablePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close((error) => (error ? reject(error) : resolve(port)));
+    });
+  });
 }

@@ -48,8 +48,11 @@ export async function discoverStaticRoutes(options) {
   //   2. App runs need our routing helpers loaded through SSR alongside the
   //      user manifest; we expose them via `__mado_match__` so we can ask
   //      for them via ssrLoadModule without colliding with user imports.
+  const sourceMatch = resolve(getPackageRoot(), "src/router/match.ts");
   const aliases = {
-    __mado_match__: resolve(getPackageRoot(), "src/router/match.ts"),
+    __mado_match__: existsSync(sourceMatch)
+      ? sourceMatch
+      : resolve(getPackageRoot(), "dist/src/router/match.js"),
     ...(context === "repo"
       ? { "@madojs/mado": resolve(projectRoot, "src/index.ts") }
       : {}),

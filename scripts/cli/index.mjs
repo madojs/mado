@@ -39,7 +39,8 @@ export async function main(argv) {
       if (ctx.isRepo) {
         await runNodeBin(ctx, "typescript/bin/tsc", args);
       } else {
-        await runVite(ctx, ["build", ...args], { defaultConfig: true });
+        const outputArgs = hasFlag(args, "--outDir") ? args : ["--outDir", "out", ...args];
+        await runVite(ctx, ["build", ...outputArgs], { defaultConfig: true });
       }
       break;
     case "watch":

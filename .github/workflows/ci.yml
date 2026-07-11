@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["20", "22"]
+        node: ["22", "24"]
     steps:
       - uses: actions/checkout@v5
 
@@ -82,7 +82,7 @@ jobs:
         # Pinned by the playwright-core version in package.json. We use
         # Playwright's own installer per its CI guidance:
         # https://playwright.dev/docs/ci-intro
-        run: npx --yes playwright install --with-deps chromium
+        run: node node_modules/playwright-core/cli.js install --with-deps chromium
 
       - name: Build framework (tsc)
         run: npm run build

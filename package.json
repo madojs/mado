@@ -29,7 +29,6 @@
     "mado": "./scripts/cli.mjs"
   },
   "main": "./dist/src/index.js",
-  "module": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
@@ -47,8 +46,16 @@
   },
   "files": [
     "dist/src",
-    "scripts",
-    "templates",
+    "scripts/cli.mjs",
+    "scripts/_config.mjs",
+    "scripts/clean.mjs",
+    "scripts/logger.mjs",
+    "scripts/output-guard.mjs",
+    "scripts/preview.mjs",
+    "scripts/static.mjs",
+    "scripts/vite.default.mjs",
+    "scripts/cli",
+    "scripts/static",
     "starters",
     "README.md",
     "LICENSE",
@@ -60,6 +67,14 @@
     "docs/architecture/**/*.md",
     "docs/recipes/**/*"
   ],
+  "sideEffects": [
+    "./dist/src/devtools.js"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "packageManager": "npm@11.16.0",
   "scripts": {
     "build": "node scripts/cli.mjs build",
     "watch": "node scripts/cli.mjs watch",
@@ -74,8 +89,10 @@
     "benchmark:static": "node scripts/benchmark-static.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",
-    "clean": "rm -rf dist out",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "clean": "node scripts/clean.mjs",
+    "verify:release": "npm run clean && npm test && npm run docs:lint && npm run api:check && npm run size && npm run package:smoke && npm audit --audit-level=high",
+    "prepack": "node scripts/clean.mjs --dist-only && npm run build",
+    "prepublishOnly": "npm run verify:release"
   },
   "devDependencies": {
     "@types/node": "^22.12.0",
@@ -86,7 +103,7 @@
     "vite": "^8.1.4"
   },
   "peerDependencies": {
-    "playwright-core": "^1.47.0",
+    "playwright-core": "^1.61.1",
     "vite": "^8.0.0"
   },
   "peerDependenciesMeta": {

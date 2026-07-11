@@ -96,7 +96,10 @@ async function copyCanonicalLLMFiles(ctx, target) {
 async function ensureStarterGitignore(target) {
   const file = join(target, ".gitignore");
   if (existsSync(file)) return;
-  await writeFile(file, "node_modules\nout\n.DS_Store\n*.log\n");
+  await writeFile(
+    file,
+    "node_modules\ndist\nout\n.cache\n.env\n.env.*\n!.env.example\n.DS_Store\n*.log\n",
+  );
 }
 
 async function ensureStarterPackageJson(ctx, target) {

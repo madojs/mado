@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -115,6 +115,12 @@ async function smokeStarter({ label, appName, initArgs, after, installRoot, tarb
     env: { ...process.env, MADO_PACKAGE_SPEC: tarball },
   });
   const appRoot = join(installRoot, appName);
+  const gitignore = await readFile(join(appRoot, ".gitignore"), "utf8");
+  for (const required of ["node_modules", "dist", "out", ".cache", ".env", "*.log"]) {
+    if (!gitignore.split(/\r?\n/).includes(required)) {
+      throw new Error(`[package-smoke] ${label} .gitignore is missing ${required}`);
+    }
+  }
   await run("npm", ["install"], { cwd: appRoot });
   await after(appRoot);
 }

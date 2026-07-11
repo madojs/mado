@@ -140,6 +140,8 @@ function mkProject({ base = "/" } = {}) {
       'import { html, render } from "@madojs/mado";',
       'import "./product-card";',
       'import appRoutes from "./routes";',
+      '// Capture must wait for top-level async bootstrap after DOMContentLoaded.',
+      'await new Promise((resolve) => setTimeout(resolve, 150));',
       'render(html`${appRoutes.view}`, document.getElementById("app")!);',
       "",
     ].join("\n"),

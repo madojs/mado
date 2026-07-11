@@ -212,6 +212,15 @@ async function captureRoute(browser, record, options) {
 
 async function waitForMadoStability(page, record, timeout) {
   try {
+    // DOMContentLoaded does not guarantee that an async module graph has
+    // finished evaluating. Apps may legitimately use top-level await during
+    // bootstrap (the modular starter restores auth this way), so wait for the
+    // runtime handshake instead of reading it once and racing slow runners.
+    await page.waitForFunction(
+      () => window.__MADO_STATIC__ !== undefined,
+      undefined,
+      { timeout },
+    );
     await withTimeout(
       page.evaluate(async () => {
         const runtime = window.__MADO_STATIC__;

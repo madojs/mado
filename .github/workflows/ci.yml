@@ -94,3 +94,39 @@ jobs:
           node --test --test-timeout=180000 \
             test/static/dsd-takeover.test.mjs \
             test/static/base-path.test.mjs
+
+  starter-browser:
+    name: Modular starter (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install ${{ matrix.browser }}
+        run: node node_modules/playwright-core/cli.js install --with-deps ${{ matrix.browser }}
+      - name: Exercise modular starter
+        env:
+          MADO_BROWSER_NAME: ${{ matrix.browser }}
+          MADO_REQUIRE_BROWSER: "1"
+        run: node --test --test-timeout=120000 test/starters/modular-browser.test.mjs
+
+  package-windows:
+    name: CLI/package smoke (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package:smoke

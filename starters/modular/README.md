@@ -51,7 +51,7 @@ this starter so `npm run dev` is runnable out of the box:
 
 | Method + path                            | Behaviour                                      |
 | ---------------------------------------- | ---------------------------------------------- |
-| `POST /api/auth/login`                   | accepts `demo@mado.dev` / `demo`               |
+| `POST /api/auth/login`                   | accepts `demo@mado.dev` / `demo123`            |
 | `GET  /api/auth/me`                      | current user (after login)                     |
 | `POST /api/auth/logout`                  | clears the in-memory session                   |
 | `GET  /api/billing/stripe/invoices`      | lists six seeded invoices                      |

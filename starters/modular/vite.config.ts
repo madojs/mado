@@ -16,12 +16,12 @@ function devApiMock(): Plugin {
     [
       "demo@mado.dev",
       {
-        password: "demo",
+        password: "demo123",
         user: {
           id: "u_demo",
           email: "demo@mado.dev",
           roles: ["user"],
-          permissions: ["billing.read"],
+          permissions: ["billing.read", "billing.invoices.pay"],
         },
       },
     ],

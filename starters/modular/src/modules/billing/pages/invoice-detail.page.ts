@@ -1,7 +1,6 @@
 import { html, page, signal } from "@madojs/mado";
 
 import { formatDate, formatMoney } from "../../../shared/lib/format-date";
-import "@/shared/ui/x-button.component";
 import "@/shared/ui/x-spinner.component";
 
 import { hasPermission } from "../../auth/auth.public";
@@ -58,9 +57,9 @@ export default page({
                       <dt>Issued</dt><dd>${formatDate(i.issuedAt)}</dd>
                     </dl>
                     ${i.status === "pending" && hasPermission("billing.invoices.pay")
-                      ? html`<x-button ?disabled=${paying} @click=${onPay}>
+                      ? html`<button class="button" type="button" ?disabled=${paying} @click=${onPay}>
                           ${() => (paying() ? "Paying…" : "Pay now")}
-                        </x-button>`
+                        </button>`
                       : null}
                   `;
                 })()}

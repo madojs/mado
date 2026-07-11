@@ -1,7 +1,5 @@
 import { html, navigate, page, signal, useForm } from "@madojs/mado";
 
-import "../../shared/ui/x-button.component";
-
 import { login } from "./auth.service";
 
 // 1. LOCAL STATE
@@ -47,9 +45,9 @@ export default page({
             <input name="password" type="password" required minlength="6" @input=${form.onInput} />
           </label>
           ${() => (error() ? html`<p class="error">${error()}</p>` : null)}
-          <x-button ?disabled=${() => form.submitting() || !form.isValid()}>
+          <button class="button" type="submit" ?disabled=${() => form.submitting() || !form.isValid()}>
             ${() => (form.submitting() ? "Signing in…" : "Sign in")}
-          </x-button>
+          </button>
         </form>
       </section>
     `;

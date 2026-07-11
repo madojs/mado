@@ -12,7 +12,6 @@
 import { html, page, routeUrl } from "@madojs/mado";
 
 import { isAuthed, logout, user } from "../modules/auth/auth.public";
-import "../shared/ui/x-button.component";
 
 export default page({
   title: "Mado App",
@@ -28,7 +27,7 @@ export default page({
           ${() =>
             isAuthed()
               ? html`<span class="who">${() => user()?.email ?? ""}</span>
-                  <x-button variant="ghost" @click=${logout}>Sign out</x-button>`
+                  <button class="button button--ghost" type="button" @click=${logout}>Sign out</button>`
               : html`<a data-link href=${routeUrl("/login")}>Sign in</a>`}
         </nav>
       </header>

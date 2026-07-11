@@ -9,13 +9,16 @@ import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { platformInvocation } from "./platform-command.mjs";
+
 const exec = promisify(execFile);
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = await mkdtemp(join(tmpdir(), "mado-package-smoke-"));
 let tarball = "";
 
 try {
-  const packed = await exec("npm", ["pack", "--silent"], { cwd: repoRoot });
+  const pack = platformInvocation("npm", ["pack", "--silent"]);
+  const packed = await exec(pack.command, pack.args, { cwd: repoRoot });
   tarball = resolve(repoRoot, packed.stdout.trim().split(/\s+/).at(-1) ?? "");
   if (!tarball) throw new Error("[package-smoke] npm pack did not return a tarball");
 
@@ -136,7 +139,8 @@ async function smokeStarter({ label, appName, initArgs, after, installRoot, tarb
 async function run(cmd, args, options) {
   console.log(`[package-smoke] ${cmd} ${args.join(" ")}`);
   try {
-    await exec(cmd, args, {
+    const invocation = platformInvocation(cmd, args);
+    await exec(invocation.command, invocation.args, {
       cwd: options.cwd,
       env: options.env ?? process.env,
       maxBuffer: 20 * 1024 * 1024,
@@ -150,10 +154,17 @@ async function run(cmd, args, options) {
 
 async function smokePreview(appRoot) {
   const port = await availablePort();
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const preview = join(
+    appRoot,
+    "node_modules",
+    "@madojs",
+    "mado",
+    "scripts",
+    "preview.mjs",
+  );
   const child = spawn(
-    npm,
-    ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    process.execPath,
+    [preview, "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     {
       cwd: appRoot,
       detached: process.platform !== "win32",

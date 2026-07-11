@@ -52,6 +52,9 @@ small platform-first API.
   snippets and a single `verify:release` gate were added.
 - CI covers Node 22/24, Chromium/Firefox/WebKit modular flows and Windows
   package smoke. Runtime and devtools bundles have separate size budgets.
+- Windows package smoke invokes `npm-cli.js` through the active `node.exe`
+  instead of relying on `npm`/`npx` command shims, and launches preview
+  directly so CI does not leak a nested process tree.
 
 See [the migration guide](./docs/en/33-migration-0.12-0.13.md).
 

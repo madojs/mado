@@ -15,6 +15,7 @@
 
 import { signal } from "../signal.js";
 import { reportError } from "../diagnostics.js";
+import { emitDevtools } from "../devtools-hook.js";
 import { html } from "../html/template.js";
 import type { TemplateResult } from "../html/template-types.js";
 import type { Guard, GuardResult, HeadMeta, Page, PageContext } from "../page.js";
@@ -335,6 +336,11 @@ function renderEntry(
   options: RoutesOptions,
   seq: number,
 ): TemplateResult {
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:navigation", ctx, {
+    seq,
+    path: typeof location !== "undefined" ? location.pathname + location.search : "/",
+    params,
+  });
   // Navigation owns the currently visible page lifecycle. Dispose it before
   // loaders/guards begin so halted, redirected and failed navigations cannot
   // leave the previous page's effects alive behind a loading shell.
@@ -359,6 +365,7 @@ function renderEntry(
       applyPageMeta(sync.page, params, seed, options);
       ctx.guardRedirects = 0;
       markStaticRouteReady("ready");
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:ready", ctx, { seq, params, mode: "sync" });
       return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
@@ -423,6 +430,7 @@ function renderEntry(
       if (verdict) {
         setStaticRouterState(`guard:${verdict.kind}`);
         state.set({ kind: "guard" });
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:guard", ctx, { seq, verdict });
         applyGuardVerdict(ctx, verdict);
         if (verdict.kind === "halt") {
           ctx.guardRedirects = 0;
@@ -443,6 +451,7 @@ function renderEntry(
       recordStaticError(e);
       markStaticRouteReady("error");
       state.set({ kind: "error", err: e });
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:error", ctx, { seq, error: e });
     }
   })();
 
@@ -463,6 +472,7 @@ function renderEntry(
       );
       ctx.guardRedirects = 0;
       markStaticRouteReady("ready");
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:ready", ctx, { seq, params, mode: "async" });
       return view;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
@@ -471,6 +481,7 @@ function renderEntry(
       document.title = "";
       recordStaticError(e);
       markStaticRouteReady("error");
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:error", ctx, { seq, error: e });
       return renderError(e, params, options, s.page);
     }
   }}`;

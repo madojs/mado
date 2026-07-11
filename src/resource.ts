@@ -20,6 +20,7 @@ import { signal, effect, untracked, type Signal } from "./signal.js";
 import { getCurrentLifecycle } from "./lifecycle.js";
 import { reportError, warnOnce } from "./diagnostics.js";
 import { trackStatic } from "./static-runtime.js";
+import { emitDevtools } from "./devtools-hook.js";
 
 // ---------- Global cache ----------
 
@@ -60,6 +61,7 @@ const invalidators = new Set<(pattern: string) => void>();
  * or iterate your own keys manually.
  */
 export function invalidate(pattern: string): void {
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:invalidate", undefined, { pattern });
   for (const [fetcher, state] of fetcherStates) {
     for (const [key, entry] of state.cache) {
       if (matchesPattern(key, pattern)) {
@@ -109,6 +111,8 @@ export function resource<T>(
   const error = signal<Error | null>(null);
   const loading = signal(false);
   const keySig = signal<string>("");
+  const debugTarget = {};
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:create", debugTarget);
 
   let releaseInFlight: (() => void) | null = null;
   let requestSeq = 0;
@@ -133,6 +137,7 @@ export function resource<T>(
     releaseInFlight?.();
     releaseInFlight = null;
     const seq = ++requestSeq;
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:request", debugTarget, { key, seq, force });
 
     // if there is a fresh cache and not forced — use it
     const cached = getFetcherState(fetcher).cache.get(key) as CacheEntry<T> | undefined;
@@ -145,6 +150,7 @@ export function resource<T>(
       data.set(cached.data);
       error.set(null);
       loading.set(false);
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:cache-hit", debugTarget, { key });
       return Promise.resolve(cached.data);
     }
 
@@ -169,6 +175,7 @@ export function resource<T>(
         writeCache(fetcher, key, result, options.staleTime ?? 0);
         data.set(result);
         loading.set(false);
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:success", debugTarget, { key, seq, result });
       },
       (err: unknown) => {
         retained.release();
@@ -176,6 +183,7 @@ export function resource<T>(
         if (key !== lastKey) return;
         error.set(err instanceof Error ? err : new Error(String(err)));
         loading.set(false);
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:error", debugTarget, { key, seq, error: err });
       },
     );
     return retained.promise;
@@ -208,6 +216,7 @@ export function resource<T>(
       invalidators.delete(onInv);
       releaseInFlight?.();
       releaseInFlight = null;
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:dispose", debugTarget, { key: lastKey });
     });
   }
 
@@ -389,6 +398,8 @@ export function mutation<TArgs, TResult>(
   const controllers = new Set<AbortController>();
   let inFlight = 0;
   let generation = 0;
+  const debugTarget = {};
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:create", debugTarget);
 
   const settle = (ac: AbortController, runGeneration: number): void => {
     controllers.delete(ac);
@@ -412,6 +423,7 @@ export function mutation<TArgs, TResult>(
       controllers.add(ac);
       inFlight++;
       loading.set(true);
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:request", debugTarget, { args, generation });
       error.set(null);
       try {
         const result = await fetcher(args, ac.signal);
@@ -419,6 +431,7 @@ export function mutation<TArgs, TResult>(
           throw new DOMException("aborted", "AbortError");
         }
         data.set(result);
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:success", debugTarget, { args, result, generation });
         settle(ac, runGeneration);
         const inv = options.invalidates;
         if (inv) {
@@ -436,11 +449,13 @@ export function mutation<TArgs, TResult>(
         if (!ac.signal.aborted) {
           error.set(err instanceof Error ? err : new Error(String(err)));
         }
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:error", debugTarget, { args, error: err, generation });
         settle(ac, runGeneration);
         throw err;
       }
     },
     reset() {
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:reset", debugTarget, { generation });
       generation++;
       for (const c of controllers) c.abort();
       controllers.clear();

@@ -8,12 +8,14 @@ import { gzipSync } from "node:zlib";
 
 const API_ENTRY = "src/index.ts";
 const SAMPLE_ENTRY = "starters/default/src/main.ts";
+const DEVTOOLS_ENTRY = "src/devtools.ts";
 // Public API budget bumped from 16 KiB → 17 KiB to accommodate the
 // base-aware router/navigation pack added in 0.12.0 (`src/router/base.ts`,
 // stripBase/withBase wiring in navigation, manifest and static-runtime).
 // Override per-environment via MADO_SIZE_API_GZIP_LIMIT.
 const API_GZIP_LIMIT = readLimit("MADO_SIZE_API_GZIP_LIMIT", 17 * 1024);
 const SAMPLE_GZIP_LIMIT = readLimit("MADO_SIZE_SAMPLE_GZIP_LIMIT", 42 * 1024);
+const DEVTOOLS_GZIP_LIMIT = readLimit("MADO_SIZE_DEVTOOLS_GZIP_LIMIT", 24 * 1024);
 
 let failed = false;
 
@@ -23,11 +25,18 @@ report("public API", api.gzip, API_GZIP_LIMIT);
 const sample = await bundleSampleApp();
 report("starter app", sample.gzip, SAMPLE_GZIP_LIMIT);
 
+const devtools = await bundleEntry(DEVTOOLS_ENTRY);
+report("devtools", devtools.gzip, DEVTOOLS_GZIP_LIMIT);
+
 if (failed) process.exit(1);
 
 async function bundlePublicApi() {
+  return bundleEntry(API_ENTRY, false);
+}
+
+async function bundleEntry(entryPoint, devtools = true) {
   const result = await build({
-    entryPoints: [API_ENTRY],
+    entryPoints: [entryPoint],
     bundle: true,
     minify: true,
     format: "esm",
@@ -35,6 +44,7 @@ async function bundlePublicApi() {
     platform: "browser",
     legalComments: "none",
     write: false,
+    define: { __MADO_DEVTOOLS__: devtools ? "true" : "false" },
   });
   const js = result.outputFiles[0]?.contents;
   if (!js) throw new Error("[size] esbuild produced no public API output");
@@ -57,6 +67,7 @@ async function bundleSampleApp() {
         "@madojs/mado": "./src/index.ts",
       },
       legalComments: "none",
+      define: { __MADO_DEVTOOLS__: "false" },
     });
 
     let gzip = 0;

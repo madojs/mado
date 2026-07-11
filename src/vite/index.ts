@@ -43,9 +43,12 @@ export function mado(options: MadoVitePluginOptions = {}): Plugin {
   return {
     name: "mado",
 
-    config() {
+    config(_config, environment) {
       return {
         build: { target: "es2022" },
+        define: {
+          __MADO_DEVTOOLS__: environment.command === "serve" ? "true" : "false",
+        },
       };
     },
 

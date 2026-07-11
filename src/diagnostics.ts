@@ -1,3 +1,5 @@
+import { emitDevtools } from "./devtools-hook.js";
+
 /**
  * Internal dev diagnostics.
  *
@@ -59,6 +61,9 @@ export function reportDiagnostic(
     console[method](...args);
   } catch {
     /* diagnostics must never affect application behaviour */
+  }
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) {
+    emitDevtools(`diagnostic:${level}`, undefined, record);
   }
   dispatchDiagnostic(record);
 }

@@ -32,6 +32,7 @@ import {
   type LifecycleHandle,
 } from "./lifecycle.js";
 import { warnOnce } from "./diagnostics.js";
+import { emitDevtools } from "./devtools-hook.js";
 
 /**
  * Components upgraded inside a server-side or build-time snapshot live
@@ -227,6 +228,7 @@ export function component(
         _markDeferredForStatic(this);
         return;
       }
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:connect", this, { tagName });
 
       if (stylesheets.length > 0) {
         if (useShadow) {
@@ -284,12 +286,14 @@ export function component(
         }
 
         const effectDispose = runInLifecycle(lifecycle, () => effect(() => {
+          if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:render", this, { tagName });
           render(renderer(), this.#root);
         }));
         this.#renderer = renderer;
         this.#effectDispose = effectDispose;
         this.#lifecycle = lifecycle;
         this.#connected = true;
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:ready", this, { tagName });
       } catch (err) {
         unmount(this.#root);
         lifecycle.dispose();
@@ -299,6 +303,7 @@ export function component(
         this.#attrSignals.clear();
         this.#attrDefaults.clear();
         this.#connected = false;
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:error", this, { tagName, error: err });
         throw err;
       }
     }
@@ -326,6 +331,7 @@ export function component(
 
     /** Synchronously dispose effects and lifecycle. */
     #teardown() {
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:dispose", this, { tagName });
       this.#effectDispose?.();
       this.#effectDispose = null;
       unmount(this.#root);

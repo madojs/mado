@@ -30,7 +30,8 @@ test("package self-import blocks internal subpaths", async () => {
   ]) {
     assert.equal(api[removed], undefined, `${removed} must not leak from the root API`);
   }
-  await import("@madojs/mado/devtools.js");
+  const devtools = await import("@madojs/mado/devtools.js");
+  assert.equal(typeof devtools.devtools?.open, "function");
   const vite = await import("@madojs/mado/vite");
   assert.equal(typeof vite.mado, "function");
 

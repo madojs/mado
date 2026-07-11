@@ -26,6 +26,7 @@
 
 import { reportError } from "./diagnostics.js";
 import { getCurrentLifecycle } from "./lifecycle.js";
+import { emitDevtools } from "./devtools-hook.js";
 
 type Subscriber = () => void;
 
@@ -213,7 +214,9 @@ export function signal<T>(initial: T): Signal<T> {
 
   read.set = (next: T) => {
     if (Object.is(value, next)) return;
+    const previous = value;
     value = next;
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("signal:set", read, { previous, value: next });
     // snapshot: a subscriber may re-subscribe in run(), mutating the Set
     const snapshot = [...subscribers];
     // sync subscribers (computed) first — mark dirty before effects read;
@@ -235,6 +238,7 @@ export function signal<T>(initial: T): Signal<T> {
   read.update = (fn: (prev: T) => T) => read.set(fn(value));
   read.peek = () => value;
   debugInfo.set(read, { subscribers });
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("signal:create", read, { value });
 
   return read;
 }
@@ -377,6 +381,7 @@ export function computed<T>(
     }
     dirty = false;
     hasValue = true;
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("computed:value", read, { value });
     queueSuspendIfUnobserved();
   };
 
@@ -395,6 +400,7 @@ export function computed<T>(
   };
 
   debugInfo.set(read, { subscribers, tracker });
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("computed:create", read);
   return read;
 }
 
@@ -408,6 +414,7 @@ export function effect(fn: () => void | Disposer): Disposer {
 
   const run: Subscriber = () => {
     if (disposed) return;
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("effect:run", run);
     cleanupTracker(tracker);
 
     const previousCleanup = cleanup;
@@ -439,8 +446,10 @@ export function effect(fn: () => void | Disposer): Disposer {
     const finalCleanup = cleanup;
     cleanup = undefined;
     if (typeof finalCleanup === "function") finalCleanup();
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("effect:dispose", run);
   };
 
+  if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("effect:create", run);
   run();
   getCurrentLifecycle()?.onDispose(dispose);
   return dispose;

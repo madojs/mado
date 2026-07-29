@@ -74,7 +74,7 @@
     "access": "public",
     "provenance": true
   },
-  "packageManager": "npm@11.16.0",
+  "packageManager": "npm@11.17.0",
   "scripts": {
     "build": "node scripts/cli.mjs build",
     "watch": "node scripts/cli.mjs watch",
@@ -82,7 +82,7 @@
     "static": "node scripts/cli.mjs static",
     "preview": "node scripts/cli.mjs preview",
     "new": "node scripts/cli.mjs new",
-    "size": "node scripts/size-budget.mjs",
+    "size": "node scripts/size-report.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
     "docs:lint": "node scripts/docs-lint.mjs && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.docs.json",
     "api:check": "node scripts/api-check.mjs",

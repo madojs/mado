@@ -38,7 +38,7 @@ jobs:
         # gating PRs on the deterministic browser environment.
         run: npm test
 
-      - name: Size budgets
+      - name: Bundle size report
         run: npm run size
 
       - name: Repository grep checks

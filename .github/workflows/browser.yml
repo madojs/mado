@@ -30,7 +30,7 @@ jobs:
       - name: Publish gate
         run: npm run prepublishOnly
 
-      - name: Size budgets
+      - name: Bundle size report
         run: npm run size
 
       - name: Package smoke

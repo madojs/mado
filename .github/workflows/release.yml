@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Update npm
-        run: npm install -g npm@11.16.0
+        run: npm install -g npm@11.17.0
 
       # The tag name (without the leading `v`) must match the version
       # field in package.json. Mismatched tags publish the wrong artifact

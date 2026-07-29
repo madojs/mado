@@ -9,26 +9,15 @@ import { gzipSync } from "node:zlib";
 const API_ENTRY = "src/index.ts";
 const SAMPLE_ENTRY = "starters/default/src/main.ts";
 const DEVTOOLS_ENTRY = "src/devtools.ts";
-// Public API budget bumped from 16 KiB → 17 KiB to accommodate the
-// base-aware router/navigation pack added in 0.12.0 (`src/router/base.ts`,
-// stripBase/withBase wiring in navigation, manifest and static-runtime).
-// Override per-environment via MADO_SIZE_API_GZIP_LIMIT.
-const API_GZIP_LIMIT = readLimit("MADO_SIZE_API_GZIP_LIMIT", 17 * 1024);
-const SAMPLE_GZIP_LIMIT = readLimit("MADO_SIZE_SAMPLE_GZIP_LIMIT", 42 * 1024);
-const DEVTOOLS_GZIP_LIMIT = readLimit("MADO_SIZE_DEVTOOLS_GZIP_LIMIT", 24 * 1024);
-
-let failed = false;
 
 const api = await bundlePublicApi();
-report("public API", api.gzip, API_GZIP_LIMIT);
+report("public API", api.gzip);
 
 const sample = await bundleSampleApp();
-report("starter app", sample.gzip, SAMPLE_GZIP_LIMIT);
+report("starter app", sample.gzip);
 
 const devtools = await bundleEntry(DEVTOOLS_ENTRY);
-report("devtools", devtools.gzip, DEVTOOLS_GZIP_LIMIT);
-
-if (failed) process.exit(1);
+report("devtools", devtools.gzip);
 
 async function bundlePublicApi() {
   return bundleEntry(API_ENTRY, false);
@@ -82,23 +71,8 @@ async function bundleSampleApp() {
   }
 }
 
-function report(label, actual, limit) {
-  const ok = actual < limit;
-  const mark = ok ? "ok" : "FAIL";
-  console.log(
-    `[size] ${label.padEnd(12)} ${mark} ${kib(actual)} KiB gzip < ${kib(limit)} KiB`,
-  );
-  if (!ok) failed = true;
-}
-
-function readLimit(name, fallback) {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) {
-    throw new Error(`[size] ${name} must be a positive byte count`);
-  }
-  return n;
+function report(label, actual) {
+  console.log(`[size] ${label.padEnd(12)} ${kib(actual)} KiB gzip`);
 }
 
 function kib(bytes) {

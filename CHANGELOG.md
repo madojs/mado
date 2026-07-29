@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.1 - 2026-07-29
+
+### Fixed
+
+- Reactive DOM property bindings skip redundant assignments after their
+  initial commit. Native controls therefore retain browser-owned interaction
+  state such as `minlength` validity when an input handler mirrors the current
+  `.value` into a signal. Initial writes, genuine value changes, write-only
+  properties and throwing getters keep their previous behavior.
+
 ## 0.14.0 - 2026-07-29
 
 ### Breaking

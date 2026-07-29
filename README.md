@@ -77,8 +77,8 @@ The default starter is the universal starter: ~15 source files,
 runnable without a backend, demonstrating one Shadow Component shared
 between a static landing page and a live SPA route.
 
-Need the modular reference architecture (auth shell, guarded zones,
-billing module, HTTP client, module boundaries)?
+Evaluating a larger business frontend with an auth shell, guarded zones and
+explicit module boundaries? The optional modular experiment is available:
 
 ```bash
 mado init my-app --starter modular
@@ -118,7 +118,7 @@ import { component, css, html } from "@madojs/mado";
 
 component(
   "x-card",
-  () => () => html`<section><slot></slot></section>`,
+  () => html`<section><slot></slot></section>`,
   {
     styles: css`:host { display: block; padding: 1rem; }`,
   },

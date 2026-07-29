@@ -11,7 +11,7 @@ section you need from the matrix below.
   and then [01 — Quickstart](./01-quickstart.md).
 - **Already shipped one Mado app?** Skim
   [10 — Pages and components](./10-pages-and-components.md) and
-  [30 — API freeze map](./30-api-freeze-map.md).
+  [30 — API surface](./30-api-surface.md).
 - **Coming from React / Vue / Next?**
   [42 — Why Mado](./42-why-mado.md) and
   [40 — LLM guide](./40-llm-guide.md) cover the mental shifts.
@@ -53,10 +53,11 @@ section you need from the matrix below.
 
 | Section                | File                                                       |
 | ---------------------- | ---------------------------------------------------------- |
-| API freeze map         | [30-api-freeze-map.md](./30-api-freeze-map.md)             |
+| API surface            | [30-api-surface.md](./30-api-surface.md)                    |
 | Reactivity ordering    | [31-reactivity-ordering.md](./31-reactivity-ordering.md)   |
 | v1 stability contract  | [32-v1-stability.md](./32-v1-stability.md)                 |
 | Migration 0.12 → 0.13  | [33-migration-0.12-0.13.md](./33-migration-0.12-0.13.md)   |
+| Migration 0.13 → 0.14  | [34-migration-0.13-0.14.md](./34-migration-0.13-0.14.md)   |
 
 ### Meta
 
@@ -92,7 +93,7 @@ collapsed several overlapping files. Old → new map:
 | `15-error-handling.md`              | `21-error-handling.md`                                     |
 | `16-bake-cookbook.md`               | `23-cookbook.md`                                           |
 | `17-shadow-dom-forms.md`            | merged into `14-forms.md`                                  |
-| `18-api-freeze-map.md`              | `30-api-freeze-map.md`                                     |
+| `18-api-freeze-map.md`              | `30-api-surface.md`                                        |
 | `19-reactivity-ordering.md`         | `31-reactivity-ordering.md`                                |
 | `20-v1-stability.md`                | `32-v1-stability.md`                                       |
 

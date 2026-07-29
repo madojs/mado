@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.14.0 - Unreleased
+
+### Breaking
+
+- `component()` setup now returns `html\`...\`` directly. The extra
+  renderer-function layer is removed; signals and getters are reactive only
+  when passed as template slots.
+- Page/load/layout evaluation is isolated from router tracking, and
+  `PageContext.onDispose` is always available.
+
+### Added
+
+- `Resource.dispose()` gives standalone resources explicit, idempotent
+  ownership while page/component resources keep automatic lifecycle cleanup.
+- ADR 0002 and a 0.13 → 0.14 migration guide define the single slot-owned
+  reactivity model for applications and generated code.
+
+### Fixed
+
+- Template bindings now keep independent state, so unrelated updates no longer
+  churn listeners, effects or refs.
+- `ref()` commits after the complete template is connected, remains stable
+  across unrelated updates and keyed reorders, and cleans up exactly once.
+- Initial binding, reactive updates, ref commit and different-template
+  replacement clean up or roll back partial work after an exception.
+- A mounted page lifecycle now follows its template owner through same-template
+  reuse, failed commits and root unmount; discarded metadata renders are also
+  released immediately.
+- A failed post-initial effect run keeps its newly read dependencies, allowing
+  a later valid signal value to recover instead of leaving a dead subscription.
+
+### Tooling
+
+- `mado new component`, both starters, active docs and AI instructions emit
+  the direct-template component contract.
+- Bundle size remains reported, but the temporary hard budget is removed until
+  representative applications establish a stable baseline.
+- npm is pinned to 11.17 so `audit` respects the existing install-script
+  allowlist; patched PostCSS and Nano ID releases are locked for build tooling.
+
+See [the migration guide](./docs/en/34-migration-0.13-0.14.md).
+
 ## 0.13.1 - 2026-07-11
 
 ### Fixed

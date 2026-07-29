@@ -1,7 +1,8 @@
 # Migrating from 0.12 to 0.13
 
-0.13 is the final planned pre-v1 breaking release. It narrows the root API and
-makes lifecycle, forms, resources and router behaviour explicit.
+0.13 narrowed the root API and made lifecycle, forms, resources and router
+behaviour explicit. The later slot-owned reactivity change is covered by the
+[0.13 → 0.14 guide](./34-migration-0.13-0.14.md).
 
 ## Forms
 

@@ -10,14 +10,16 @@
 - **Mado** — a calm native-first web framework for both static sites
   and live SPAs. One Web Component model, one page model, one release
   command.
-- Current development release: **0.13.0**.
+- Current phase: **pre-1.0 contract simplification**. Read `package.json` for
+  the current package version; do not infer stability from a roadmap date.
 - Built on Web Components + signals + tagged-template `html`.
 - **Vite is the canonical transport** for development, build and the
   static snapshot pipeline. Generated apps depend on `typescript`,
   `vite` and `playwright-core` (the last only for `mado release`,
   which captures real Chromium-rendered HTML).
 - Zero runtime dependencies (Vite is dev/build tooling, not bundled).
-- Small TypeScript core in `src/`; production size budgets are enforced in CI.
+- Small TypeScript core in `src/`; bundle size is measured but is not a hard
+  gate while the public contract is still changing.
 
 ## HARD RULES — violation = bug
 
@@ -69,14 +71,17 @@ function Counter() { return <button>...</button>; }
 // ✅ YES
 component("x-counter", (ctx) => {
   const count = signal(0);
-  // setup: return a renderer function
-  return () => html`<button @click=${() => count.update(n => n + 1)}>${count}</button>`;
+  return html`<button @click=${() => count.update(n => n + 1)}>${count}</button>`;
 });
 ```
 
 - The element name **must contain a hyphen** (`x-foo`, `my-btn`, `app-shell`).
 - `setup()` is called once on connect. Inside, we create signals and resources.
-- We return a renderer function — it is called reactively.
+- `setup()` returns one `TemplateResult` directly. It is not a renderer
+  function and is not re-run for state changes.
+- Reactivity belongs only to template slots: `${signal}` or
+  `${() => expression}`. Structural changes return nested templates from a
+  reactive child slot.
 
 ### 4. Cleanup — `ctx.onDispose(fn)`
 
@@ -91,7 +96,7 @@ useEffect(() => {
 component("x-timer", (ctx) => {
   const id = setInterval(..., 1000);
   ctx.onDispose(() => clearInterval(id));
-  return () => html`...`;
+  return html`...`;
 });
 ```
 
@@ -100,8 +105,8 @@ component("x-timer", (ctx) => {
 ### 4b. Reactive attributes — `ctx.attr()`
 
 ```ts
-// ❌ NO (reading once, never reactive)
-component("x-badge", ({ host }) => () => {
+// ❌ NO (reading once during setup, never reactive)
+component("x-badge", ({ host }) => {
   const variant = host.getAttribute("variant") ?? "default";
   return html`<span class=${variant}>...</span>`;
 });
@@ -114,13 +119,13 @@ component("x-badge", ({ host, onDispose }) => {
   );
   obs.observe(host, { attributes: true, attributeFilter: ["variant"] });
   onDispose(() => obs.disconnect());
-  return () => html`<span class=${variant}>...</span>`;
+  return html`<span class=${variant}>...</span>`;
 });
 
 // ✅ YES — one line, reactive, no cleanup needed
 component("x-badge", ({ attr }) => {
   const variant = attr("variant", "default");
-  return () => html`<span class=${() => `badge-${variant()}`}>...</span>`;
+  return html`<span class=${() => `badge-${variant()}`}>...</span>`;
 });
 ```
 
@@ -231,24 +236,28 @@ export default page<{ id: string }>({
 });
 ```
 
-- Each page is a **separate file** under `src/modules/<module>/` with `export default page({...})`.
-- Import via `() => import("./modules/<module>/pages/foo.page.js")` — this enables code-splitting via ESM.
+- Each page is a **separate file** with `export default page({...})`.
+  Start under `src/pages/`; introduce feature folders only when the application
+  has real domain boundaries.
+- Import via `() => import("./pages/foo.page.js")` — this enables code-splitting
+  via ESM.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
 - Layouts are declared in the route manifest via `layout()`. Treat
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared
   chrome. Put per-page state in pages/components/resources, not in layout view
   locals that depend on route identity.
 - **`onDispose`** — cleanup hook for page views. Use for `setInterval`, `WebSocket`, `EventSource`. `resource()` and `effect()` are auto-cleaned.
-- **`untracked()`** — required when reading signals inside async functions called synchronously from `view()`. Without it, the signal subscribes the router's render effect → infinite loop.
+- **`untracked()`** — an advanced escape hatch for excluding a read from your
+  own `effect()`. Page/component setup is already isolated from parent
+  tracking; never add `untracked()` merely because code runs in `view()`.
 
 ```ts
 // page with polling and cleanup
-import { page, html, signal, untracked } from "@madojs/mado";
+import { page, html, signal } from "@madojs/mado";
 export default page({
   view: ({ onDispose }) => {
     const data = signal(null);
     const poll = async () => {
-      // untracked: don't subscribe the router's render effect
       const res = await fetch("/api/status");
       data.set(await res.json());
     };
@@ -270,7 +279,7 @@ const { data } = useQuery(['user', id], () => fetch(...));
 import { resource, jsonFetcher, mutation, invalidate } from "@madojs/mado";
 
 const user = resource(
-  () => `/api/users/${userId()}`,   // key (reactive — will recreate on change)
+  () => `/api/users/${userId()}`,   // key (reactive — re-fetches on change)
   jsonFetcher<User>(),               // how to load
   { staleTime: 60_000 },
 );
@@ -331,7 +340,7 @@ Use `setField`, not a schema/field-array abstraction.
 ```ts
 import { component, css, html } from "@madojs/mado";
 
-component("x-card", () => () => html`<div><slot></slot></div>`, {
+component("x-card", () => html`<div><slot></slot></div>`, {
   styles: css`
     :host {
       display: block;
@@ -347,7 +356,7 @@ component("x-card", () => () => html`<div><slot></slot></div>`, {
 });
 
 // Light DOM (without Shadow), global styles:
-component("x-shell", () => () => html`...`, {
+component("x-shell", () => html`...`, {
   shadow: false, // disables Shadow DOM
   styles: css`x-shell header { ... }`, // selectors are written as usual
 });
@@ -362,12 +371,12 @@ const ApiCtx = createContext<ApiClient>(defaultApi);
 
 component("x-app", ({ host }) => {
   provide(host, ApiCtx, new ApiClient(...));
-  return () => html`<x-child></x-child>`;
+  return html`<x-child></x-child>`;
 });
 
 component("x-child", ({ host }) => {
   const api = inject(host, ApiCtx);  // signal<ApiClient>
-  return () => html`<div>${() => api().version}</div>`;
+  return html`<div>${() => api().version}</div>`;
 });
 ```
 
@@ -504,21 +513,25 @@ paths (no base) and apply the active base internally.
 
 ## App architecture for LLM
 
-When generating an app, prefer the blessed production shape from
-`docs/en/16-app-architecture.md` and the `starters/default/` example:
+Generate the smallest structure justified by the application. The default
+starter is canonical; the modular starter is an experiment for larger
+business frontends, not a structure to impose on every project.
 
-- `src/main.ts` mounts `routesApi.view` and imports only global styles,
-  providers, and tiny shared components.
-- `src/app.routes.ts` exports both `manifest` and `default routes(manifest, ...)`.
-- Put route wrappers in `src/layouts/` via `layout()`, not ad-hoc shell logic
-  inside every page.
-- Put backend access in module `*.connector.ts` files over `shared/http`.
-- Put one page per file under the starter's module/page convention; a page imports
-  the feature components it renders.
-- Use `resource()` for reads, `mutation(..., { invalidates })` for writes,
-  and `useForm()` for form state/validation.
-- Use `mado release` as the production path. `out/` is the only deploy
-  artifact for apps; framework package tests still build `dist/src`.
+- `src/main.ts` mounts `routesApi.view` and imports global styles and component
+  registrations.
+- `src/app.routes.ts` owns the manifest and `routes(...)`.
+- Put one route per file in `src/pages/`; add `layouts/`, feature folders,
+  shared HTTP wrappers or DI only when repeated application code requires
+  them.
+- Do not generate `modules/`, repositories, connectors, providers or generic
+  service layers pre-emptively. Mado is a frontend framework, not a backend
+  architecture generator.
+- Use browser `fetch()` directly for a small app. Add a thin application API
+  helper when auth/error policy is genuinely shared.
+- Use `resource()` for reactive reads, `mutation(..., { invalidates })` for
+  writes, and `useForm()` for form state/validation.
+- Use `mado release` as the production path. `out/` is the deploy artifact;
+  static routes receive snapshots and client-only routes remain SPA fallbacks.
 
 ## Where to find specific answers
 
@@ -532,9 +545,10 @@ When generating an app, prefer the blessed production shape from
 | How should an app be structured? | `docs/en/16-app-architecture.md` |
 | How should errors be handled?    | `docs/en/21-error-handling.md`   |
 | How should static snapshots be used? | `docs/en/15-static-snapshots.md` / `docs/en/23-cookbook.md` |
-| What API is stable?              | `docs/en/30-api-freeze-map.md`   |
+| What API may applications use?   | `docs/en/30-api-surface.md`      |
 | What ordering is guaranteed?     | `docs/en/31-reactivity-ordering.md` |
 | What does v1 stability mean?     | `docs/en/32-v1-stability.md`     |
+| Why is Mado still pre-1.0?       | `docs/architecture/maturity-roadmap.md` |
 | When something goes wrong        | `docs/en/40-llm-guide.md`        |
 
 ## Before committing

@@ -61,7 +61,7 @@ component(
   "x-counter",
   () => {
     const n = signal(0);
-    return () => html`
+    return html`
       <button @click=${() => n.set(n() + 1)}>Clicks: ${n}</button>
     `;
   },
@@ -82,7 +82,7 @@ only thing that changes is *where* the DOM lives.
 | DOM location                                   | Light DOM    | Open Shadow DOM                |
 | Sees global CSS (`shell.css`, `content.css`)   | Yes          | No (Shadow boundary)           |
 | Can use `<slot>`                               | No (uses `child`) | Yes                       |
-| Participates in a parent `<form>`              | Yes          | Only via `attachInternals()` or `shadow:false` |
+| Participates in a parent `<form>`              | Yes          | No in Shadow DOM; use a native control or intentional `shadow:false` |
 | Is captured by `mado static`                   | If `static: true \| { ... }` | Yes (DSD serialised) |
 | Has a hyphenated custom-element tag            | No           | Yes (`x-foo`, `my-bar`)        |
 | Owns its own CSS isolation                    | No           | Yes (via `css\`\``)            |
@@ -96,9 +96,9 @@ That is the entire decision matrix. Anything beyond it is detail.
 Sometimes a custom element MUST live in the light DOM. Two real
 cases:
 
-1. **Form participation without `attachInternals()`.** A custom
-   input that should be submitted as part of a regular `<form>` and
-   whose author does not want to wire up `ElementInternals`.
+1. **Native form participation.** A component that deliberately renders
+   real controls into Light DOM so the browser includes them in the parent
+   `<form>`.
 2. **Host-level CSS that the document must address by tag name**
    (rare; usually solved by passing class attributes instead).
 
@@ -107,7 +107,7 @@ For both, declare `{ shadow: false }`:
 ```ts
 component(
   "x-custom-input",
-  () => () => html`<input name="email" />`,
+  () => html`<input name="email" />`,
   { shadow: false, styles: css`x-custom-input input { width: 100%; }` },
 );
 ```
@@ -149,7 +149,7 @@ to produce. Avoid them.
 // ❌ Don't
 component(
   "x-home-page",
-  () => () => html`<h1>Home</h1><p>...</p>`,
+  () => html`<h1>Home</h1><p>...</p>`,
 );
 
 // ✅ Do

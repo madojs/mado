@@ -49,6 +49,8 @@ Rules:
   matching resource, including resources without a completed cache entry.
 - `resource()` inside a `component()` / `page()` cleans itself up
   when the host leaves the DOM.
+- A standalone resource has no implicit owner. Call its idempotent
+  `dispose()` when the integration or application shell shuts down.
 
 ## `mutation()`
 

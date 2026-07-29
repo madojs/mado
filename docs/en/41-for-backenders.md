@@ -92,7 +92,10 @@ Path parameters are available in `params` — just like `chi.URLParam`.
 
 ## Signals — a reactive variable
 
-If you've written Erlang/Elixir with `Agent`, or Rust with `Arc<Mutex<T>>`, or simply stored state in a struct and updated it — `signal` is the same thing, plus **automatic re-rendering** of the components that read that state.
+If you've written Erlang/Elixir with `Agent`, or Rust with `Arc<Mutex<T>>`, or
+simply stored state in a struct and updated it, a `signal` is the same kind of
+state holder plus subscriptions. Passing a signal (or a getter that reads it)
+to a template slot makes that slot update automatically.
 
 ```ts
 import { signal, effect } from "@madojs/mado";
@@ -177,7 +180,7 @@ import { component, html, signal } from "@madojs/mado";
 component("x-counter", () => {
   const count = signal(0);
 
-  return () => html`
+  return html`
     <button @click=${() => count.update((n) => n + 1)}>Clicks: ${count}</button>
   `;
 });
@@ -249,13 +252,13 @@ const ApiCtx = createContext<ApiClient>(defaultApiClient);
 // in the root component — provide
 component("x-app", ({ host }) => {
   provide(host, ApiCtx, new ApiClient("https://api.example.com"));
-  return () => html`<x-page />`;
+  return html`<x-page />`;
 });
 
 // in any child — consume
 component("x-page", ({ host }) => {
   const api = inject(host, ApiCtx); // signal<ApiClient>
-  return () => html`<div>API version: ${() => api().version}</div>`;
+  return html`<div>API version: ${() => api().version}</div>`;
 });
 ```
 
@@ -430,7 +433,8 @@ Everything else — standard browser + TypeScript.
 
 ## What's missing (honestly)
 
-- The built-in overlay covers runtime inspection; a browser extension remains post-v1 work.
+- The built-in overlay covers runtime inspection; a browser extension remains
+  an evidence-driven backlog item rather than a release promise.
 - No StackBlitz starters (yet).
 - No AI assistant that knows Mado as well as React. When in doubt — read `src/`, it's not scary.
 

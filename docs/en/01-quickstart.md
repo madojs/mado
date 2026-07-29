@@ -7,8 +7,9 @@
 
 ## 1. Scaffold
 
-Mado 0.12 ships with two starters: the **universal** starter (default) and
-the **modular** reference architecture.
+Mado ships with a small **universal** starter by default. A larger
+**modular** starter remains available as an optional architecture experiment,
+not as a requirement for production applications.
 
 ```bash
 # Universal starter (default) — ~15 files, one shared component
@@ -88,7 +89,7 @@ export default routes(manifest);
 ```
 
 Always export both `default` (for the router) and `manifest` (so
-`mado static` can discover bakeable pages).
+`mado static` can discover pages that opt into static capture).
 
 Internal links must be base-aware:
 
@@ -180,4 +181,4 @@ they just won't be syntax-highlighted as HTML.
 - [13 — Data](./13-data.md) — `resource()` / `mutation()` / auth.
 - [14 — Forms](./14-forms.md) — `useForm()` + Shadow DOM input recipes.
 - [15 — Static snapshots](./15-static-snapshots.md) — SEO without SSR.
-- [16 — App architecture](./16-app-architecture.md) — the modular starter, ESLint boundaries.
+- [16 — App architecture](./16-app-architecture.md) — start flat, then evaluate optional module boundaries.

@@ -4,7 +4,8 @@
 > generating Mado code, and a practical zero-history test you can hand to a
 > fresh model.
 
-Current stable release: **0.12.0**.
+Mado is pre-1.0. Read the current version from the project's `package.json`;
+do not infer contracts from an older model snapshot.
 
 This document is for **two audiences**:
 
@@ -34,7 +35,7 @@ html`<div>Count: ${count() * 2}</div>`;
 
 // ✅ Correct — getter function
 html`<div>Count: ${() => count() * 2}</div>`;
-// → Mado wraps this in an effect() and re-renders when count changes.
+// → Mado wraps this slot in an effect() and updates only the slot.
 
 // ✅ Also correct — the signal itself is a function
 html`<div>Count: ${count}</div>`;
@@ -92,7 +93,7 @@ import { component, signal, effect, html } from "@madojs/mado";
 component("x-counter", () => {
   const count = signal(0);
   effect(() => console.log(count()));  // auto-subscribes, auto-disposed
-  return () => html`
+  return html`
     <button @click=${() => count.update(c => c + 1)}>${count}</button>
   `;
 });
@@ -119,14 +120,14 @@ component("x-timer", () => {
     const id = setInterval(..., 1000);
     return () => clearInterval(id);  // runs before next effect re-run
   });
-  return () => html`...`;
+  return html`...`;
 });
 
 // ✅ Use ctx.onDispose for unmount
 component("x-timer", (ctx) => {
   const id = setInterval(..., 1000);
   ctx.onDispose(() => clearInterval(id));
-  return () => html`...`;
+  return html`...`;
 });
 ```
 
@@ -156,7 +157,7 @@ import { component, html, signal } from "@madojs/mado";
 
 component("x-counter", () => {
   const count = signal(0);
-  return () => html`<button @click=${() => count.update(n => n + 1)}>${count}</button>`;
+  return html`<button @click=${() => count.update(n => n + 1)}>${count}</button>`;
 });
 ```
 
@@ -235,12 +236,12 @@ inject(ApiCtx);
 // ✅ First argument is the host (the current component)
 component("x-app", ({ host }) => {
   provide(host, ApiCtx, myApi);
-  return () => html`...`;
+  return html`...`;
 });
 
 component("x-child", ({ host }) => {
   const api = inject(host, ApiCtx);   // Signal<value>
-  return () => html`...`;
+  return html`...`;
 });
 ```
 
@@ -312,7 +313,7 @@ of the shadow root via `{ shadow: false }`:
 // Light-DOM screen — Tailwind classes apply
 component(
   "x-admin-page",
-  () => () => html`
+  () => html`
     <section class="bg-white shadow-lg rounded-lg p-4">...</section>
   `,
   { shadow: false },
@@ -320,7 +321,7 @@ component(
 
 // Shadow-DOM component (default) — Tailwind does NOT reach inside.
 // Style with css`` and customize from outside via ::part() / CSS variables.
-component("x-button", () => () => html`<button><slot></slot></button>`, {
+component("x-button", () => html`<button><slot></slot></button>`, {
   styles: css`
     button {
       background: var(--button-bg, #2563eb);
@@ -381,7 +382,7 @@ page({
 // ✅ Move it into a component with css``
 component(
   "x-admin-panel",
-  () => () => html`<section class="panel">...</section>`,
+  () => html`<section class="panel">...</section>`,
   {
     styles: css`.panel { padding: 1rem; }`,
   },
@@ -417,21 +418,25 @@ code works at `/` or under a base path (`/docs/`).
 
 ---
 
-### Pitfall #17: `resource()` outside component setup
+### Pitfall #17: standalone `resource()` without an owner
 
 **Symptom:** AI creates a resource in module scope to "reuse" data
-between pages. No lifecycle cleanup, dev warning fires.
+between pages, but never disposes its key effect and invalidation listener.
 
 ```ts
-// ❌ No cleanup; will emit a dev warning
+// ❌ No lifecycle owner and no explicit cleanup
 const tickets = resource(
   () => "tickets",
   () => api.listTickets(),
 );
 
 component("x-tickets", () => {
-  return () => html`${() => tickets.data()?.length ?? 0}`;
+  return html`${() => tickets.data()?.length ?? 0}`;
 });
+
+// An integration-owned standalone resource is valid only when its owner
+// exposes and eventually invokes teardown:
+export const disposeTicketsIntegration = () => tickets.dispose();
 
 // ✅ Inside the component setup
 component("x-tickets", () => {
@@ -439,12 +444,14 @@ component("x-tickets", () => {
     () => "tickets",
     () => api.listTickets(),
   );
-  return () => html`${() => tickets.data()?.length ?? 0}`;
+  return html`${() => tickets.data()?.length ?? 0}`;
 });
 ```
 
 This way invalidation subscriptions, abort controllers and effects are
-disposed when the component disconnects.
+disposed when the component disconnects. A resource intentionally owned by an
+application integration may stay standalone, but that integration must call
+its idempotent `dispose()`.
 
 ---
 
@@ -476,7 +483,7 @@ code.
 // ❌ .page-head is global, but x-dashboard defaults to Shadow DOM
 component(
   "x-dashboard",
-  () => () => html`
+  () => html`
     <header class="page-head">...</header>
     <div class="metric-grid">...</div>
   `,
@@ -485,7 +492,7 @@ component(
 // ✅ Page/layout/admin-shell components are typically Light DOM
 component(
   "x-dashboard",
-  () => () => html`
+  () => html`
     <header class="page-head">...</header>
     <div class="metric-grid">...</div>
   `,
@@ -504,8 +511,8 @@ projects children in Shadow DOM. See
 ### Pitfall #20: `host.getAttribute()` in render = not reactive
 
 ```ts
-// ❌ Read once per render; external attribute changes don't re-render
-component("x-badge", ({ host }) => () => {
+// ❌ Read once during setup; external attribute changes do not update it
+component("x-badge", ({ host }) => {
   const variant = host.getAttribute("variant") ?? "default";
   return html`<span class=${variant}>...</span>`;
 });
@@ -514,7 +521,7 @@ component("x-badge", ({ host }) => () => {
 //    attributeChangedCallback
 component("x-badge", ({ attr }) => {
   const variant = attr("variant", "default");
-  return () => html`<span class=${() => `badge-${variant()}`}>...</span>`;
+  return html`<span class=${() => `badge-${variant()}`}>...</span>`;
 });
 ```
 
@@ -530,29 +537,17 @@ algorithm for a `<form>` in Light DOM — this is a spec limitation, not
 a Mado bug.
 
 ```ts
-// ❌ Inner <button type="submit"> can't trigger the parent <form>
-component("x-button", () => () => html`<button type="submit"><slot></slot></button>`);
+// ❌ Inner <button type="submit"> cannot submit the parent Light-DOM form
+component("x-button", () =>
+  html`<button type="submit"><slot></slot></button>`);
 
-// ✅ Bridge via requestSubmit()
-component("x-button", ({ host, attr }) => {
-  const disabled = attr("disabled");
-
-  const handleClick = () => {
-    const typeAttr = host.getAttribute("type");
-    if (typeAttr === "button" || typeAttr === "reset") return;
-    const form = host.closest("form");
-    if (form && !host.hasAttribute("disabled")) form.requestSubmit();
-  };
-
-  return () => html`
-    <button ?disabled=${() => disabled() !== ""} @click=${handleClick}>
-      <slot></slot>
-    </button>
-  `;
-});
+// ✅ Keep form semantics native; style the real control
+html`<button class="button" type="submit">Save</button>`;
 ```
 
-See [14-forms.md](./14-forms.md) for the full Shadow-DOM-input recipes.
+Do not recreate native form ownership in a visual button component. Use a
+Light-DOM component only when the component genuinely needs to render native
+controls into the parent form.
 
 ---
 
@@ -567,7 +562,7 @@ silently sees `undefined`.
 // ❌ Missing proxy properties
 component("x-input", ({ attr }) => {
   const name = attr("name", "");
-  return () => html`<input name=${name} />`;
+  return html`<input name=${name} />`;
 });
 
 // ✅ Proxy name + value back to the host
@@ -583,7 +578,7 @@ component("x-input", ({ host, attr }) => {
     configurable: true,
   });
 
-  return () => html`<input name=${name} />`;
+  return html`<input name=${name} />`;
 });
 ```
 
@@ -591,61 +586,41 @@ Again, full pattern in [14-forms.md](./14-forms.md).
 
 ---
 
-### Pitfall #23: signal reads in async functions called from `view()`
+### Pitfall #23: expecting a direct signal read to stay reactive
 
-**Symptom:** `[mado] effect cycle detected: subscriber re-ran more than
-100 times in one flush.`
+**Symptom:** a value renders once and then never changes.
 
-The router calls `page.view()` inside a reactive effect. Any signal
-read **synchronously** during `view()` subscribes that render effect.
-If the same signal is then written (e.g. `loading.set(true)`), the
-router re-runs `view()`, which reads again → infinite loop.
+Page views and component setup are deliberately outside reactive tracking.
+They build one template for the active lifecycle. Reactivity belongs to the
+template slots, not to the function that created the template.
 
 ```ts
-// ❌ INFINITE LOOP — loadMore reads signals inside the router's effect
+// ❌ Snapshot: count() is evaluated once while the view is created
 export default page({
   view: () => {
-    const cursor = signal<string | null>("start");
-    const loading = signal(false);
-
-    const loadMore = async () => {
-      if (cursor() === null || loading()) return; // ← subscribes render effect!
-      loading.set(true);                          // ← re-triggers render → ∞
-      // ...
-    };
-
-    loadMore(); // called synchronously during view()
-    return html`...`;
+    const count = signal(0);
+    return html`<output>${count()}</output>`;
   },
 });
 
-// ✅ Wrap synchronous signal reads in untracked()
-import { untracked } from "@madojs/mado";
-
+// ✅ Pass the signal itself, or use a getter for an expression
 export default page({
   view: () => {
-    const cursor = signal<string | null>("start");
-    const loading = signal(false);
-
-    const loadMore = async () => {
-      const c = untracked(() => cursor());
-      if (c === null || untracked(() => loading())) return;
-      loading.set(true);
-      // ...
-    };
-
-    loadMore();
-    return html`...`;
+    const count = signal(0);
+    return html`
+      <button @click=${() => count.update((value) => value + 1)}>
+        Count: ${count}
+      </button>
+      <output>Double: ${() => count() * 2}</output>
+    `;
   },
 });
 ```
 
-Rule: any function that reads signals **and** is called synchronously
-during `view()` must use `untracked()` for those reads. This includes
-data fetching, IntersectionObserver callbacks set up during init, and
-timer/polling setup. Signals read inside the **returned template**
-(`html\`...\``) are fine — they sit inside a child binding `${() =>
-...}` that creates its own effect.
+Initialization code may read signals normally without subscribing the router
+or causing a whole-view re-render. `untracked()` remains an advanced tool for
+reading a signal inside your own `effect()` without making it a dependency;
+it is not required merely because code runs during `view()`.
 
 ---
 
@@ -709,7 +684,7 @@ automatically on navigation. Only raw browser APIs need explicit
 | `host.getAttribute('x')` in render    | `ctx.attr('x', default)` (reactive)          |
 | `jsonFetcher()` with auth             | `apiFetcher()` (attaches Bearer token)       |
 | `setInterval` in page view            | `onDispose(() => clearInterval(id))`         |
-| signal read in `view()` async init    | `untracked(() => cursor())`                  |
+| reactive expression in a template    | `${() => expression}`                        |
 | Internal `<a href>` in components     | `<a data-link href=${routeUrl("/x")}>`       |
 | SSR / hydration                       | `mado static` (snapshot + atomic takeover)   |
 

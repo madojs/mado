@@ -1,8 +1,12 @@
 # App architecture
 
-The official starter is the canonical production shape for Mado apps. It is
-not a demo architecture and not a framework inside the framework: it is plain
-files, imports, Mado primitives, and ESLint boundaries.
+The default starter is the canonical minimum for a Mado app: plain files,
+imports and Mado primitives. It deliberately does not prescribe backend-style
+layers or a domain-module system before the application needs them.
+
+Start with the universal shape below. The later modular section records an
+optional scaling experiment, not a framework contract and not the default
+answer for generated applications.
 
 ## Project layout (universal starter)
 
@@ -55,7 +59,12 @@ One-liner: develop with `mado dev`, ship with `mado release`, upload `out/`.
 - ❌ Tests mixed with code — put them in `test/`.
 - ❌ `examples/` folder — keep large demos outside the app repo.
 
-## File tree (modular reference starter)
+## Optional experiment: modular reference starter
+
+The modular starter demonstrates one possible shape for a larger business
+frontend with several guarded zones and a shared API policy. Adopt only the
+parts that solve a problem already present in the application. A small app
+does not need `modules/`, connectors, public barrels or ESLint boundaries.
 
 ```txt
 src/
@@ -89,7 +98,7 @@ src/
         └── _contracts/
 ```
 
-## The App Map
+### Modular app map
 
 `src/app.routes.ts` is the whole application map. Modules export plain route
 maps; app routes decide which shell and guard wrap each zone.
@@ -119,13 +128,13 @@ export default routes(manifest);
 
 Rules:
 
-- Export `manifest` so `mado static` can discover bakeable pages.
+- Export `manifest` so `mado static` can discover pages that opt into capture.
 - Modules never call `layout()`.
 - Layouts describe app zones, not domains.
 - Do not hide the router inside a custom element or a second shell in
   `main.ts`.
 
-## File Forms
+### Optional file forms
 
 The suffix tells you the shape:
 
@@ -145,7 +154,7 @@ The suffix tells you the shape:
 Page-local signals, resources and forms live inside `view()`. Module-wide
 state lives in `*.service.ts`.
 
-## Data Flow
+### Optional layered data flow
 
 ```txt
 shared/http/http-client.ts
@@ -160,7 +169,7 @@ modules/<x>/pages/*.page.ts         UI consumes domain types
 Connectors talk to the wire and return domain types. Resources own cache keys
 and invalidation. Pages render and call resources/mutations.
 
-## Module Boundaries
+### Optional module boundaries
 
 Each module is opaque except for `<module>.public.ts`. Other modules import
 through that file or not at all. DTOs live under `_contracts/` and stay private

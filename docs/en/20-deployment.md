@@ -32,7 +32,7 @@ mado preview      # http://localhost:4173 — serves out/ exactly as a static ho
 ```
 
 `mado preview` serves the final `out/` directory like a static host: it picks
-`.br` over `.gz` over raw, serves promoted baked HTML when a route has an
+`.br` over `.gz` over raw, serves captured snapshot HTML when a route has an
 `index.html`, and falls back to `index.html` for unknown SPA paths.
 
 ---
@@ -242,7 +242,7 @@ On the production host:
 - **nginx** — keep `try_files $uri $uri/ /_mado/spa.html;` but mount the
   app under the matching prefix (`location /docs/ { ... }`).
 - **Cloudflare Pages / Netlify** — `_redirects` is generated with the
-  base prefix already baked in.
+  base prefix already emitted in the captured document.
 - **GitHub Pages (project site)** — set `base: "/<repo>/"` and use
   the `gh-pages` deploy path; canonical URLs land at
   `https://<user>.github.io/<repo>/...`.

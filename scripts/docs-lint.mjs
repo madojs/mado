@@ -84,7 +84,7 @@ const FORBIDDEN = [
   { pattern: /\b10-app-architecture\.md\b/, replacement: "16-app-architecture.md" },
   { pattern: /\b13-deployment\.md\b/, replacement: "20-deployment.md" },
   { pattern: /\b16-bake-cookbook\.md\b/, replacement: "23-cookbook.md" },
-  { pattern: /\b18-api-freeze-map\.md\b/, replacement: "30-api-freeze-map.md" },
+  { pattern: /\b18-api-freeze-map\.md\b/, replacement: "30-api-surface.md" },
   { pattern: /\b19-reactivity-ordering\.md\b/, replacement: "31-reactivity-ordering.md" },
   { pattern: /\b20-v1-stability\.md\b/, replacement: "32-v1-stability.md" },
   { pattern: /\b07-llm-pitfalls\.md\b/, replacement: "40-llm-guide.md" },

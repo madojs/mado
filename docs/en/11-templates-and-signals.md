@@ -35,25 +35,24 @@ Rules of thumb:
 - A signal is a **function**: `count()`, not `count.value`.
 - `effect()` and `computed()` track every signal read **during their
   callback**. There is no dependency array.
-- `computed()` is lazy and de-duplicates: if its result is `Object.is`-
-  equal to the previous one, subscribers do not re-run.
-- `untracked(() => ...)` reads without subscribing. Use it inside
-  async callbacks created from a synchronous `view()` so the router's
-  render effect does not accidentally subscribe.
+- `computed()` is lazy. Dependency invalidation notifies subscribers by
+  default; pass `{ equals: Object.is }` when equal results should be
+  suppressed.
+- `untracked(() => ...)` reads without subscribing. Use it inside your own
+  `effect()` when a read must not become one of that effect's dependencies.
 - `batch(() => { a.set(...); b.set(...); })` flushes once after the
   callback returns. `flushSync()` flushes pending effects immediately.
 
 `effect()` cleanups run before the next run and on disposal. Inside a
 component or a page they happen automatically when the host leaves
-the DOM; outside, register the disposer through
-`getCurrentLifecycle()` or pass an explicit one to a
-`createLifecycle()` you own.
+the DOM. Outside, keep and call the disposer returned by `effect()`;
+standalone resources similarly expose `resource.dispose()`.
 
 ## Templates
 
 `html\`\`` parses once per template literal into a static fragment +
-binding indices, then patches only the changing slots on each
-re-render.
+binding indices, then patches only the changing slots when their inputs
+change.
 
 ```ts
 import { html } from "@madojs/mado";
@@ -69,7 +68,7 @@ Five binding shapes — and only these:
 | `attr=${v}`          | HTML attribute. String / number / falsy (`false`/`null`/`undefined` → remove). |
 | `.prop=${v}`         | DOM property. Use for `.value` of inputs, arrays, objects, numbers.     |
 | `?attr=${flag}`      | Boolean attribute. `true` → present, `false` → absent (`?disabled`).    |
-| `@event=${fn}`       | Event listener. Removed automatically on re-render.                     |
+| `@event=${fn}`       | Event listener. Stable until its handler changes or the template leaves. |
 
 ### The single most common mistake
 
@@ -113,7 +112,9 @@ works but is not keyed; avoid it for anything but throwaway lists.
 Inline helpers you import alongside `html`:
 
 - `unsafeHTML(string)` — interpolate trusted HTML.
-- `ref((el) => …)` — get a callback when the element mounts.
+- `ref((el) => …)` — run after the complete template is connected. An
+  unchanged callback stays attached across unrelated updates; a returned
+  cleanup runs before the matching `callback(null)` on removal.
 - `classMap({ active: isActive(), error: hasError() })` — toggle
   class names declaratively.
 - `styleMap({ color: theme().fg, "--bg": theme().bg })` — set
@@ -168,9 +169,10 @@ export default page({
 });
 ```
 
-A page's `view()` runs **once** when the route commits; the returned
-template stays mounted until the route changes. Every reactive slot
-re-evaluates independently — Mado never re-runs the whole view.
+A page's `view()` and a component's setup run **once** for their active
+lifecycle. The returned template stays mounted until the route or component
+leaves. Every reactive slot re-evaluates independently — Mado never re-runs
+the whole view.
 
 ## Lifecycle reads
 
@@ -181,7 +183,7 @@ component("x-timer", (ctx) => {
   const tick = signal(0);
   const id = setInterval(() => tick.update((n) => n + 1), 1000);
   ctx.onDispose(() => clearInterval(id));
-  return () => html`<span>${tick}</span>`;
+  return html`<span>${tick}</span>`;
 });
 ```
 
@@ -193,14 +195,15 @@ export default page({
   view: ({ onDispose }) => {
     const handler = () => { /* … */ };
     window.addEventListener("resize", handler);
-    onDispose?.(() => window.removeEventListener("resize", handler));
+    onDispose(() => window.removeEventListener("resize", handler));
     return html`<main>…</main>`;
   },
 });
 ```
 
-`resource()`, `effect()` and `mutation()` subscribe to the active
-lifecycle automatically — you do not write cleanup for them.
+`resource()` and `effect()` subscribe to the active lifecycle automatically.
+`mutation()` represents an explicit write that may legitimately finish after
+navigation; call `reset()` when the owner intentionally wants to abort it.
 
 ## Further reading
 

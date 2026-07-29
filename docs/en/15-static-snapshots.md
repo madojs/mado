@@ -1,7 +1,7 @@
 # Static snapshots (`mado static`)
 
 > Browser-rendered static HTML for SEO and first paint. No SSR, no
-> hydration, no template-language bake.
+> hydration, no separate static renderer.
 
 `mado static` is a *snapshot capture*: at release time Mado runs your
 app in a real headless Chromium, lets the page render to the DOM

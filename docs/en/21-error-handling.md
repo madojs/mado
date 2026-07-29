@@ -90,7 +90,7 @@ component("x-online", (ctx) => {
     window.removeEventListener("online", onChange);
     window.removeEventListener("offline", onChange);
   });
-  return () => html`${() => online() ? "Online" : "Offline"}`;
+  return html`${() => online() ? "Online" : "Offline"}`;
 });
 ```
 

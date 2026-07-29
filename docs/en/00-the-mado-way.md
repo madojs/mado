@@ -57,7 +57,7 @@ import { component, html, css } from "@madojs/mado";
 component(
   "x-user-card",
   () => {
-    return () => html`<div class="card"><slot /></div>`;
+    return html`<div class="card"><slot /></div>`;
   },
   {
     styles: css`

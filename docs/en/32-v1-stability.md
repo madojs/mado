@@ -8,7 +8,7 @@ copy, or diagnostic string is frozen forever.
 
 Read this together with:
 
-- [API freeze map](./30-api-freeze-map.md)
+- [API surface](./30-api-surface.md)
 - [Reactivity ordering](./31-reactivity-ordering.md)
 
 ## Stable under SemVer
@@ -64,10 +64,12 @@ Apps should not import internal files or assert exact bundle output.
 
 ## Bundle and release output
 
-Mado will keep a size budget and deterministic release tests, but v1 stability
-does not freeze byte-for-byte bundler output. Hashes, chunk boundaries and
-generated asset names may change as long as the documented deployment contract
-continues to work.
+Mado reports framework, starter and devtools bundle size on every release.
+During pre-v1 contract work this is evidence, not a pass/fail budget. A hard
+budget may return after representative applications establish an honest
+baseline. v1 stability does not freeze byte-for-byte bundler output: hashes,
+chunk boundaries and generated asset names may change as long as the
+documented deployment contract continues to work.
 
 ## If a release breaks you
 

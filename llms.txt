@@ -5,7 +5,9 @@
 > Browser-native source, Vite as the canonical development and delivery
 > transport, zero runtime dependencies.
 
-Current stable release: **0.12.0**.
+Mado is intentionally pre-1.0 while its contracts are dogfooded. Read
+`package.json` for the current package version; do not infer stability from an
+old roadmap or changelog entry.
 
 Mado deliberately rejects compilers (no JSX, no special template
 language), VDOM diffing, and SSR/hydration. Static documents are
@@ -108,7 +110,7 @@ import { mado } from "@madojs/mado/vite";
 ```
 
 Everything else under the package is internal and subject to change
-without notice (see `docs/en/30-api-freeze-map.md`).
+without notice (see `docs/en/30-api-surface.md`).
 
 `page.load` is synchronous: return a plain value or `Resource`, never a
 Promise. Async work belongs in `resource()` so navigation can commit or roll
@@ -188,7 +190,7 @@ component(
   "x-counter",
   () => {
     const n = signal(0);
-    return () => html`<button @click=${() => n.set(n() + 1)}>${n}</button>`;
+    return html`<button @click=${() => n.set(n() + 1)}>${n}</button>`;
   },
   {
     styles: css`
@@ -200,7 +202,8 @@ component(
 ```
 
 - Custom element names MUST include a hyphen.
-- Setup runs once per host; the returned function is the reactive view.
+- Setup runs once per host and returns one template. Reactive slots update
+  independently; setup itself is never re-run for state changes.
 - `ctx.attr("name", "default")` returns a `Signal<string>` that
   auto-updates on attribute changes.
 - `ctx.onDispose(fn)` registers cleanup for raw APIs (`setInterval`,
@@ -227,6 +230,8 @@ Cache identity is the key plus fetcher. `staleTime: 0` only de-dupes an
 in-flight request; positive values expire automatically. `mutation().run()` is concurrent by default;
 `{ abortPrevious: true }` keeps only the latest in flight.
 `invalidates` runs after a successful mutation and is best-effort.
+Page/component resources clean themselves up; an intentionally standalone
+resource must be released with its idempotent `dispose()`.
 
 ## Forms
 
@@ -288,11 +293,10 @@ export default page({
 - `mado init my-app` — universal starter (default). One Shadow Component
   shared between a static landing page and a live SPA route. Folders:
   `src/pages`, `src/components`, `src/content`.
-- `mado init my-app --starter modular` — long-lived reference
-  architecture: auth shell, guarded zones, billing module, HTTP client,
-  module boundaries. Folders: `src/modules/<name>/`, `src/layouts/`,
-  `src/shared/`. A dev-only mock API is mounted from
-  `vite.config.ts`; disable with `MADO_MOCK_API=0`.
+- `mado init my-app --starter modular` — optional architecture experiment for
+  evaluating guarded zones and explicit module boundaries in a larger
+  frontend. It is not the default shape and its layers should not be copied
+  into a small application pre-emptively.
 
 ## Documentation
 
@@ -311,7 +315,7 @@ Highlights:
 - `docs/en/16-app-architecture.md`    — canonical app layout
 - `docs/en/20-deployment.md`          — deployment recipes (including base)
 - `docs/en/23-cookbook.md`            — static snapshots cookbook
-- `docs/en/30-api-freeze-map.md`      — stable public API vs internal
+- `docs/en/30-api-surface.md`         — candidate public API vs internal
 - `docs/en/40-llm-guide.md`           — LLM pitfalls and zero-history test
 
 The repository is English-only. Older `docs/fr`, `docs/uk`, `docs/ru`

@@ -37,6 +37,11 @@ const stop = effect(() => {
 stop();
 ```
 
+An initial effect failure is synchronous and leaves no subscription behind.
+After the effect has completed at least once, a failed run is reported but
+keeps the dependencies read by that run. A later valid value can therefore
+wake and recover the effect instead of silently leaving a dead UI slot.
+
 In components and pages, prefer `ctx.onDispose()` / page `onDispose()` for
 unmount cleanup. Effect cleanup is per-run cleanup.
 
@@ -67,6 +72,12 @@ different template strings rebuild that branch.
 This means unrelated signal changes do not recreate an `<input>` inside a
 stable nested template, so focus, DOM state and listeners survive.
 
+Bindings keep independent state. Refs commit only after the complete template
+is connected and remain stable across unrelated slot updates. If binding or
+ref work throws, Mado cleans up the failed work and restores the last
+successful tree; cleanup continues across all owned nodes even when one user
+cleanup also throws.
+
 Lists should use `each(items, key, renderItem)`. Keys define DOM identity.
 Duplicate keys warn in development and fall back to a positional suffix so every
 item still renders, but duplicate keys are a data bug.
@@ -87,7 +98,8 @@ shape, or internal module layout. Those are implementation details.
 
 The invariant tests for this contract live in:
 
-- `test/reactivity-ordering.test.mjs`
-- `test/signal-batch-equals.test.mjs`
-- `test/update-nested-reuse.test.mjs`
-- `test/each-component-state.test.mjs`
+- `test/runtime/reactivity-ordering.test.mjs`
+- `test/runtime/signal-batch-equals.test.mjs`
+- `test/html/update-nested-reuse.test.mjs`
+- `test/runtime/each-component-state.test.mjs`
+- `test/html/template-commit.test.mjs`

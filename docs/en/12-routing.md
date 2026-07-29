@@ -192,6 +192,26 @@ navigate("/users/42");
 Both accept route paths (no base prefix). The active base is
 re-applied internally before `history.pushState`.
 
+## Ownership and teardown
+
+The current page lifecycle belongs to the `TemplateResult` mounted by the
+router. Navigation, a failed template commit, replacement and
+`unmount(root)` all release page effects, resources and `onDispose`
+callbacks. Same-template navigation transfers that ownership to the newest
+page render instead of keeping a stale lifecycle.
+
+`unmount(root)` does not remove the router's document-level navigation
+listeners. When an entire router instance is retired—most commonly in a test
+or during hot replacement—also call its idempotent `dispose()` method:
+
+```ts
+unmount(app);
+appRoutes.dispose();
+```
+
+An application router that lives for the lifetime of the document normally
+does not need an earlier manual `dispose()`.
+
 ## Query parameters
 
 ```ts
@@ -205,7 +225,7 @@ page.set(null);                // delete the parameter
 ```
 
 `queryParam()` returns a `Signal<string>`. Reading inside a
-template subscribes; updating triggers a re-render.
+template slot subscribes; updating patches that slot.
 
 ## Prefetch
 

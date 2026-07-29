@@ -1,9 +1,12 @@
-# TODO
+# Evidence backlog
 
-Short post-v1 backlog. The active release sequence lives in
-[`docs/architecture/v1-roadmap.md`](./docs/architecture/v1-roadmap.md).
+This is not a release schedule. The current decision process lives in the
+[maturity roadmap](./docs/architecture/maturity-roadmap.md): features remain
+candidates until real frontend use proves that they simplify Mado.
 
-- Dogfood 0.13 on a content site and an authenticated modular app.
+- Dogfood 0.14 in Mado UI and in the rewritten Mado site.
+- Decide whether the modular starter earns its maintenance cost in a real
+  long-lived application; otherwise keep only its useful conventions in docs.
 - Browser extension backed by the existing versioned devtools hook.
 - Typed navigation inferred from route patterns.
 - Incremental static snapshot cache after a real large site needs it.

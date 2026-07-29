@@ -1,9 +1,10 @@
-# API freeze map
+# API surface
 
-> What is public, what is internal, and what SemVer will protect at v1.
+> What applications may import today, what remains internal, and what may
+> still change before v1.
 
-Mado's v1 contract is intentionally small. Import application code from the
-package root:
+Mado's candidate public contract is intentionally small. Import application
+code from the package root:
 
 ```ts
 import { component, html, resource, routes, signal } from "@madojs/mado";
@@ -20,9 +21,11 @@ import { mado } from "@madojs/mado/vite";
 Everything else under `dist/src/` is an implementation detail, even when it is
 visible in the repository.
 
-## Stable public API
+## Candidate public API
 
-These names are public and protected by SemVer once v1 ships:
+These names are supported application-facing imports today. They remain open
+to evidence-driven breaking changes while Mado is pre-1.0; once v1 ships they
+become SemVer-protected:
 
 - Reactivity: `signal`, `computed`, `effect`, `untracked`, `batch`,
   `flushSync`.
@@ -65,9 +68,16 @@ Application code should not.
 
 ## What can change
 
-Patch and minor releases may add compatible options, diagnostics, docs or
-starter files. New root exports require an explicit API review. Releases may change internals, emitted bundle shape, and
-implementation details as long as the stable API and documented behavior remain
-compatible.
+Before v1, a minor release may remove or reshape a public contract when
+dogfooding shows that it is surprising, redundant or pushes application code
+away from the browser platform. Such changes require focused regression tests,
+an explicit migration note and updates to starters, docs and Mado UI in the
+same development stage.
 
-Breaking changes to the stable API require a major version.
+Patch releases remain compatible bug-fix releases. New root exports still
+require an explicit API review: pre-1.0 freedom is not permission to grow the
+surface casually.
+
+After v1, documented public behavior follows the stability contract and
+SemVer. Internal modules, emitted bundle shape and implementation details may
+continue to change without notice.

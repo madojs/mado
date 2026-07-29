@@ -1,25 +1,30 @@
 # Pages and Components
 
-> Mado has exactly two primitives. You decide which one to use by
-> looking at the URL bar, not at the DOM tree.
+> Mado has exactly two framework primitives: `page()` and `component()`.
+> The design decision has three outcomes: a URL-owned document is a page,
+> an autonomous custom-element boundary is a component, and everything else
+> stays native markup or a plain `html` helper.
 
 This is the document that removes the most common Mado design
 question. By the end of it you should never again have to think
 "should this be a page or a component?", "should this be Shadow DOM
-or Light DOM?", or "how do I share styles across components?". You
-just write the thing.
+or Light DOM?", "does this need a Mado primitive at all?", or "how do I
+share styles across components?". You just write the thing.
 
 ---
 
-## The one rule
+## The decision
 
-| If the unit is…                                          | Use         |
-| -------------------------------------------------------- | ----------- |
-| Something the URL points to (a route, a layout, a 404)   | `page()`    |
-| Something you would copy-paste under multiple URLs       | `component()` |
+| If the unit is…                                        | Use                                      |
+| ------------------------------------------------------ | ---------------------------------------- |
+| A URL-owned document (a route, a layout, a 404)        | `page()`                                 |
+| An autonomous reusable custom-element boundary         | `component()`                            |
+| Neither of the above                                   | Native markup or a plain `html` helper   |
 
-That's it. Pages are the URLs your app exposes. Components are
-re-usable Web Components.
+That's it. Mado still has only two framework primitives: the third outcome is
+ordinary application code. Pages are the documents your URLs expose.
+Components are reusable Web Components. Repeated markup does not automatically
+require a component.
 
 A page can render any number of components. A component can never
 participate in routing. Pages live in `src/pages/` (universal
@@ -72,6 +77,40 @@ component(
 Same signals. Same `html\`\`` templates. Same lifecycle. Same data
 model (`resource()`, `mutation()`, `useForm()`, `effect()`). The
 only thing that changes is *where* the DOM lives.
+
+---
+
+## Native markup and open-code recipes
+
+Not every reusable UI pattern needs a custom element. When native semantics,
+form participation or document-level CSS should remain visible, keep the
+markup in the page or a plain template helper:
+
+```ts
+import { html, type TemplateResult } from "@madojs/mado";
+
+export function disclosure(
+  label: string,
+  content: TemplateResult,
+): TemplateResult {
+  return html`
+    <details class="disclosure">
+      <summary>${label}</summary>
+      <div class="disclosure-content">${content}</div>
+    </details>
+  `;
+}
+```
+
+The browser owns the disclosure state, keyboard interaction and accessibility
+semantics. Its class rules live in a global stylesheet imported by `main.ts`.
+A copied UI recipe may likewise combine semantic HTML, an open-code CSS file
+and, only when the platform behavior is insufficient, a small binding or
+`ref()` helper. This remains ordinary application code, not a third Mado
+primitive.
+
+Use `component()` when the unit benefits from an autonomous custom-element
+identity, lifecycle and Shadow DOM boundary.
 
 ---
 
@@ -129,12 +168,14 @@ Page-shaped wrappers (layouts, route shells) are written with
 | A dynamic SEO page (`/product/:slug`)         | `page({ static: { paths, initialData } })`    |
 | An app screen behind auth                     | `page({ view })` (no `static`)                |
 | A shared shell that wraps several pages       | `page({ view: ({ child }) => html\`...\` })`  |
-| A reusable button / badge / card / modal     | `component("x-foo", setup, { styles })`       |
+| A native UI recipe (button, card, dialog)    | semantic markup, CSS or an `html` helper      |
+| An autonomous encapsulated widget            | `component("x-foo", setup, { styles })`       |
 | A custom form input                          | `component("x-input", setup, { shadow: false })` |
 | A small inline render helper (no state)       | a plain `(arg) => html\`...\`` function      |
 
-When in doubt, ask: **does this thing have a URL?** Yes → page.
-No → component.
+When in doubt: a URL-owned document is a page; an autonomous reusable DOM
+boundary is a component; everything else can stay native markup or a plain
+template helper.
 
 ---
 

@@ -235,7 +235,7 @@ import { html, page } from "@madojs/mado";
 // No `static` field — SPA only.
 export default page({
   title: "App",
-  view: () => html`<x-app-shell></x-app-shell>`,
+  view: () => html`<main><h1>Application</h1></main>`,
 });
 ```
 

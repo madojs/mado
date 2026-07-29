@@ -42,8 +42,9 @@ After the effect has completed at least once, a failed run is reported but
 keeps the dependencies read by that run. A later valid value can therefore
 wake and recover the effect instead of silently leaving a dead UI slot.
 
-In components and pages, prefer `ctx.onDispose()` / page `onDispose()` for
-unmount cleanup. Effect cleanup is per-run cleanup.
+In components and pages, use `ctx.onDispose()` / page `onDispose()` for a
+one-shot non-reactive resource. Effect cleanup belongs to work reacquired by
+each effect run; it runs before the next run and again on final disposal.
 
 ## Batch
 

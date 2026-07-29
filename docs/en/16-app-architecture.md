@@ -10,26 +10,32 @@ answer for generated applications.
 
 ## Project layout (universal starter)
 
-Both starters share the same top-level shape. The universal starter is the
-minimum:
+The default universal starter is the canonical minimum:
 
 ```
 my-app/
 ├── package.json              # exactly one runtime dep: @madojs/mado
 ├── tsconfig.json             # strict TS, ES2022, Bundler resolution
+├── tsconfig.node.json        # Vite config type checking
 ├── vite.config.ts            # mado() from @madojs/mado/vite
 ├── index.html                # Vite entry + SPA shell
-├── public/                   # static assets (favicons, images, robots.txt)
 └── src/
     ├── main.ts               # entry: mount router into #app
     ├── app.routes.ts         # one app map (default + named `manifest`)
-    ├── pages/                # *.page.ts files
-    ├── components/           # reusable <x-tag> components
-    └── shared/               # http/, lib/, styles/, ui/
+    ├── pages/                # route-level *.page.ts files
+    ├── components/           # reusable custom elements
+    ├── content/              # browser-safe content modules
+    └── styles/               # tokens, reset and light-DOM document CSS
 ```
 
 `index.html` belongs at the project root because Vite treats it as an entry
-template, not a static public file. Put only copy-as-is files in `public/`.
+template, not a static public file. Create `public/` only when the application
+has copy-as-is assets such as favicons, images or `robots.txt`.
+
+The modular starter targets the same runtime but intentionally has a different
+source tree: it adds `layouts/`, `modules/` and `shared/` for applications that
+already need those boundaries. Its optional shape is documented separately
+below; it is not the universal starter with a few empty folders filled in.
 
 ### The three artifact states
 
@@ -49,7 +55,7 @@ One-liner: develop with `mado dev`, ship with `mado release`, upload `out/`.
 | Component tag              | `x-` + kebab       | `<x-user-profile>`     |
 | Context                    | PascalCase + `Ctx` | `ThemeCtx`, `AuthCtx`  |
 | Signal                     | camelCase          | `userId`, `isLoggedIn` |
-| Page-internal element      | `x-<route>-page`   | `<x-posts-page>`       |
+| Route page module          | kebab + `.page.ts` | `posts.page.ts`        |
 
 ### What does NOT belong in `src/`
 
@@ -175,7 +181,7 @@ Each module is opaque except for `<module>.public.ts`. Other modules import
 through that file or not at all. DTOs live under `_contracts/` and stay private
 to the connector that understands that external system.
 
-The default starter enforces this with ESLint:
+The modular reference starter enforces these optional boundaries with ESLint:
 
 - no barrels (`index.ts`);
 - no `export *`;

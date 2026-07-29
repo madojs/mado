@@ -43,9 +43,9 @@ const view = html`<button @click=${fn}>${count}</button>`;
 const [count, setCount] = useState(0);
 useEffect(() => { ... }, [count]);
 
-// ❌ NO (this is Vue/Svelte)
+// ❌ NO (this is Vue/Svelte reactivity)
 let count = $state(0);
-const ref = ref(0);
+const vueCount = Vue.ref(0);
 
 // ✅ YES
 const count = signal(0);
@@ -222,9 +222,9 @@ or `<title>`. Keep SVG internals in one `<svg>...</svg>` template.
 // app.routes.ts — app manifest
 import { routes } from "@madojs/mado";
 export const manifest = {
-  "/": () => import("./modules/home/home.page.js"),
-  "/users/:id": () => import("./modules/users/pages/user.page.js"),
-  "*": () => import("./modules/home/not-found.page.js"),
+  "/": () => import("./pages/home.page"),
+  "/users/:id": () => import("./pages/user.page"),
+  "*": () => import("./pages/not-found.page"),
 };
 export default routes(manifest);
 
@@ -239,8 +239,8 @@ export default page<{ id: string }>({
 - Each page is a **separate file** with `export default page({...})`.
   Start under `src/pages/`; introduce feature folders only when the application
   has real domain boundaries.
-- Import via `() => import("./pages/foo.page.js")` — this enables code-splitting
-  via ESM.
+- Import pages with dynamic `import()` — this enables Vite code-splitting.
+  Extensionless local specifiers are valid in generated Mado apps.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
 - Layouts are declared in the route manifest via `layout()`. Treat
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared
@@ -337,6 +337,23 @@ Use `setField`, not a schema/field-array abstraction.
 
 ### 11. Styles — `css\`\`` + Shadow DOM by default
 
+Screens and layouts are `page()` definitions in the light DOM. Import their
+global stylesheet from the application entry:
+
+```ts
+// src/main.ts
+import "./styles/content.css";
+
+// src/pages/admin.page.ts
+import { html, page } from "@madojs/mado";
+
+export default page({
+  view: () => html`<main class="admin-screen">...</main>`,
+});
+```
+
+Autonomous widgets are Shadow DOM components and carry their own styles:
+
 ```ts
 import { component, css, html } from "@madojs/mado";
 
@@ -354,13 +371,12 @@ component("x-card", () => html`<div><slot></slot></div>`, {
     }
   `,
 });
-
-// Light DOM (without Shadow), global styles:
-component("x-shell", () => html`...`, {
-  shadow: false, // disables Shadow DOM
-  styles: css`x-shell header { ... }`, // selectors are written as usual
-});
 ```
+
+`{ shadow: false }` is a rare escape hatch for a custom element that must
+render native controls into a parent form or meet another host-level Light DOM
+requirement. Do not use it to build a route screen or to make global CSS reach
+a component.
 
 ### 12. Context (DI) — `createContext` / `provide` / `inject`
 
@@ -390,17 +406,26 @@ Custom elements are global after registration, but the browser never imports a
 component file automatically.
 
 ```ts
-import "./components/app-shell.js";
+// src/pages/dashboard.page.ts
+import { html, page } from "@madojs/mado";
+import "../components/status-badge.component";
 
-render(html`<x-app-shell>${router.view}</x-app-shell>`, app);
+export default page({
+  view: () => html`<x-status-badge>Ready</x-status-badge>`,
+});
 ```
 
-The import runs `customElements.define("x-app-shell", ...)`. After that,
-`<x-app-shell>` works anywhere in the current document.
+The import runs `customElements.define("x-status-badge", ...)`. After that,
+pages and layouts may render `<x-status-badge>` anywhere in the current
+document.
 
 Rules:
 
-- App shell / global providers → import in `main.ts`.
+- Visual route chrome → implement as a `page()` layout with `{ child }` and
+  wire it through `layout()` in the route manifest, not a slotted app-shell
+  custom element.
+- Non-visual global provider components, when genuinely needed → import in
+  `main.ts`.
 - Components used only by one page → import in that page.
 - Components shared by a feature → import in the feature entry/page.
 - Tiny leaf components used everywhere → importing in `main.ts` is acceptable.

@@ -295,6 +295,44 @@ test("a ref commit error removes the new tree and rolls back prior refs", () => 
   root.remove();
 });
 
+test("a ref directive can reconnect after its failed commit rolls back closure state", () => {
+  const root = connectedRoot();
+  const calls = [];
+  let retainedElement = null;
+  let rejectNextAttach = true;
+  const directive = ref((element) => {
+    if (!element) {
+      calls.push("detach");
+      retainedElement = null;
+      return;
+    }
+
+    calls.push("attach");
+    retainedElement = element;
+    if (rejectNextAttach) {
+      rejectNextAttach = false;
+      throw new Error("reject first attach");
+    }
+  });
+  const view = () => html`<button ref=${directive}>ready</button>`;
+
+  assert.throws(() => render(view(), root), /reject first attach/);
+  assert.equal(root.childNodes.length, 0, "the failed tree is removed");
+  assert.equal(retainedElement, null, "the null branch restores closure state");
+  assert.deepEqual(calls, ["attach", "detach"]);
+
+  render(view(), root);
+  const button = root.querySelector("button");
+  assert.ok(button?.isConnected);
+  assert.equal(button.textContent, "ready");
+  assert.equal(retainedElement, button);
+  assert.deepEqual(calls, ["attach", "detach", "attach"]);
+
+  removeRoot(root);
+  assert.equal(retainedElement, null);
+  assert.deepEqual(calls, ["attach", "detach", "attach", "detach"]);
+});
+
 test("a failed different-template replacement preserves the mounted owner", () => {
   const root = connectedRoot();
   const calls = [];

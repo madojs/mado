@@ -40,6 +40,11 @@ node reconciliation.
   advanced escape hatch when a custom element MUST live in the light
   DOM (e.g. to participate in a parent form). Pages are never built
   with `component()` and components never participate in routing.
+- **A reusable recipe does not always need a component.** Native semantic
+  markup in a page, a global/open-code CSS file and a small template or
+  `ref()` binding helper are valid when no autonomous custom-element boundary
+  is useful. This is ordinary application code, not a third framework
+  primitive.
 <!-- docs-lint:allow-legacy-mention -->
 - **A compatible Chromium is required at release time.** `mado static`
   spawns Playwright (`playwright-core`) and captures real DOM. There is
@@ -208,9 +213,11 @@ component(
   auto-updates on attribute changes.
 - `ctx.onDispose(fn)` registers cleanup for raw APIs (`setInterval`,
   `WebSocket`); `resource()` / `effect()` clean themselves up.
-- `{ shadow: false }` exists for components that MUST live in the light
-  DOM (form participation, host-level styling). It is an escape hatch,
-  not the default.
+- `{ shadow: false }` exists only for an autonomous custom element that MUST
+  live in the light DOM, for example so its native controls participate in an
+  ancestor form or so the document can address the custom-element host by tag
+  name. It is not a route/layout wrapper and does not opt component internals
+  into global CSS classes.
 
 ## Resources and mutations
 

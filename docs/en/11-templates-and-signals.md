@@ -120,6 +120,11 @@ Inline helpers you import alongside `html`:
 - `styleMap({ color: theme().fg, "--bg": theme().bg })` — set
   inline styles, including custom properties.
 
+`ref()` callbacks must be exception-safe. If `callback(element)` throws,
+Mado aborts the commit and still invokes `callback(null)` during rollback.
+A disposer that was never returned cannot run, so undo closure mutations made
+before the throw in the null branch or in a local `catch`.
+
 ### Parser hard errors
 
 Mado refuses templates it cannot represent safely. Two cases you

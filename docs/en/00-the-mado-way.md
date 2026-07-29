@@ -2,11 +2,9 @@
 
 > One right way. Strict contracts. No magic.
 
-Mado is a framework for teams building admin panels, internal tools and
-business SPA — apps that should be easy to build and boring to maintain. To
-achieve that, it enforces a **set of conventions**. If you follow them, the
-project stays understandable even with 200 screens and 5 developers. If you
-break them — types and the linter will tell you immediately.
+Mado is a frontend framework for static sites and live SPAs that should be
+easy to build and boring to maintain. It provides a small set of contracts;
+application structure grows only when the application has a measured need.
 
 ## Principles
 
@@ -15,43 +13,36 @@ break them — types and the linter will tell you immediately.
 2. **Explicitness over magic.** No file-system scanners, no implicit globals, no
    hidden side-effects. Everything the framework does can be read in a single file.
 3. **Platform first.** If the browser already has a feature — use it directly.
-   No custom abstractions over `fetch`, `<form>`, the History API, or Shadow DOM.
+   Mado helpers may add reactivity and lifecycle ownership, but they do not hide
+   the native `fetch`, `<form>`, History API or Shadow DOM contracts.
 4. **Strict types.** `tsc --strict --noUncheckedIndexedAccess` always. If
    something cannot be typed — that is a signal the API is wrong.
-5. **No runtime dependencies.** Every dependency is a years-long commitment; the
-   Web Components ecosystem does not require it.
+5. **No runtime dependencies in Mado core.** Every framework dependency is a
+   years-long commitment; the Web Components ecosystem does not require one.
 
 ## Conventions
 
 ### Project structure
 
-```
+```txt
 src/
-├── main.ts           ← boot: global CSS/providers + render router
-├── app.routes.ts     ← one readable app map, exports `manifest` + default routes()
-├── layouts/          ← app-zone wrappers (`page({ view: ({ child }) => ... })`)
-├── shared/           ← UI bricks, http client, pure lib, global CSS
-└── modules/          ← bounded contexts
-    └── billing/
-        ├── billing.routes.ts
-        ├── billing.public.ts
-        ├── billing.types.ts
-        ├── pages/
-        ├── data/
-        ├── api/
-        └── _contracts/
+├── main.ts           ← boot: global CSS + render router
+├── app.routes.ts     ← one readable route map
+├── pages/            ← one *.page.ts per route
+├── components/       ← autonomous Web Components
+├── content/          ← optional static content
+└── styles/           ← optional document/global CSS
 ```
 
-This is **mandatory**, not optional. If a project has 10 developers — they must
-all write the same way.
-
-The default starter is the canonical version of this shape. Use it as the
-reference when docs and examples disagree.
+This universal starter is the canonical minimum. Add `layouts/`, feature
+folders, shared HTTP policy or domain modules only after repeated application
+code justifies them. The modular starter is an optional architecture
+experiment, not a framework contract.
 
 ### One component = one file
 
 ```ts
-// src/shared/ui/x-user-card.component.ts
+// src/components/x-user-card.component.ts
 import { component, html, css } from "@madojs/mado";
 
 component(
@@ -69,27 +60,35 @@ component(
 );
 ```
 
-`import "./shared/ui/x-user-card.component.js"` **registers** the component via
+`import "./components/x-user-card.component.js"` **registers** the component via
 `customElements.define`. This is a side effect. Import where the component is needed.
 
-### One way to load data
+### Data at the right level
 
-❌ Do not call `fetch()` directly from a component. Always use:
+Use browser `fetch()` directly for a small one-off request. Add a thin
+application helper only when authentication, decoding or error policy is
+actually shared.
+
+Use `resource()` for reactive reads that need loading/error state,
+cancellation, caching or invalidation. Use `mutation()` for writes whose state
+or invalidation belongs in the UI lifecycle:
 
 ```ts
-// reading → resource
+// reactive read
 const user = resource(() => `/api/users/${id()}`, jsonFetcher());
 
-// writing → mutation
+// tracked write
 const save = mutation(api.save, { invalidates: ["/api/users*"] });
 ```
 
-This provides caching, cancellation, error handling, and auto-invalidation.
+Resources and effects created in a page view or component setup are disposed
+with that owner. An intentionally standalone resource must have an integration
+owner that eventually calls its idempotent `dispose()`.
 
 ### One way to describe a page
 
 ```ts
-// src/modules/users/pages/user-profile.page.ts
+// src/pages/user-profile.page.ts
 import { page, html, resource, jsonFetcher } from "@madojs/mado";
 
 export default page({
@@ -102,7 +101,8 @@ export default page({
 ```
 
 Keep page-local signals, resources and forms inside `view()`. Module-wide state
-belongs in `*.service.ts`.
+is ordinary application code; introduce a service or context only when multiple
+owners genuinely share it.
 
 ### One way to declare routes
 
@@ -114,10 +114,14 @@ See [`12-routing.md`](./12-routing.md).
   custom elements: `user-card` is ok, `usercard` is not.
 - `x-*` is only a convention for Mado examples and tests, not a brand standard.
   In production use a domain prefix: `app-*`, `crm-*`, `ticket-*`, `admin-*`.
-- ❌ Do not use `innerHTML` directly. Only via `html\`\``.
-- ❌ Do not call `setTimeout`/`setInterval` without cleanup. Only inside `effect()`.
+- ❌ Do not assign `innerHTML` directly. Build structure with `html\`\``; use
+  `unsafeHTML()` only for content you own or have already sanitized.
+- ❌ Do not start timers or raw browser subscriptions without cleanup. Pair them
+  with the page/component `onDispose`; an `effect()` may return cleanup for work
+  owned by that effect.
 - ❌ Do not store global mutable state. Use signals and `context`.
-- ❌ Do not add packages without discussion. Every dependency is a commitment.
+- ❌ Do not add application packages reflexively. Prefer the platform and record
+  the measured need; never add a runtime dependency to Mado core.
 
 ## When in doubt
 

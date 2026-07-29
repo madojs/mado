@@ -108,22 +108,22 @@ Key differences:
 
 ---
 
-### Pitfall #4: `useEffect(() => { ... return cleanup })` for unmount
+### Pitfall #4: `effect()` around a one-shot non-reactive resource
 
-**Symptom:** AI returns `cleanup` from an `effect()` expecting React-style
-unmount cleanup.
+**Symptom:** AI creates an `effect()` only to imitate React mounting, even
+though the resource does not depend on reactive state.
 
 ```ts
-// ❌ This is per-run cleanup, NOT unmount cleanup
+// ⚠️ Safe, but an unnecessary reactive scope when nothing is reactive
 component("x-timer", () => {
   effect(() => {
     const id = setInterval(..., 1000);
-    return () => clearInterval(id);  // runs before next effect re-run
+    return () => clearInterval(id);
   });
   return html`...`;
 });
 
-// ✅ Use ctx.onDispose for unmount
+// ✅ Prefer onDispose for a one-shot raw browser resource
 component("x-timer", (ctx) => {
   const id = setInterval(..., 1000);
   ctx.onDispose(() => clearInterval(id));
@@ -131,9 +131,21 @@ component("x-timer", (ctx) => {
 });
 ```
 
-`effect()` does support `return cleanup`, but it runs before the next
-execution of the same effect, not on disconnect. For unmount use
-`ctx.onDispose`.
+An `effect()` return value is real lifecycle cleanup: Mado runs it before the
+effect reruns **and** during final page/component lifecycle disposal. Use that
+form when resource acquisition depends on reactive state:
+
+```ts
+// Inside component setup or a page view:
+effect(() => {
+  const socket = new WebSocket(`/stream/${channel()}`);
+  return () => socket.close();
+});
+```
+
+Use `onDispose` for a one-shot, non-reactive timer, listener, observer, socket
+or other raw resource. The direct form communicates intent without creating an
+unnecessary reactive scope.
 
 ---
 
@@ -163,21 +175,29 @@ component("x-counter", () => {
 
 ---
 
-### Pitfall #6: imports without the `.js` extension
+### Pitfall #6: applying no-bundler import rules to a Vite app
 
-**Symptom:** TypeScript compiles but the browser 404s.
+**Symptom:** AI rejects valid extensionless local imports or deep-imports
+framework internals while trying to manufacture a browser-resolvable path.
 
 ```ts
-// ❌ AI often omits the extension
+// ✅ Generated Mado apps use Vite; extensionless local imports are valid
 import { foo } from "./bar";
-import { Home } from "./pages/home";
+import HomePage from "./pages/home.page";
 
-// ✅ ES modules in the browser require the extension
+// ✅ Use .js only in browser-native examples that run without Vite
 import { foo } from "./bar.js";
-import { Home } from "./pages/home.js";
+
+// ❌ A deep package path ending in dist/src/signal.js is internal
+
+// ✅ Import the public package surface
+import { signal } from "@madojs/mado";
 ```
 
-TypeScript resolves `./bar.js` back to `./bar.ts` at compile time.
+Vite is Mado's canonical development and build transport. Browser-native,
+no-bundler ESM still requires resolvable file extensions, but that rule does
+not make `.js` mandatory in generated source. Never import `dist/src/*` or
+other Mado internals; use `@madojs/mado` and documented public subpaths.
 
 ---
 
@@ -305,19 +325,17 @@ const f = useForm({
 
 **Symptom:** AI suggests typical React CSS solutions.
 
-Mado uses **Shadow DOM + `css\`\`` + CSS variables** by default. Global
-class systems (Tailwind, Bootstrap) only reach a component if it opts out
-of the shadow root via `{ shadow: false }`:
+Screens and layouts are `page()` definitions in the light DOM, so a global
+stylesheet imported by `main.ts` reaches them. Autonomous Web Components use
+Shadow DOM + `css\`\`` + CSS variables by default:
 
 ```ts
-// Light-DOM screen — Tailwind classes apply
-component(
-  "x-admin-page",
-  () => html`
+// Light-DOM screen — document-level utility classes apply
+export default page({
+  view: () => html`
     <section class="bg-white shadow-lg rounded-lg p-4">...</section>
   `,
-  { shadow: false },
-);
+});
 
 // Shadow-DOM component (default) — Tailwind does NOT reach inside.
 // Style with css`` and customize from outside via ::part() / CSS variables.
@@ -379,20 +397,17 @@ page({
   `,
 });
 
-// ✅ Move it into a component with css``
-component(
-  "x-admin-panel",
-  () => html`<section class="panel">...</section>`,
-  {
-    styles: css`.panel { padding: 1rem; }`,
-  },
-);
+// ✅ Keep screen markup in the page; put .panel in a global stylesheet
+// imported once by src/main.ts.
+page({
+  view: () => html`<section class="panel">...</section>`,
+});
 ```
 
-For admin screens that intentionally use shared layout/form/table CSS,
-make the page component `{ shadow: false }`. If the layout uses
-`<slot>` to project the page, keep the layout in Shadow DOM and put
-its chrome styles in `styles: css\`\``.
+If the section is an autonomous reusable widget instead of screen content,
+make it a `component()` and colocate its styles in `css\`\``. Layouts remain
+`page()` wrappers using `{ child }`; do not replace them with slotted custom
+elements.
 
 ---
 
@@ -489,21 +504,20 @@ component(
   `,
 );
 
-// ✅ Page/layout/admin-shell components are typically Light DOM
-component(
-  "x-dashboard",
-  () => html`
+// ✅ A route screen is a page and therefore already lives in Light DOM
+export default page({
+  view: () => html`
     <header class="page-head">...</header>
     <div class="metric-grid">...</div>
   `,
-  { shadow: false },
-);
+});
 ```
 
-Rule of thumb: **Shadow DOM** for leaf widgets and slot-based layouts;
-**Light DOM** for route/page/admin-screen components that intentionally
-consume shared layout/form/table CSS. Remember that `<slot>` only
-projects children in Shadow DOM. See
+Rule of thumb: **Light DOM** for pages and route layouts that consume shared
+layout/form/table CSS; **Shadow DOM** for autonomous widgets with their own
+styles. Native markup plus an open-code CSS/bindings recipe is also valid when
+no custom-element boundary is useful. Remember that `<slot>` only projects
+children in Shadow DOM. See
 [10-pages-and-components.md](./10-pages-and-components.md).
 
 ---
@@ -668,7 +682,7 @@ automatically on navigation. Only raw browser APIs need explicit
 | ------------------------------------- | -------------------------------------------- |
 | `useState(0)`                         | `signal(0)`                                  |
 | `useEffect(() => {...}, [a, b])`      | `effect(() => {...})` (auto-deps)            |
-| `useEffect(() => return cleanup, [])` | `ctx.onDispose(cleanup)`                     |
+| one-shot raw resource in `useEffect`  | acquire directly + `ctx.onDispose(cleanup)`  |
 | `useMemo(() => x, [a])`               | `computed(() => x)`                          |
 | `useCallback(fn, [])`                 | ordinary function                            |
 | `useContext(Ctx)`                     | `inject(host, Ctx)`                          |
@@ -720,22 +734,26 @@ Required behaviour:
   `computed()`, and keyed `each()` rows;
 - create + edit flows with `useForm()` + `mutation()` + `invalidates`;
 - local UI state with `signal()`;
-- slotted shell, metric, and badge components for a more realistic admin
-  UI;
+- shared route chrome implemented as a `page()` layout with `{ child }`, wired
+  through `layout()` in the route manifest and rendered in Light DOM rather
+  than through a slotted shell component;
+- a native metric-card recipe plus an autonomous badge component that
+  exercises scoped Shadow-DOM styles, slots and reactive `ctx.attr()` state;
 - a smoke test importing the built example.
 
 ### Failure checklist
 
 After implementation, look for any of these and reject:
 
-- JSX, `useState`, `useEffect`, `ref`, `$state`, or class-style
-  components;
+- JSX, `useState`, `useEffect`, React/JSX `ref={...}`, `Vue.ref()`, `$state`,
+  or class-style components (Mado's `ref()` directive is valid);
 - `${signal()}` or `${signal() + 1}` where a reactive child thunk is
   required;
 - `disabled=${...}` instead of `?disabled=${...}`;
 - dynamic lists rendered with unkeyed array mapping instead of `each()`;
-- ES-module imports without the `.js` extension;
-- `resource()` created outside component setup;
+- imports from internal Mado package paths instead of its public surfaces;
+- `resource()` created outside a page view/component setup without an explicit
+  integration owner that calls `dispose()`;
 - internal links without `data-link` and `routeUrl()`;
 - new runtime dependencies or new public framework APIs;
 - assumptions of SSR / hydration / `getServerSideProps`-style hooks.

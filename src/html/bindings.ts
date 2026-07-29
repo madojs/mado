@@ -670,8 +670,18 @@ export function bindAttr(
     }
     const prop = name.slice(1);
     const v = values[spec.slots[0]!];
+    const target = el as unknown as Record<string, unknown>;
+    let hasApplied = false;
     applyReactive(v, disposers, (vv) => {
-      (el as unknown as Record<string, unknown>)[prop] = vv;
+      if (hasApplied) {
+        try {
+          if (Object.is(target[prop], vv)) return;
+        } catch {
+          // Preserve write-only and throwing-getter property contracts.
+        }
+      }
+      target[prop] = vv;
+      hasApplied = true;
     }, bindingComplete);
     return;
   }

@@ -282,7 +282,7 @@ async function scaffoldComponent(ctx, target, shape) {
 
 component(
   "${tag}",
-  () => () => html\`<span><slot></slot></span>\`,
+  () => html\`<span><slot></slot></span>\`,
   {
     styles: css\`
       :host {

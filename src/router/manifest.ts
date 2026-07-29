@@ -13,11 +13,14 @@
  *     without loading state and without a microtask. Removes flicker on back/forward.
  */
 
-import { signal } from "../signal.js";
+import { signal, untracked } from "../signal.js";
 import { reportError } from "../diagnostics.js";
 import { emitDevtools } from "../devtools-hook.js";
 import { html } from "../html/template.js";
-import type { TemplateResult } from "../html/template-types.js";
+import {
+  _setTemplateOwner,
+  type TemplateResult,
+} from "../html/template-types.js";
 import type { Guard, GuardResult, HeadMeta, Page, PageContext } from "../page.js";
 import { applyHead } from "../head.js";
 import {
@@ -212,10 +215,22 @@ function disposeActiveLifecycle(ctx: RoutesContext): void {
   ctx.activeLifecycle = null;
 }
 
-function renderInPageLifecycle<T>(ctx: RoutesContext, render: () => T): T {
+function renderInPageLifecycle(
+  ctx: RoutesContext,
+  render: () => TemplateResult,
+): TemplateResult {
   const lc = createLifecycle();
   try {
-    const value = runInLifecycle(lc, render);
+    // Page/load/layout evaluation is setup work, not a reactive binding.
+    // It can run while router.view or the async route-state slot is being
+    // tracked, so isolate incidental signal reads from that parent tracker.
+    // Fine-grained template slots and effects created by the page still
+    // install their own trackers normally.
+    const value = untracked(() => runInLifecycle(lc, render));
+    _setTemplateOwner(value, () => {
+      lc.dispose();
+      if (ctx.activeLifecycle === lc) ctx.activeLifecycle = null;
+    });
     ctx.activeLifecycle = lc;
     return value;
   } catch (err) {
@@ -368,6 +383,10 @@ function renderEntry(
       if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:ready", ctx, { seq, params, mode: "sync" });
       return view;
     } catch (err) {
+      // The view may already have created lifecycle-owned resources before a
+      // later title/head/ready step throws. Its TemplateResult was never
+      // returned to the renderer, so no template owner can release it.
+      disposeActiveLifecycle(ctx);
       const e = err instanceof Error ? err : new Error(String(err));
       recordStaticError(e);
       markStaticRouteReady("error");
@@ -603,7 +622,12 @@ function renderWithLayouts(
   // Expose onDispose to page views so they can clean up timers, manual
   // subscriptions, etc. that aren't auto-managed by resource()/effect().
   const lc = getCurrentLifecycle();
-  const onDispose = lc ? (fn: () => void) => lc.onDispose(fn) : undefined;
+  if (!lc) {
+    throw new Error(
+      "[mado:router] page rendering requires an active lifecycle",
+    );
+  }
+  const onDispose = (fn: () => void) => lc.onDispose(fn);
 
   // Expose ROUTE pathname (base stripped) to user views so they receive
   // the same value the matcher works with.

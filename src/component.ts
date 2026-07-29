@@ -3,23 +3,26 @@
  *
  *   component('x-counter', () => {
  *     const count = signal(0);
- *     return () => html`<button @click=${() => count.update(n=>n+1)}>${count}</button>`;
+ *     return html`<button @click=${() => count.update(n=>n+1)}>${count}</button>`;
  *   }, {
  *     styles: css`button { padding: .5rem }`,
  *   });
  *
  * The setup function is called once on the first connectedCallback.
- * The returned render function is called via an effect, so any signals
- * read inside it automatically re-render the template.
+ * Reactivity lives in template slots: signals and reactive getters create
+ * their own fine-grained bindings without re-running setup.
  *
  * Shadow DOM (open, serializable) is used by default. It can be disabled for
  * advanced integration cases, and styles will be scoped via @scope
  * (or a tag-prefix fallback).
  */
 
-import { signal, effect, type Signal, type Disposer } from "./signal.js";
+import { signal, untracked, type Signal, type Disposer } from "./signal.js";
 import { html, render, unmount } from "./html/template.js";
-import type { TemplateResult } from "./html/template-types.js";
+import {
+  isTemplateResult,
+  type TemplateResult,
+} from "./html/template-types.js";
 import {
   adopt,
   createStylesheet,
@@ -123,7 +126,7 @@ export interface ComponentContext {
    * automatically whenever the attribute changes on the host element.
    *
    *   const variant = ctx.attr("variant", "primary");
-   *   return () => html`<div class=${variant()}>…</div>`;
+   *   return html`<div class=${variant}>…</div>`;
    *
    * No MutationObserver boilerplate needed. The signal updates via a
    * per-instance MutationObserver registered during setup().
@@ -132,7 +135,7 @@ export interface ComponentContext {
   attr(name: string, defaultValue: string): Signal<string>;
 }
 
-export type SetupFn = (ctx: ComponentContext) => () => TemplateResult;
+export type SetupFn = (ctx: ComponentContext) => TemplateResult;
 
 export type StyleInput = string | CSSResult | Array<string | CSSResult>;
 
@@ -188,8 +191,6 @@ export function component(
 
   class MadoElement extends HTMLElement {
     #root: Element | ShadowRoot;
-    #renderer: (() => TemplateResult) | null = null;
-    #effectDispose: Disposer | null = null;
     #lifecycle: LifecycleHandle | null = null;
     #connected = false;
     // True while a teardown is queued on the microtask after a
@@ -265,9 +266,18 @@ export function component(
       };
 
       try {
-        const renderer = runInLifecycle(lifecycle, () => setup(ctx));
-        if (typeof renderer !== "function") {
-          throw new TypeError(`component("${tagName}") setup must return a renderer function`);
+        // setup() is intentionally outside any parent template tracker.
+        // Custom Elements connect synchronously while a parent binding may be
+        // running; letting direct signal reads escape into that binding would
+        // make the parent re-run component setup. Only values placed in a
+        // template slot are reactive.
+        const template = untracked(() =>
+          runInLifecycle(lifecycle, () => setup(ctx)),
+        );
+        if (!isTemplateResult(template)) {
+          throw new TypeError(
+            `component("${tagName}") setup must return html\`...\``,
+          );
         }
 
         // After setup(), install a single MutationObserver for all attrs
@@ -285,20 +295,25 @@ export function component(
           lifecycle.onDispose(() => obs.disconnect());
         }
 
-        const effectDispose = runInLifecycle(lifecycle, () => effect(() => {
-          if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:render", this, { tagName });
-          render(renderer(), this.#root);
-        }));
-        this.#renderer = renderer;
-        this.#effectDispose = effectDispose;
+        // Initial binding also runs outside a possible parent tracker. The
+        // signal/getter bindings created by render() install their own effects.
+        untracked(() =>
+          runInLifecycle(lifecycle, () => {
+            if (
+              typeof __MADO_DEVTOOLS__ === "undefined" ||
+              __MADO_DEVTOOLS__
+            ) {
+              emitDevtools("component:render", this, { tagName });
+            }
+            render(template, this.#root);
+          }),
+        );
         this.#lifecycle = lifecycle;
         this.#connected = true;
         if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:ready", this, { tagName });
       } catch (err) {
         unmount(this.#root);
         lifecycle.dispose();
-        this.#renderer = null;
-        this.#effectDispose = null;
         this.#lifecycle = null;
         this.#attrSignals.clear();
         this.#attrDefaults.clear();
@@ -332,12 +347,9 @@ export function component(
     /** Synchronously dispose effects and lifecycle. */
     #teardown() {
       if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("component:dispose", this, { tagName });
-      this.#effectDispose?.();
-      this.#effectDispose = null;
       unmount(this.#root);
       this.#lifecycle?.dispose();
       this.#lifecycle = null;
-      this.#renderer = null;
       this.#attrSignals.clear();
       this.#attrDefaults.clear();
       this.#connected = false;

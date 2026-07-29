@@ -6,7 +6,7 @@
  * so match.ts remains clean and testable without jsdom.
  */
 
-import { signal, type Signal } from "./../signal.js";
+import { signal, untracked, type Signal } from "./../signal.js";
 import { html } from "../html/template.js";
 import {
   compile,
@@ -190,10 +190,16 @@ export function router(
 
   const api: RouterApi = {
     view: () => {
+      // Keep the route path as this binding's sole dependency. Route handlers
+      // may create/read local signals while building their TemplateResult;
+      // those values are reactive only when explicitly placed in a template
+      // slot and must not subscribe the whole router view.
       const p = path();
-      const m = matchRoute(p, compiled);
-      if (m) return m.route.handler(m.params);
-      return fallback.handler({});
+      return untracked(() => {
+        const m = matchRoute(p, compiled);
+        if (m) return m.route.handler(m.params);
+        return fallback.handler({});
+      });
     },
     path,
     navigate(to, opts) {
@@ -452,7 +458,7 @@ export interface QueryParam {
  *
  *   const page = queryParam('page', '1');
  *   page();              // '1' (or current URL value)
- *   page.set('2');       // history.replaceState and re-render
+ *   page.set('2');       // history.replaceState and update subscribed slots
  *   page.set(null);      // delete the parameter
  */
 export function queryParam(name: string, defaultValue = ""): QueryParam {

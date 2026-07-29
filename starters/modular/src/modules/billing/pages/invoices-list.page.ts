@@ -1,4 +1,4 @@
-import { each, html, page, routeUrl, signal, untracked } from "@madojs/mado";
+import { each, html, page, routeUrl, signal } from "@madojs/mado";
 
 import { formatDate, formatMoney } from "../../../shared/lib/format-date";
 import "@/shared/ui/x-spinner.component";
@@ -20,7 +20,7 @@ export default page({
   title: "Invoices",
   view: () => {
     const cursor = signal<string | undefined>(undefined);
-    const invoices = untracked(() => useInvoices(cursor));
+    const invoices = useInvoices(cursor);
 
     return html`
       <section>

@@ -51,7 +51,7 @@ test("resource inside component cleans up on disconnect", async () => {
   const tag = "x-test-cleanup-" + Math.random().toString(36).slice(2, 8);
   component(tag, () => {
     resourceRef = resource(() => "/api/x", fetcher);
-    return () => html`<div>x</div>`;
+    return html`<div>x</div>`;
   });
 
   const before = _testHooks.invalidatorsSize();
@@ -83,7 +83,7 @@ test("resource inside component cleans up on disconnect", async () => {
   );
 });
 
-test("resource outside component warns in dev but still works", () => {
+test("standalone resource exposes idempotent explicit disposal", async () => {
   const fetcher = (_k, _s) => Promise.resolve(1);
 
   const warns = [];
@@ -91,13 +91,25 @@ test("resource outside component warns in dev but still works", () => {
   console.warn = (...args) => warns.push(args.join(" "));
 
   try {
+    const before = _testHooks.invalidatorsSize();
     const r = resource(() => "/api/y", fetcher);
     assert.ok(r.data, "resource should return its API even outside a component");
     flushSync();
+    assert.equal(_testHooks.invalidatorsSize(), before + 1);
     assert.ok(
       warns.some((m) => m.toLowerCase().includes("resource")),
       "a dev warning about usage outside a component should be printed",
     );
+
+    r.dispose();
+    r.dispose();
+    assert.equal(
+      _testHooks.invalidatorsSize(),
+      before,
+      "explicit disposal must remove the global invalidator exactly once",
+    );
+    await assert.rejects(r.refresh(), /resource is disposed/);
+    assert.throws(() => r.mutate(2), /resource is disposed/);
   } finally {
     console.warn = origWarn;
   }
@@ -112,11 +124,11 @@ test("several components clean up only their own subscriptions", async () => {
 
   component(tagA, () => {
     resource(() => "/api/a", fetcher);
-    return () => html`<div>a</div>`;
+    return html`<div>a</div>`;
   });
   component(tagB, () => {
     resource(() => "/api/b", fetcher);
-    return () => html`<div>b</div>`;
+    return html`<div>b</div>`;
   });
 
   const before = _testHooks.invalidatorsSize();

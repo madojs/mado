@@ -162,7 +162,7 @@ function mkProject({ base = "/" } = {}) {
       "    window.__MADO_TEST_SETUP_CALLS__ += 1;",
       '    const name = ctx.attr("name", "");',
       "    const count = signal(0);",
-      "    return () => html`",
+      "    return html`",
       '      <article class="card" data-mado-shadow-id="product-card">',
       "        <h2>${() => name()}</h2>",
       "        <slot></slot>",

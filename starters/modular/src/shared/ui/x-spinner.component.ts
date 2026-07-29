@@ -1,6 +1,6 @@
 import { component, css, html } from "@madojs/mado";
 
-component("x-spinner", () => () => html`<div class="dot" aria-label="Loading"></div>`, {
+component("x-spinner", () => html`<div class="dot" aria-label="Loading"></div>`, {
   styles: css`
     :host {
       display: inline-block;

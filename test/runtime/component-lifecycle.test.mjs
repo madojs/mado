@@ -33,6 +33,8 @@ globalThis.customElements = w.customElements;
 globalThis.MutationObserver = w.MutationObserver;
 
 const { component, html } = await import("../../dist/src/component.js");
+const { signal } = await import("../../dist/src/signal.js");
+const { render } = await import("../../dist/src/html/template.js");
 const { css } = await import("../../dist/src/css.js");
 
 // Teardown is deferred to a microtask (see C1 / FABLE_REPORT.md finding #1):
@@ -52,7 +54,7 @@ test("component(): repeated connectedCallback does not duplicate setup", async (
     ctx.onDispose(() => {
       disposes++;
     });
-    return () => html`<span>${String(setups)}</span>`;
+    return html`<span>${String(setups)}</span>`;
   });
 
   const el = document.createElement("x-lifecycle-once");
@@ -88,7 +90,7 @@ test("component(): setup failure rolls back and can retry after reconnect", () =
     attempts++;
     ctx.onDispose(() => cleanups++);
     if (attempts === 1) throw new Error("setup failed");
-    return () => html`<span>ready</span>`;
+    return html`<span>ready</span>`;
   });
 
   const el = document.createElement("x-setup-rollback");
@@ -108,7 +110,7 @@ test("component(): light DOM styles adopt once across instances", () => {
 
   component(
     "x-style-once",
-    () => () => html`<button>Save</button>`,
+    () => html`<button>Save</button>`,
     { shadow: false, styles: sheet },
   );
 
@@ -127,7 +129,7 @@ test("component(): light DOM styles adopt once across instances", () => {
 test("component(): attributes do not clobber host properties", () => {
   component(
     "x-attrs-no-reflect",
-    () => () => html`<span></span>`,
+    () => html`<span></span>`,
   );
 
   const el = document.createElement("x-attrs-no-reflect");
@@ -152,14 +154,9 @@ test("component(): attributes do not clobber host properties", () => {
 });
 
 test("ctx.attr(): reads initial value and updates on external setAttribute", async () => {
-  let variantReads = [];
-
   component("x-attr-dynamic", ({ attr }) => {
     const variant = attr("variant", "default");
-    return () => {
-      variantReads.push(variant());
-      return html`<span>${variant}</span>`;
-    };
+    return html`<span>${variant}</span>`;
   });
 
   const el = document.createElement("x-attr-dynamic");
@@ -168,7 +165,7 @@ test("ctx.attr(): reads initial value and updates on external setAttribute", asy
   el.connectedCallback();
 
   // Initial read should pick up the attribute value set before connect
-  assert.equal(variantReads.at(-1), "primary");
+  assert.equal(el.shadowRoot.querySelector("span")?.textContent, "primary");
 
   // Simulate external attribute change (like Mado's ?disabled binding)
   el.setAttribute("variant", "danger");
@@ -177,7 +174,7 @@ test("ctx.attr(): reads initial value and updates on external setAttribute", asy
   await Promise.resolve();
   await Promise.resolve();
 
-  assert.equal(variantReads.at(-1), "danger",
+  assert.equal(el.shadowRoot.querySelector("span")?.textContent, "danger",
     "ctx.attr() must react to setAttribute() after connectedCallback — " +
     "this proves the per-instance MutationObserver path works");
 
@@ -189,7 +186,7 @@ test("ctx.attr(): distinguishes an absent attribute from an empty attribute", as
   let current;
   component("x-attr-nullable", ({ attr }) => {
     current = attr("enabled");
-    return () => html`<span>${() => String(current())}</span>`;
+    return html`<span>${() => String(current())}</span>`;
   });
 
   const el = document.createElement("x-attr-nullable");
@@ -204,4 +201,111 @@ test("ctx.attr(): distinguishes an absent attribute from an empty attribute", as
   el.remove();
   el.disconnectedCallback();
   await microtasks();
+});
+
+test("component(): setup runs once and only template slots are reactive", async () => {
+  const count = signal(1);
+  let setups = 0;
+
+  component("x-slot-reactivity", () => {
+    setups++;
+    const directSnapshot = count();
+    return html`
+      <span data-static>${directSnapshot}</span>
+      <span data-reactive>${count}</span>
+    `;
+  });
+
+  const el = document.createElement("x-slot-reactivity");
+  document.body.appendChild(el);
+  el.connectedCallback();
+
+  assert.equal(setups, 1);
+  assert.equal(
+    el.shadowRoot.querySelector("[data-static]")?.textContent,
+    "1",
+  );
+  assert.equal(
+    el.shadowRoot.querySelector("[data-reactive]")?.textContent,
+    "1",
+  );
+
+  count.set(2);
+  await microtasks();
+
+  assert.equal(setups, 1, "a direct setup read must not re-run setup");
+  assert.equal(
+    el.shadowRoot.querySelector("[data-static]")?.textContent,
+    "1",
+    "a direct read is a one-time setup snapshot",
+  );
+  assert.equal(
+    el.shadowRoot.querySelector("[data-reactive]")?.textContent,
+    "2",
+    "a signal placed in a template slot remains reactive",
+  );
+
+  el.remove();
+  el.disconnectedCallback();
+  await microtasks();
+});
+
+test("component(): setup reads do not leak into a parent template tracker", async () => {
+  const source = signal("initial");
+  let parentSlotRuns = 0;
+
+  component("x-untracked-setup", () => {
+    const snapshot = source();
+    return html`<span>${snapshot}</span>`;
+  });
+
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  render(
+    html`${() => {
+      parentSlotRuns++;
+      return html`<x-untracked-setup></x-untracked-setup>`;
+    }}`,
+    host,
+  );
+
+  assert.equal(parentSlotRuns, 1);
+  assert.equal(
+    host
+      .querySelector("x-untracked-setup")
+      ?.shadowRoot?.querySelector("span")?.textContent,
+    "initial",
+  );
+
+  source.set("changed");
+  await microtasks();
+
+  assert.equal(
+    parentSlotRuns,
+    1,
+    "a child setup read must not subscribe its parent's reactive slot",
+  );
+  assert.equal(
+    host
+      .querySelector("x-untracked-setup")
+      ?.shadowRoot?.querySelector("span")?.textContent,
+    "initial",
+    "the direct read remains a one-time setup snapshot",
+  );
+
+  host.remove();
+  await microtasks();
+});
+
+test("component(): the legacy renderer-function return fails loudly", () => {
+  component(
+    "x-legacy-renderer",
+    () => () => html`<span>legacy</span>`,
+  );
+
+  const el = document.createElement("x-legacy-renderer");
+  assert.throws(
+    () => el.connectedCallback(),
+    /setup must return html`...`/,
+  );
 });

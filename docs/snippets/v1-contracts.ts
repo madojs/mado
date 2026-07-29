@@ -24,7 +24,7 @@ const form = useForm({
   validate: (_values, { signal }) => signal.aborted ? { $form: "cancelled" } : null,
 });
 
-component("x-profile", () => () => html`
+component("x-profile", () => html`
   <form @submit=${form.onSubmit(save)}>
     <input name="email" type="email" required @input=${form.onInput} />
     <button type="submit">Save</button>
@@ -34,4 +34,5 @@ component("x-profile", () => () => html`
 const dispose = render(html`${() => profile.data()?.email ?? "Loading"}`, container);
 dispose();
 unmount(container);
+profile.dispose();
 devtools.snapshot();

@@ -9,7 +9,7 @@ component(
   "invoice-status-badge",
   ({ attr }) => {
     const status = attr("status", "pending");
-    return () => html`
+    return html`
       <span class=${() => `badge badge--${status()}`}>${status}</span>
     `;
   },

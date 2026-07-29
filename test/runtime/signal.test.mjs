@@ -118,6 +118,40 @@ test("effect: initial failure rolls back subscriptions", () => {
   assert.equal(runs, 1);
 });
 
+test("effect: a later failure keeps newly tracked dependencies for recovery", () => {
+  const branch = signal("first");
+  const first = signal("before");
+  const second = signal("broken");
+  const values = [];
+  const errors = [];
+  const originalError = console.error;
+  console.error = (...args) => errors.push(args);
+
+  try {
+    const dispose = effect(() => {
+      const value = branch() === "first" ? first() : second();
+      if (value === "broken") throw new Error("later boom");
+      values.push(value);
+    });
+
+    branch.set("second");
+    flushSync();
+    second.set("after");
+    flushSync();
+    first.set("stale");
+    flushSync();
+    dispose();
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.deepEqual(values, ["before", "after"]);
+  assert.ok(
+    errors.some((args) => String(args[0]).includes("effect-run")),
+    "the failed run is reported by the scheduler",
+  );
+});
+
 test("effect: current lifecycle disposes it automatically", () => {
   const lifecycle = createLifecycle();
   const source = signal(0);

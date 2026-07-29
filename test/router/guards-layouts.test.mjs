@@ -256,7 +256,7 @@ test("navigation disposes the old page before an async guard settles", async () 
   let settleGuard;
   const from = page({
     view: ({ onDispose }) => {
-      onDispose?.(() => disposed++);
+      onDispose(() => disposed++);
       return html`<h1>from</h1>`;
     },
   });

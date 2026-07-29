@@ -4,7 +4,7 @@
  * Data flow:
  *   html`...`              → TemplateResult { strings, values }
  *   parseTemplate(strings) → ParsedTemplate { template, bindings }   (cached by strings)
- *   instantiate(result)    → InstantiatedTemplate { fragment, nodes, update, dispose }
+ *   instantiate(result)    → InstantiatedTemplate { fragment, nodes, commit, update, dispose }
  *   render(result, host)   → clones or reuses instance in host
  *
  * Only the glue lives here: parser and bindings are in neighbour files.
@@ -16,17 +16,21 @@ import {
   parseTemplate,
   resolvePath,
   type AttrBindingSpec,
+  type BindingSpec,
 } from "./parser.js";
 import {
   bindAttr,
   bindChild,
   createChildState,
   disposeChildState,
+  isChildStateMounted,
+  type BindingCommit,
   type ChildState,
 } from "./bindings.js";
-import type {
-  InstantiatedTemplate,
-  TemplateResult,
+import {
+  _getTemplateOwner,
+  type InstantiatedTemplate,
+  type TemplateResult,
 } from "./template-types.js";
 import { _flushDeferredStaticElements } from "../component.js";
 
@@ -48,71 +52,399 @@ export function html(
 /**
  * Create a ready template instance: clones the pre-parsed template,
  * resolves all BindingSpec → concrete DOM nodes of the clone, binds
- * initial values. The returned object is self-contained: update(values)
- * patches only what actually changed, dispose() cleans up effects
- * and removes nodes from the DOM.
+ * initial values. Mount-sensitive work remains queued until commit() is called
+ * after insertion. The returned object is self-contained: update(result)
+ * patches only what actually changed and transfers internal ownership,
+ * while dispose() cleans up effects and removes nodes from the DOM.
  *
  * Exported (not only used from render()) so that
  * keyed `each` reconciliation can manage instance lifetimes directly.
  */
 export function instantiate(result: TemplateResult): InstantiatedTemplate {
-  const parsed = parseTemplate(result.strings);
-  const fragment = parsed.template.content.cloneNode(true) as DocumentFragment;
+  const initialOwner = _getTemplateOwner(result);
 
-  const disposers: Disposer[] = [];
+  let parsed: ReturnType<typeof parseTemplate>;
+  let fragment: DocumentFragment;
+  try {
+    parsed = parseTemplate(result.strings);
+    fragment = parsed.template.content.cloneNode(true) as DocumentFragment;
+  } catch (error) {
+    try {
+      initialOwner?.();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "[mado] template parsing and owner cleanup both failed.",
+      );
+    }
+    throw error;
+  }
+
+  interface BindingRuntime {
+    spec: BindingSpec;
+    disposers: Disposer[];
+  }
+
   const childStates: Map<number, ChildState> = new Map();
   const attrBound: Map<number, { el: Element; spec: AttrBindingSpec }> =
     new Map();
+  const runtimes: BindingRuntime[] = [];
+  const pendingCommits: BindingCommit[] = [];
+  // Capture the stable roots before child bindings add dynamic siblings around
+  // their anchors. ChildState owns those dynamic nodes; the instance owns only
+  // the roots cloned from the parsed template.
+  const nodes = [...fragment.childNodes];
+  let currentValues: readonly unknown[] | undefined;
+  let currentOwner: Disposer | undefined;
+  let committed = false;
+  let disposed = false;
+  let bindingDepth = 0;
 
   // Resolve all BindingSpec.path → concrete nodes of the cloned
   // fragment. This is done ONCE, in the instance creation phase.
-  for (const b of parsed.bindings) {
-    if (b.type === "child") {
-      const parent = resolvePath(fragment, b.path);
-      const placeholder = parent.childNodes[b.childIndex] as Comment;
-      childStates.set(b.id, createChildState(placeholder));
-    } else {
-      const el = resolvePath(fragment, b.path) as Element;
-      attrBound.set(b.id, { el, spec: b });
-    }
-  }
-
-  const update = (values: readonly unknown[]) => {
-    // Before each update unsubscribe from the previous pass's subscriptions.
-    // This is needed because one of the values might have been a signal
-    // but now is not (or vice versa), and we need a fresh re-subscribe.
-    for (const d of disposers.splice(0)) d();
-
+  try {
     for (const b of parsed.bindings) {
       if (b.type === "child") {
-        const st = childStates.get(b.id)!;
-        bindChild(st, values[b.slot], disposers, instantiate);
+        const parent = resolvePath(fragment, b.path);
+        const placeholder = parent.childNodes[b.childIndex] as Comment;
+        childStates.set(b.id, createChildState(placeholder));
       } else {
-        const ab = attrBound.get(b.id)!;
-        bindAttr(ab.el, ab.spec, values, disposers);
+        const el = resolvePath(fragment, b.path) as Element;
+        attrBound.set(b.id, { el, spec: b });
       }
+      runtimes.push({ spec: b, disposers: [] });
+    }
+  } catch (error) {
+    try {
+      initialOwner?.();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "[mado] template resolution and owner cleanup both failed.",
+      );
+    }
+    throw error;
+  }
+
+  const queueCommit = (task: BindingCommit): void => {
+    pendingCommits.push(task);
+  };
+
+  const flushCommits = (): void => {
+    if (!committed || bindingDepth > 0 || pendingCommits.length === 0) return;
+    const batch = pendingCommits.splice(0);
+    const completed: BindingCommit[] = [];
+    try {
+      for (const task of batch) {
+        task.commit();
+        completed.push(task);
+      }
+    } catch (error) {
+      const rollbackErrors: unknown[] = [];
+      for (let index = completed.length - 1; index >= 0; index--) {
+        try {
+          completed[index]!.rollback();
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (rollbackErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          "[mado] template commit and rollback both failed.",
+        );
+      }
+      throw error;
     }
   };
 
-  update(result.values);
+  const bindingComplete = (): void => {
+    flushCommits();
+  };
 
-  const nodes = [...fragment.childNodes];
+  const disposeDisposers = (items: Disposer[]): void => {
+    const errors: unknown[] = [];
+    for (const dispose of items.splice(0)) {
+      try {
+        dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "[mado] binding cleanup failed.");
+    }
+  };
+
+  const bindRuntime = (
+    runtime: BindingRuntime,
+    values: readonly unknown[],
+  ): void => {
+    disposeDisposers(runtime.disposers);
+    const nextDisposers: Disposer[] = [];
+    runtime.disposers = nextDisposers;
+    try {
+      const b = runtime.spec;
+      if (b.type === "child") {
+        bindChild(
+          childStates.get(b.id)!,
+          values[b.slot],
+          nextDisposers,
+          instantiate,
+          queueCommit,
+          bindingComplete,
+        );
+      } else {
+        const ab = attrBound.get(b.id)!;
+        bindAttr(
+          ab.el,
+          ab.spec,
+          values,
+          nextDisposers,
+          queueCommit,
+          bindingComplete,
+        );
+      }
+    } catch (error) {
+      try {
+        disposeDisposers(nextDisposers);
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "[mado] binding setup and cleanup both failed.",
+        );
+      }
+      throw error;
+    }
+  };
+
+  const sameRuntimeInputs = (
+    spec: BindingSpec,
+    previous: readonly unknown[],
+    next: readonly unknown[],
+  ): boolean => {
+    const slots = spec.type === "child" ? [spec.slot] : spec.slots;
+    return slots.every((slot) =>
+      sameBindingValue(previous[slot], next[slot]),
+    );
+  };
+
+  const updateValues = (values: readonly unknown[]) => {
+    if (disposed) {
+      throw new Error("[mado] cannot update a disposed template instance.");
+    }
+
+    const previousValues = currentValues;
+    const changed: BindingRuntime[] = [];
+    const pendingStart = pendingCommits.length;
+    bindingDepth++;
+
+    try {
+      for (const runtime of runtimes) {
+        if (
+          previousValues &&
+          sameRuntimeInputs(runtime.spec, previousValues, values)
+        ) {
+          continue;
+        }
+        changed.push(runtime);
+        bindRuntime(runtime, values);
+      }
+      currentValues = [...values];
+      bindingDepth--;
+      flushCommits();
+    } catch (error) {
+      // Suppress commit flushing while the previous bindings are restored.
+      if (bindingDepth === 0) bindingDepth++;
+      const rollbackErrors: unknown[] = [];
+
+      for (let index = changed.length - 1; index >= 0; index--) {
+        const runtime = changed[index]!;
+        try {
+          disposeDisposers(runtime.disposers);
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+
+      // Failed/new commit tasks are owned by the just-disposed binding states.
+      // Drop their inert queue entries before restored refs enqueue fresh ones.
+      if (pendingCommits.length > pendingStart) {
+        pendingCommits.splice(pendingStart);
+      }
+
+      if (previousValues) {
+        for (const runtime of changed) {
+          try {
+            bindRuntime(runtime, previousValues);
+          } catch (rollbackError) {
+            rollbackErrors.push(rollbackError);
+          }
+        }
+      }
+
+      currentValues = previousValues;
+      bindingDepth--;
+
+      if (previousValues && rollbackErrors.length === 0) {
+        try {
+          flushCommits();
+        } catch (rollbackCommitError) {
+          rollbackErrors.push(rollbackCommitError);
+        }
+      }
+
+      if (rollbackErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          "[mado] template update and rollback both failed.",
+        );
+      }
+      throw error;
+    }
+  };
+
+  const update = (next: TemplateResult): void => {
+    const nextOwner = _getTemplateOwner(next);
+    try {
+      updateValues(next.values);
+    } catch (error) {
+      try {
+        if (nextOwner !== currentOwner) nextOwner?.();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "[mado] template update and candidate owner cleanup both failed.",
+        );
+      }
+      throw error;
+    }
+
+    const previousOwner = currentOwner;
+    currentOwner = nextOwner;
+    if (previousOwner !== nextOwner) previousOwner?.();
+  };
+
+  const disposeInstance = (): void => {
+    if (disposed) return;
+    disposed = true;
+    const errors: unknown[] = [];
+    for (const runtime of runtimes) {
+      try {
+        disposeDisposers(runtime.disposers);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    pendingCommits.length = 0;
+    for (const st of childStates.values()) {
+      try {
+        disposeChildState(st);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    const owner = currentOwner;
+    currentOwner = undefined;
+    try {
+      owner?.();
+    } catch (error) {
+      errors.push(error);
+    }
+    for (const n of nodes) {
+      try {
+        n.parentNode?.removeChild(n);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "[mado] template disposal failed.");
+    }
+  };
+
+  try {
+    update(result);
+  } catch (error) {
+    try {
+      disposeInstance();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "[mado] template initialization and cleanup both failed.",
+      );
+    }
+    throw error;
+  }
 
   return {
     fragment,
     nodes,
+    commit() {
+      if (disposed) return;
+      const wasCommitted = committed;
+      committed = true;
+      try {
+        flushCommits();
+      } catch (error) {
+        committed = wasCommitted;
+        // The first mount commit is transactional and terminal on failure.
+        // Some completed tasks (notably nested instances) are deliberately
+        // disposed during rollback, so retrying the consumed batch could never
+        // reproduce a coherent tree. Dispose the complete instance instead.
+        if (!wasCommitted) {
+          try {
+            disposeInstance();
+          } catch (cleanupError) {
+            throw new AggregateError(
+              [error, cleanupError],
+              "[mado] template commit and disposal both failed.",
+            );
+          }
+        }
+        throw error;
+      }
+    },
     update,
-    dispose() {
-      for (const d of disposers.splice(0)) d();
-      for (const st of childStates.values()) disposeChildState(st);
-      for (const n of nodes) n.parentNode?.removeChild(n);
+    dispose: disposeInstance,
+    isMountedIn(container: Node) {
+      return (
+        nodes.every((node) => node.parentNode === container) &&
+        [...childStates.values()].every(isChildStateMounted)
+      );
     },
     _strings: result.strings,
   };
 }
 
-// ---------- Public render ----------
+function sameBindingValue(previous: unknown, next: unknown): boolean {
+  if (Object.is(previous, next)) return true;
+  if (
+    typeof previous !== "object" ||
+    previous === null ||
+    typeof next !== "object" ||
+    next === null
+  ) {
+    return false;
+  }
+  const previousRef = previous as {
+    _madoDirective?: unknown;
+    callback?: unknown;
+  };
+  const nextRef = next as {
+    _madoDirective?: unknown;
+    callback?: unknown;
+  };
+  return (
+    previousRef._madoDirective === "ref" &&
+    nextRef._madoDirective === "ref" &&
+    previousRef.callback === nextRef.callback
+  );
+}
 
+// ---------- Public render ----------
 
 const rendered = new WeakMap<Element | ShadowRoot, InstantiatedTemplate>();
 
@@ -122,7 +454,7 @@ const rendered = new WeakMap<Element | ShadowRoot, InstantiatedTemplate>();
  * Semantics:
  *   - first call → instantiate + appendChild;
  *   - repeated call with the same tagged literal (same strings identity) →
- *     update(values), DOM is not recreated;
+ *     update(result), DOM is not recreated;
  *   - repeated call with a different literal → dispose old + new instantiate.
  *
  * Container can be either an Element or a ShadowRoot (used
@@ -140,11 +472,9 @@ export function render(
   }
   if (existing) {
     if (existing._strings === result.strings) {
-      existing.update(result.values);
+      existing.update(result);
       return renderDisposer(container, existing);
     }
-    existing.dispose();
-    rendered.delete(container);
   }
 
   // Static snapshots write first-paint markup into #app and mark the
@@ -172,15 +502,64 @@ export function render(
   const inst = instantiate(result);
   if (isStaticContainer) {
     const takeoverState = captureTakeoverState(container);
+    const staticNodes = [...container.childNodes];
     // Order matters: remove the marker BEFORE inserting the live fragment so
     // newly-connecting Custom Elements no longer see a static ancestor and
     // run setup() exactly once.
-    container.removeAttribute("data-mado-static");
-    container.replaceChildren(inst.fragment);
-    _flushDeferredStaticElements();
-    restoreTakeoverState(container, takeoverState);
+    try {
+      container.removeAttribute("data-mado-static");
+      container.replaceChildren(inst.fragment);
+      _flushDeferredStaticElements();
+      restoreTakeoverState(container, takeoverState);
+      inst.commit();
+    } catch (error) {
+      let cleanupError: unknown;
+      try {
+        inst.dispose();
+      } catch (caught) {
+        cleanupError = caught;
+      } finally {
+        container.setAttribute("data-mado-static", "");
+        container.replaceChildren(...staticNodes);
+      }
+      if (cleanupError !== undefined) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "[mado] static takeover commit and cleanup both failed.",
+        );
+      }
+      throw error;
+    }
   } else {
-    container.appendChild(inst.fragment);
+    try {
+      container.appendChild(inst.fragment);
+      inst.commit();
+    } catch (error) {
+      try {
+        inst.dispose();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "[mado] render commit and cleanup both failed.",
+        );
+      }
+      throw error;
+    }
+  }
+
+  // A different-template replacement is prepared and committed while the
+  // previous instance is still alive. Binding/ref failures therefore leave the
+  // last successful render untouched. The overlap exists only synchronously
+  // inside this call; once the new tree commits, the old owner is disposed.
+  if (existing) {
+    try {
+      existing.dispose();
+    } catch (error) {
+      // disposeInstance removes owned DOM even when user cleanup throws. The
+      // newly committed instance is valid and must remain the container owner.
+      rendered.set(container, inst);
+      throw error;
+    }
   }
   rendered.set(container, inst);
   return renderDisposer(container, inst);
@@ -272,6 +651,5 @@ function isMountedIn(
   instance: InstantiatedTemplate,
   container: Element | ShadowRoot,
 ): boolean {
-  return instance.nodes.length === 0 ||
-    instance.nodes.every((node) => node.parentNode === container);
+  return instance.nodes.length === 0 || instance.isMountedIn(container);
 }

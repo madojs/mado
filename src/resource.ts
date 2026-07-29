@@ -100,6 +100,8 @@ export interface Resource<T> {
    * The cache is also updated.
    */
   mutate(next: T | ((prev: T | undefined) => T)): void;
+  /** Stop key tracking, invalidation and the current request. Idempotent. */
+  dispose(): void;
 }
 
 export function resource<T>(
@@ -118,6 +120,7 @@ export function resource<T>(
   let requestSeq = 0;
   let lastKey = "";
   let force = false;
+  let disposed = false;
 
   // if inside component-setup — auto-cleanup on unmount.
   // if outside — print a warning so the developer knows
@@ -126,10 +129,10 @@ export function resource<T>(
   if (!lifecycle) {
     warnOnce(
       "resource-outside-lifecycle",
-      "resource() called outside of component-setup. " +
+      "resource() called outside of a managed page/component lifecycle. " +
         "Invalidator subscriptions will not be cleaned up automatically — " +
-        "this is a leak. Use resource() inside component(...), or " +
-        "manage the lifecycle manually via createLifecycle()/runInLifecycle().",
+        "this is a leak unless resource.dispose() is called. Use resource() " +
+        "inside page/component setup, call dispose(), or manage a shared lifecycle.",
     );
   }
 
@@ -201,6 +204,7 @@ export function resource<T>(
 
   // subscribe to global invalidation
   const onInv = (pattern: string) => {
+    if (disposed) return;
     if (matchesPattern(lastKey, pattern)) {
       force = true;
       void run(lastKey);
@@ -208,17 +212,23 @@ export function resource<T>(
   };
   invalidators.add(onInv);
 
-  // auto-cleanup if inside a component
-  if (lifecycle) {
-    lifecycle.onDispose(() => {
-      requestSeq++;
-      stopKeyEffect();
-      invalidators.delete(onInv);
-      releaseInFlight?.();
-      releaseInFlight = null;
-      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:dispose", debugTarget, { key: lastKey });
-    });
-  }
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    requestSeq++;
+    stopKeyEffect();
+    invalidators.delete(onInv);
+    releaseInFlight?.();
+    releaseInFlight = null;
+    loading.set(false);
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) {
+      emitDevtools("resource:dispose", debugTarget, { key: lastKey });
+    }
+  };
+
+  // Automatic for page/component ownership; still public for standalone
+  // resources and integration layers that own their lifetime explicitly.
+  lifecycle?.onDispose(dispose);
 
   return {
     data,
@@ -226,6 +236,9 @@ export function resource<T>(
     loading,
     key: keySig,
     refresh() {
+      if (disposed) {
+        return Promise.reject(new Error("[mado:resource] resource is disposed"));
+      }
       force = true;
       // read key without tracking — otherwise we'd end up inside someone else's effect
       const key = untracked(keyFn);
@@ -234,6 +247,9 @@ export function resource<T>(
       return run(key);
     },
     mutate(next) {
+      if (disposed) {
+        throw new Error("[mado:resource] resource is disposed");
+      }
       const prev = data.peek();
       const value =
         typeof next === "function"
@@ -242,6 +258,7 @@ export function resource<T>(
       data.set(value);
       if (lastKey) writeCache(fetcher, lastKey, value, options.staleTime ?? 0);
     },
+    dispose,
   };
 }
 

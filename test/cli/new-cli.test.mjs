@@ -69,6 +69,15 @@ test("mado new scaffolds canonical modular starter file forms", async () => {
       "utf8",
     );
     assert.match(plainComponent, /component\(\n  "x-badge"/);
+    assert.match(
+      plainComponent,
+      /\(\) => html`<span><slot><\/slot><\/span>`/,
+    );
+    assert.doesNotMatch(
+      plainComponent,
+      /\(\) => \(\) => html/,
+      "component generator must use the slot-owned 0.14 contract",
+    );
 
     const page = readFileSync(
       join(app, "src/modules/reports/pages/report-list.page.ts"),
@@ -100,6 +109,11 @@ test("mado new is context-aware in the universal starter", async () => {
       existsSync(join(app, "src/components/callout.component.ts")),
       "component generator must target src/components/ in the universal starter",
     );
+    const component = readFileSync(
+      join(app, "src/components/callout.component.ts"),
+      "utf8",
+    );
+    assert.match(component, /\(\) => html`<span><slot><\/slot><\/span>`/);
     assert.equal(
       existsSync(join(app, "src/modules")),
       false,

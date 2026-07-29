@@ -7,7 +7,7 @@ component(
   "live-counter",
   () => {
     const count = signal(0);
-    return () => html`
+    return html`
       <div class="counter">
         <button
           class="bump"

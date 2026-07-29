@@ -411,6 +411,7 @@ export type Disposer = () => void;
 export function effect(fn: () => void | Disposer): Disposer {
   let cleanup: Disposer | void;
   let disposed = false;
+  let hasCompletedRun = false;
 
   const run: Subscriber = () => {
     if (disposed) return;
@@ -425,8 +426,13 @@ export function effect(fn: () => void | Disposer): Disposer {
     activeTracker = tracker;
     try {
       cleanup = fn();
+      hasCompletedRun = true;
     } catch (err) {
-      cleanupTracker(tracker);
+      // A failed initial run cannot return a disposer to its caller, so it must
+      // leave no subscriptions behind. After at least one successful run,
+      // however, keep the dependencies collected by the failed emission: the
+      // scheduler reports the error and a later value can recover the effect.
+      if (!hasCompletedRun) cleanupTracker(tracker);
       throw err;
     } finally {
       activeTracker = prev;

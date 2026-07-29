@@ -8,7 +8,7 @@ component(
   "feature-card",
   (ctx) => {
     const title = ctx.attr("title", "");
-    return () => html`
+    return html`
       <article class="card">
         <h3>${() => title()}</h3>
         <p><slot></slot></p>

@@ -120,7 +120,7 @@ test("component(): tag without a hyphen warns and does not throw", () => {
   _testHooks.resetWarnings();
 
   const warnings = captureWarnings(() => {
-    component("badtag", () => () => html`<span></span>`);
+    component("badtag", () => html`<span></span>`);
   });
 
   assert.equal(warnings.length, 1);
@@ -131,9 +131,9 @@ test("component(): tag without a hyphen warns and does not throw", () => {
 test("component(): duplicate registration with another setup warns", () => {
   _testHooks.resetWarnings();
 
-  component("x-duplicate-warning", () => () => html`<span>a</span>`);
+  component("x-duplicate-warning", () => html`<span>a</span>`);
   const warnings = captureWarnings(() => {
-    component("x-duplicate-warning", () => () => html`<span>b</span>`);
+    component("x-duplicate-warning", () => html`<span>b</span>`);
   });
 
   assert.equal(warnings.length, 1);

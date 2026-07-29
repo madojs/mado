@@ -71,7 +71,7 @@ export interface PageContext<P extends RouteParams, D> {
    *     return html`...`;
    *   }
    */
-  onDispose?: (fn: () => void) => void;
+  onDispose(fn: () => void): void;
 }
 
 /**

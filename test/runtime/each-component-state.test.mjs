@@ -64,7 +64,7 @@ test("each move (sync disconnect→connect) preserves component state", async ()
     setups++;
     const local = signal("initial-" + setups);
     draft = local;
-    return () => html`<input .value=${local} />`;
+    return html`<input .value=${local} />`;
   });
 
   const parent = document.createElement("div");
@@ -112,7 +112,7 @@ test("genuine removal still disposes the component (next microtask)", async () =
     ctx.onDispose(() => {
       disposed++;
     });
-    return () => html`<span>gone</span>`;
+    return html`<span>gone</span>`;
   });
 
   const el = document.createElement("x-c1-gone");

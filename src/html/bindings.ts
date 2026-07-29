@@ -8,8 +8,9 @@
  *   - bindAttr   — attribute / event / DOM property / boolean
  *
  * Reactivity: if a value is a function (signal/computed), we wrap it
- * in effect(); the returned Disposer goes into the instance's disposers list
- * so that on update()/dispose() everything is properly cleaned up.
+ * in effect(); the returned Disposer belongs to that single binding. Template
+ * instances can therefore update one slot without churning unrelated refs,
+ * event listeners, or subscriptions.
  */
 
 import { effect, type Disposer } from "../signal.js";
@@ -66,6 +67,20 @@ export type HtmlDirective =
   | StyleMapDirective;
 
 /**
+ * A mount-sensitive operation queued while bindings are applied.
+ *
+ * Template instances flush these only after their fragment is in the DOM and
+ * the complete binding pass succeeded. `rollback()` is used when a later
+ * commit in the same pass throws.
+ */
+export interface BindingCommit {
+  commit(): void;
+  rollback(): void;
+}
+
+export type QueueBindingCommit = (commit: BindingCommit) => void;
+
+/**
  * Render a trusted HTML string as DOM nodes in child position.
  *
  * This intentionally does not sanitize. Only pass strings you own or have
@@ -76,8 +91,9 @@ export function unsafeHTML(value: string): UnsafeHTMLDirective {
 }
 
 /**
- * Call `callback(element)` when the element is bound, and clean it up on
- * disposal. Use as `ref=${ref((el) => { ... })}`.
+ * Call `callback(element)` after the complete template is inserted, and clean
+ * it up on disposal. A returned disposer runs before the matching
+ * `callback(null)`. Use as `ref=${ref((el) => { ... })}`.
  */
 export function ref<T extends Element = Element>(
   callback: RefCallback<T>,
@@ -114,6 +130,8 @@ interface EachEntry {
   inst: InstantiatedTemplate;
   /** Top-level nodes that must move during reorder. */
   nodes: Node[];
+  /** Last successfully applied result, used to roll back a later failed item. */
+  result: TemplateResult;
 }
 
 export interface ChildState {
@@ -162,13 +180,43 @@ export function createChildState(anchor: Comment): ChildState {
 }
 
 export function disposeChildState(st: ChildState): void {
+  const errors: unknown[] = [];
   if (st.isEach) {
-    for (const entry of st.eachEntries.values()) entry.inst.dispose();
-    st.eachEntries.clear();
-    st.eachOrder = [];
-    st.isEach = false;
+    try {
+      clearEach(st);
+    } catch (error) {
+      errors.push(error);
+    }
   }
-  clearCurrent(st);
+  try {
+    clearCurrent(st);
+  } catch (error) {
+    errors.push(error);
+  }
+  throwCleanupErrors(errors, "[mado] child binding cleanup failed.");
+}
+
+/**
+ * Verify that every node owned by this child binding still lives beside its
+ * anchor. Nested instances recurse into their own child states, so removing a
+ * dynamic top-level node is observable even when the stable anchor remains.
+ */
+export function isChildStateMounted(st: ChildState): boolean {
+  const parent = st.anchor.parentNode;
+  if (!parent) return false;
+
+  if (st.isEach) {
+    return [...st.eachEntries.values()].every(
+      (entry) =>
+        entry.nodes.every((node) => node.parentNode === parent) &&
+        entry.inst.isMountedIn(parent),
+    );
+  }
+
+  return (
+    st.current.every((node) => node.parentNode === parent) &&
+    st.currentInsts.every((inst) => inst.isMountedIn(parent))
+  );
 }
 
 /**
@@ -183,34 +231,69 @@ export function bindChild(
   value: unknown,
   disposers: Disposer[],
   instantiateFn: (r: TemplateResult) => InstantiatedTemplate,
+  queueCommit: QueueBindingCommit,
+  bindingComplete: () => void,
 ): void {
   if (typeof value === "function") {
+    let hasResolved = false;
+    let resolved: unknown;
+
     const d = effect(() => {
-      renderChild(st, (value as () => unknown)(), instantiateFn);
+      const next = (value as () => unknown)();
+      if (hasResolved && Object.is(resolved, next)) return;
+
+      const previous = resolved;
+      const hadPrevious = hasResolved;
+      try {
+        renderChild(st, next, instantiateFn, queueCommit);
+        resolved = next;
+        hasResolved = true;
+        bindingComplete();
+      } catch (error) {
+        // A child update may have removed/replaced owned nodes before a nested
+        // binding throws. Restore the last successful resolved value so a
+        // failed reactive pass cannot leave a half-rendered subtree behind.
+        try {
+          if (hadPrevious) {
+            renderChild(st, previous, instantiateFn, queueCommit);
+            resolved = previous;
+            hasResolved = true;
+            bindingComplete();
+          } else {
+            disposeChildState(st);
+            resolved = undefined;
+            hasResolved = false;
+          }
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            "[mado] child binding update and rollback both failed.",
+          );
+        }
+        throw error;
+      }
     });
     disposers.push(d);
     return;
   }
-  renderChild(st, value, instantiateFn);
+  renderChild(st, value, instantiateFn, queueCommit);
 }
 
 function renderChild(
   st: ChildState,
   value: unknown,
   instantiateFn: (r: TemplateResult) => InstantiatedTemplate,
+  queueCommit: QueueBindingCommit,
 ): void {
   // each result: apply keyed reconciliation
   if (isEachResult(value)) {
-    applyEach(st, value, instantiateFn);
+    applyEach(st, value, instantiateFn, queueCommit);
     return;
   }
 
   // switching from each mode to normal: remove each entries
   if (st.isEach) {
-    for (const entry of st.eachEntries.values()) entry.inst.dispose();
-    st.eachEntries.clear();
-    st.eachOrder = [];
-    st.isEach = false;
+    clearEach(st);
   }
 
   // Reuse fast-path: when the previous content was exactly one nested template
@@ -226,13 +309,12 @@ function renderChild(
     st.current.length === st.currentInsts[0]!.nodes.length &&
     st.currentInsts[0]!._strings === value.strings
   ) {
-    st.currentInsts[0]!.update(value.values);
+    st.currentInsts[0]!.update(value);
     return;
   }
 
   // normal branch: clear + recreate
   clearCurrent(st);
-
 
   const parent = st.anchor.parentNode;
   if (!parent) return;
@@ -263,6 +345,7 @@ function renderChild(
       parent.insertBefore(inst.fragment, st.anchor);
       st.currentInsts.push(inst);
       for (const n of inserted) st.current.push(n);
+      queueNestedCommit(inst, queueCommit);
       return;
     }
     if (Array.isArray(v)) {
@@ -287,9 +370,65 @@ function appendUnsafeHTML(st: ChildState, value: string): void {
 }
 
 function clearCurrent(st: ChildState): void {
-  for (const inst of st.currentInsts.splice(0)) inst.dispose();
-  for (const n of st.current) n.parentNode?.removeChild(n);
-  st.current = [];
+  const instances = st.currentInsts.splice(0);
+  const nodes = st.current.splice(0);
+  const errors: unknown[] = [];
+
+  for (const inst of instances) {
+    try {
+      inst.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  for (const node of nodes) {
+    try {
+      node.parentNode?.removeChild(node);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  throwCleanupErrors(errors, "[mado] dynamic child cleanup failed.");
+}
+
+function clearEach(st: ChildState): void {
+  const entries = [...st.eachEntries.values()];
+  // Reset ownership before invoking user cleanup. Even when a ref disposer
+  // throws, this ChildState must never retain a terminal nested instance.
+  st.eachEntries.clear();
+  st.eachOrder = [];
+  st.isEach = false;
+
+  const errors: unknown[] = [];
+  for (const entry of entries) {
+    try {
+      entry.inst.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  throwCleanupErrors(errors, "[mado] keyed child cleanup failed.");
+}
+
+function throwCleanupErrors(errors: unknown[], message: string): void {
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, message);
+}
+
+/**
+ * Nested instances inherit their owner's commit boundary. Rolling back this
+ * task may dispose the instance because it is only queued for newly-created
+ * (not previously mounted) nested content.
+ */
+function queueNestedCommit(
+  inst: InstantiatedTemplate,
+  queueCommit: QueueBindingCommit,
+): void {
+  queueCommit({
+    commit: () => inst.commit(),
+    rollback: () => inst.dispose(),
+  });
 }
 
 /**
@@ -298,7 +437,7 @@ function clearCurrent(st: ChildState): void {
  * Algorithm (simple and readable, O(n) by keys):
  * 1. If switched from "normal" mode — first clear old content.
  * 2. Build new Map nextEntries: for each item
- *      - if key existed — reuse entry, call inst.update(values).
+ *      - if key existed — reuse entry, call inst.update(result).
  *      - if key is new — instantiate(template).
  * 3. Remove entries for keys no longer in the new list.
  * 4. Place nodes in the correct order via insertBefore(node, refNode).
@@ -309,6 +448,7 @@ function applyEach(
   st: ChildState,
   result: EachResult,
   instantiateFn: (r: TemplateResult) => InstantiatedTemplate,
+  queueCommit: QueueBindingCommit,
 ): void {
   // Switching from the normal branch to each: clear previous content first.
   if (!st.isEach && (st.current.length > 0 || st.currentInsts.length > 0)) {
@@ -330,54 +470,112 @@ function applyEach(
   const newEntries = new Map<EachKey, EachEntry>();
   const newOrder: EachKey[] = [];
   const seen = new Set<EachKey>();
+  const created: EachEntry[] = [];
+  const updated: Array<{ entry: EachEntry; previous: TemplateResult }> = [];
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    let key = keyOf(item, i);
-    if (seen.has(key)) {
-      warnOnce(
-        "each-duplicate-key",
-        `each() received duplicate key "${String(key)}". Duplicate keys ` +
-          "usually mean the list data is not uniquely identifiable; Mado will " +
-          "fall back to a positional suffix for this duplicate.",
-      );
-      key = `${String(key)}__dup_${i}`;
-    }
-    seen.add(key);
-
-    const tpl = renderFn(item, i);
-    const prev = st.eachEntries.get(key);
-
-    if (prev) {
-      // same key → try updating the same instance.
-      // If the template changed (different strings) — recreate.
-      const sameTemplate = prev.inst._strings === tpl.strings;
-      if (sameTemplate) {
-        prev.inst.update(tpl.values);
-        newEntries.set(key, prev);
-      } else {
-        prev.inst.dispose();
-        const inst = instantiateFn(tpl);
-        const nodes = [...inst.fragment.childNodes];
-        // The fragment is not inserted yet; reorder below will place it.
-        newEntries.set(key, { inst, nodes });
+  try {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      let key = keyOf(item, i);
+      if (seen.has(key)) {
+        warnOnce(
+          "each-duplicate-key",
+          `each() received duplicate key "${String(key)}". Duplicate keys ` +
+            "usually mean the list data is not uniquely identifiable; Mado will " +
+            "fall back to a positional suffix for this duplicate.",
+        );
+        key = `${String(key)}__dup_${i}`;
       }
-    } else {
-      const inst = instantiateFn(tpl);
-      const nodes = [...inst.fragment.childNodes];
-      newEntries.set(key, { inst, nodes });
+      seen.add(key);
+
+      const tpl = renderFn(item, i);
+      const prev = st.eachEntries.get(key);
+
+      if (prev) {
+        // same key → try updating the same instance.
+        // If the template changed (different strings) — prepare a replacement
+        // without disposing the mounted instance until the whole build passes.
+        const sameTemplate = prev.inst._strings === tpl.strings;
+        if (sameTemplate) {
+          const previous = prev.result;
+          prev.inst.update(tpl);
+          updated.push({ entry: prev, previous });
+          const next = { ...prev, result: tpl };
+          newEntries.set(key, next);
+        } else {
+          const inst = instantiateFn(tpl);
+          const entry = {
+            inst,
+            nodes: [...inst.fragment.childNodes],
+            result: tpl,
+          };
+          created.push(entry);
+          newEntries.set(key, entry);
+        }
+      } else {
+        const inst = instantiateFn(tpl);
+        const entry = {
+          inst,
+          nodes: [...inst.fragment.childNodes],
+          result: tpl,
+        };
+        created.push(entry);
+        newEntries.set(key, entry);
+      }
+      newOrder.push(key);
     }
-    newOrder.push(key);
+  } catch (error) {
+    const rollbackErrors: unknown[] = [];
+    for (const entry of created) {
+      try {
+        entry.inst.dispose();
+      } catch (disposeError) {
+        rollbackErrors.push(disposeError);
+      }
+    }
+    for (let index = updated.length - 1; index >= 0; index--) {
+      const item = updated[index]!;
+      try {
+        item.entry.inst.update(item.previous);
+      } catch (updateError) {
+        rollbackErrors.push(updateError);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        "[mado] keyed binding update and rollback both failed.",
+      );
+    }
+    throw error;
   }
 
-  // 2) remove entries for keys no longer present
+  // 2) Publish the next ownership map before disposing retired instances.
+  //
+  // A ref cleanup is user code and may throw. Keeping the old map until after
+  // cleanup would leave ChildState pointing at a terminal instance and poison
+  // every later reconciliation. With the next map installed, the caller can
+  // always roll this operation back from a coherent state.
+  const retired: EachEntry[] = [];
   for (const [oldKey, oldEntry] of st.eachEntries) {
-    if (!newEntries.has(oldKey)) {
-      oldEntry.inst.dispose();
+    const replacement = newEntries.get(oldKey);
+    if (!replacement || replacement.inst !== oldEntry.inst) {
+      retired.push(oldEntry);
+    }
+  }
+  st.eachEntries = newEntries;
+  st.eachOrder = newOrder;
+
+  const transitionErrors: unknown[] = [];
+  for (const entry of retired) {
+    try {
+      entry.inst.dispose();
+    } catch (error) {
+      transitionErrors.push(error);
     }
   }
 
-  // 3) place nodes in the correct order.
+  // 3) Place nodes in the correct order.
   // Iterate from the end: for each entry place(node, ref),
   // where ref is the first node of the next entry, or st.anchor for the last.
   //
@@ -401,22 +599,32 @@ function applyEach(
     for (let j = entry.nodes.length - 1; j >= 0; j--) {
       const n = entry.nodes[j]!;
       if (n.parentNode !== parent || n.nextSibling !== refNode) {
-        // moveBefore only applies to a node already connected under `parent`;
-        // for fresh nodes (not yet in the document) it would throw, so guard on
-        // current connectivity and fall back to insertBefore otherwise.
-        if (moveBefore && n.parentNode === parent) {
-          moveBefore.call(parent, n, refNode);
-        } else {
-          parent.insertBefore(n, refNode);
+        try {
+          // moveBefore only applies to a node already connected under `parent`;
+          // for fresh nodes (not yet in the document) it would throw, so guard
+          // on current connectivity and fall back to insertBefore otherwise.
+          if (moveBefore && n.parentNode === parent) {
+            moveBefore.call(parent, n, refNode);
+          } else {
+            parent.insertBefore(n, refNode);
+          }
+        } catch (error) {
+          transitionErrors.push(error);
         }
       }
-      refNode = n;
+      // A failed insertion cannot become the reference for earlier nodes:
+      // insertBefore would throw again because it is not a child of `parent`.
+      if (n.parentNode === parent) refNode = n;
     }
   }
 
-
-  st.eachEntries = newEntries;
-  st.eachOrder = newOrder;
+  if (transitionErrors.length === 0) {
+    for (const entry of created) queueNestedCommit(entry.inst, queueCommit);
+  }
+  throwCleanupErrors(
+    transitionErrors,
+    "[mado] keyed child transition failed.",
+  );
 }
 
 // ---------- Attribute binding ----------
@@ -433,6 +641,8 @@ export function bindAttr(
   spec: AttrBindingSpec,
   values: readonly unknown[],
   disposers: Disposer[],
+  queueCommit: QueueBindingCommit,
+  bindingComplete: () => void,
 ): void {
   const name = spec.name;
   const isMulti = spec.isMulti;
@@ -462,7 +672,7 @@ export function bindAttr(
     const v = values[spec.slots[0]!];
     applyReactive(v, disposers, (vv) => {
       (el as unknown as Record<string, unknown>)[prop] = vv;
-    });
+    }, bindingComplete);
     return;
   }
 
@@ -478,7 +688,7 @@ export function bindAttr(
     applyReactive(v, disposers, (vv) => {
       if (vv) el.setAttribute(attrName, "");
       else el.removeAttribute(attrName);
-    });
+    }, bindingComplete);
     return;
   }
 
@@ -486,7 +696,14 @@ export function bindAttr(
   if (!isMulti) {
     warnBooleanAttrIfNeeded(name);
     const v = values[spec.slots[0]!];
-    bindSingleAttr(el, name, v, disposers);
+    bindSingleAttr(
+      el,
+      name,
+      v,
+      disposers,
+      queueCommit,
+      bindingComplete,
+    );
     return;
   }
 
@@ -509,7 +726,35 @@ export function bindAttr(
     return out;
   };
   if (hasReactive) {
-    const d = effect(() => el.setAttribute(name, compute()));
+    let hasResolved = false;
+    let resolved = "";
+    const d = effect(() => {
+      const next = compute();
+      if (hasResolved && resolved === next) return;
+      const previous = resolved;
+      const hadPrevious = hasResolved;
+      try {
+        el.setAttribute(name, next);
+        resolved = next;
+        hasResolved = true;
+        bindingComplete();
+      } catch (error) {
+        if (hadPrevious) {
+          try {
+            el.setAttribute(name, previous);
+            resolved = previous;
+            hasResolved = true;
+            bindingComplete();
+          } catch (rollbackError) {
+            throw new AggregateError(
+              [error, rollbackError],
+              "[mado] interpolated attribute update and rollback both failed.",
+            );
+          }
+        }
+        throw error;
+      }
+    });
     disposers.push(d);
   } else {
     el.setAttribute(name, compute());
@@ -521,33 +766,125 @@ function bindSingleAttr(
   name: string,
   value: unknown,
   disposers: Disposer[],
+  queueCommit: QueueBindingCommit,
+  bindingComplete: () => void,
 ): void {
   let cleanup: Disposer | undefined;
-  let lastPlainAttr = false;
+  let current: unknown;
+  let hasCurrent = false;
+
+  const clearCurrent = (): void => {
+    const previous = current;
+    const hadCurrent = hasCurrent;
+    const previousCleanup = cleanup;
+    cleanup = undefined;
+    current = undefined;
+    hasCurrent = false;
+
+    let cleanupError: unknown;
+    try {
+      previousCleanup?.();
+    } catch (error) {
+      cleanupError = error;
+    } finally {
+      if (hadCurrent && !isHtmlDirective(previous)) {
+        clearPlainAttr(el, name);
+      }
+    }
+    if (cleanupError !== undefined) throw cleanupError;
+  };
+
   const apply = (vv: unknown) => {
-    cleanup?.();
-    if (lastPlainAttr && isHtmlDirective(vv)) {
+    if (hasCurrent && sameResolvedValue(current, vv)) return;
+
+    const previous = current;
+    const previousCleanup = cleanup;
+    const hadPrevious = hasCurrent;
+
+    // Transition cleanup is run before applying the next value, but keep the
+    // old descriptor so a failed ref commit can restore it immediately.
+    cleanup = undefined;
+    current = undefined;
+    hasCurrent = false;
+    try {
+      previousCleanup?.();
+    } catch (error) {
+      if (!hadPrevious) throw error;
+      try {
+        cleanup = applySingleAttrValue(
+          el,
+          name,
+          previous,
+          queueCommit,
+        );
+        current = previous;
+        hasCurrent = true;
+        bindingComplete();
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          "[mado] attribute cleanup and rollback both failed.",
+        );
+      }
+      throw error;
+    }
+    if (hadPrevious && !isHtmlDirective(previous) && isHtmlDirective(vv)) {
       clearPlainAttr(el, name);
     }
-    cleanup = applySingleAttrValue(el, name, vv);
-    lastPlainAttr = !isHtmlDirective(vv);
+
+    try {
+      cleanup = applySingleAttrValue(el, name, vv, queueCommit);
+      current = vv;
+      hasCurrent = true;
+      bindingComplete();
+    } catch (error) {
+      const rollbackErrors: unknown[] = [];
+      try {
+        clearCurrent();
+      } catch (cleanupError) {
+        rollbackErrors.push(cleanupError);
+      }
+      if (hadPrevious) {
+        try {
+          cleanup = applySingleAttrValue(
+            el,
+            name,
+            previous,
+            queueCommit,
+          );
+          current = previous;
+          hasCurrent = true;
+          bindingComplete();
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (rollbackErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          "[mado] attribute binding update and rollback both failed.",
+        );
+      }
+      throw error;
+    }
   };
 
   if (typeof value === "function") {
     const d = effect(() => apply((value as () => unknown)()));
     disposers.push(() => {
       d();
-      cleanup?.();
-      cleanup = undefined;
+      clearCurrent();
     });
     return;
   }
 
   apply(value);
-  if (cleanup) {
+  if (cleanup || hasCurrent) {
     disposers.push(() => {
-      cleanup?.();
-      cleanup = undefined;
+      // Plain values normally need no explicit cleanup because their element
+      // is owned by the template. We still clear them here so a failed update
+      // can roll the binding back without leaving a stale attribute.
+      clearCurrent();
     });
   }
 }
@@ -565,9 +902,10 @@ function applySingleAttrValue(
   el: Element,
   name: string,
   value: unknown,
+  queueCommit: QueueBindingCommit,
 ): Disposer | undefined {
   if (isHtmlDirective(value)) {
-    return applyAttrDirective(el, name, value);
+    return applyAttrDirective(el, name, value, queueCommit);
   }
 
   if (value == null || value === false) el.removeAttribute(name);
@@ -579,17 +917,14 @@ function applyAttrDirective(
   el: Element,
   name: string,
   directive: HtmlDirective,
+  queueCommit: QueueBindingCommit,
 ): Disposer | undefined {
   if (directive._madoDirective === "ref") {
     if (name !== "ref") {
       throw new Error(`[mado] ref() directive must be used as ref=\${ref(...)}.`);
     }
     el.removeAttribute(name);
-    const dispose = directive.callback(el);
-    return () => {
-      if (typeof dispose === "function") dispose();
-      directive.callback(null);
-    };
+    return queueRefCommit(el, directive, queueCommit);
   }
 
   if (directive._madoDirective === "classMap") {
@@ -612,6 +947,88 @@ function applyAttrDirective(
 
   throw new Error(
     "[mado] unsafeHTML() directive can only be used in child position.",
+  );
+}
+
+/**
+ * Refs are commit-phase bindings: callback(element) cannot run while the
+ * template fragment is still detached. The returned disposer is idempotent
+ * and owns both the callback's cleanup and the matching callback(null).
+ */
+function queueRefCommit(
+  el: Element,
+  directive: RefDirective,
+  queueCommit: QueueBindingCommit,
+): Disposer {
+  let active = false;
+  let disposed = false;
+  let cleanup: Disposer | undefined;
+
+  const detach = (): void => {
+    if (!active) return;
+    active = false;
+    const currentCleanup = cleanup;
+    cleanup = undefined;
+    const errors: unknown[] = [];
+    try {
+      currentCleanup?.();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      directive.callback(null);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "[mado] ref cleanup failed.");
+    }
+  };
+
+  const task: BindingCommit = {
+    commit() {
+      if (disposed || active) return;
+      // Mark active before invoking user code so a throwing callback can still
+      // receive its matching null notification during rollback.
+      active = true;
+      try {
+        const result = directive.callback(el);
+        if (typeof result === "function") cleanup = result;
+      } catch (error) {
+        try {
+          detach();
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            "[mado] ref callback and rollback both failed.",
+          );
+        }
+        throw error;
+      }
+    },
+    rollback() {
+      detach();
+    },
+  };
+
+  queueCommit(task);
+
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    detach();
+  };
+}
+
+function sameResolvedValue(previous: unknown, next: unknown): boolean {
+  if (Object.is(previous, next)) return true;
+  return (
+    isHtmlDirective(previous) &&
+    isHtmlDirective(next) &&
+    previous._madoDirective === "ref" &&
+    next._madoDirective === "ref" &&
+    previous.callback === next.callback
   );
 }
 
@@ -669,9 +1086,38 @@ function applyReactive(
   value: unknown,
   disposers: Disposer[],
   apply: (v: unknown) => void,
+  bindingComplete: () => void,
 ): void {
   if (typeof value === "function") {
-    const d = effect(() => apply((value as () => unknown)()));
+    let resolved: unknown;
+    let hasResolved = false;
+    const d = effect(() => {
+      const next = (value as () => unknown)();
+      if (hasResolved && Object.is(resolved, next)) return;
+      const previous = resolved;
+      const hadPrevious = hasResolved;
+      try {
+        apply(next);
+        resolved = next;
+        hasResolved = true;
+        bindingComplete();
+      } catch (error) {
+        if (hadPrevious) {
+          try {
+            apply(previous);
+            resolved = previous;
+            hasResolved = true;
+            bindingComplete();
+          } catch (rollbackError) {
+            throw new AggregateError(
+              [error, rollbackError],
+              "[mado] reactive binding update and rollback both failed.",
+            );
+          }
+        }
+        throw error;
+      }
+    });
     disposers.push(d);
   } else {
     apply(value);

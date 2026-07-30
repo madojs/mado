@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.15.3 - 2026-07-31
+
+### Documentation
+
+- The framework README, Mado UI guide and AI-facing instructions now point to
+  the live `ui.madojs.dev` catalog and document the lock-format-2 ownership
+  graph, explicit legacy migration and conservative removal workflow.
+- The package manifest keeps the `mado` executable path in npm's canonical
+  form so release dry runs no longer need to normalize it.
+
 ## 0.15.2 - 2026-07-30
 
 ### Added

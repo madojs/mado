@@ -1,6 +1,6 @@
 {
   "name": "@madojs/mado",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "description": "A calm native-first web framework for sites and apps. Web Components, signals, routing, data, forms and browser-rendered static snapshots. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
@@ -26,7 +26,7 @@
     "url": "https://github.com/madojs/mado/issues"
   },
   "bin": {
-    "mado": "./scripts/cli.mjs"
+    "mado": "scripts/cli.mjs"
   },
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",

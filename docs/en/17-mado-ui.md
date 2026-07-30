@@ -3,6 +3,10 @@
 > Reviewed, copy-owned UI source for Mado applications — without a second
 > browser runtime.
 
+The canonical catalog is [ui.madojs.dev](https://ui.madojs.dev). Use it to
+inspect each item's source, dependencies, composition, public API,
+accessibility, focus and fallback contract before installing it.
+
 Mado core and Mado UI solve different problems:
 
 ```text
@@ -43,12 +47,41 @@ source.
 ## Project state
 
 `init` creates `mado-ui.json`, the human-owned path configuration. Successful
-installs create or update `.mado-ui.lock.json`, which records registry
-compatibility, versions and source hashes. Commit both files.
+installs create or update `.mado-ui.lock.json`. Commit both files.
+
+Lock format 2 records:
+
+- `explicitItems`: the items the developer actually requested;
+- every installed item's direct `dependencies`, captured at installation;
+- registry version and compatibility generation;
+- copied source paths, project targets and normalized source hashes.
+
+The explicit roots and their locked dependency edges are ownership metadata,
+not a cache. Commands use that recorded graph to retain shared dependencies and
+identify new orphans deterministically. They must not reconstruct ownership
+from a newer registry release whose dependency graph may have changed.
 
 Before adding, updating or recreating UI source, inspect these files when they
 already exist. They let the CLI distinguish pristine files, application
 customizations, missing files and upstream changes without preventing edits.
+
+### Migrate a format-1 lock explicitly
+
+Format-1 locks recorded installed items but not which ones were direct
+requests. The CLI deliberately never guesses those roots. Recover the original
+explicit item names from project history or from the person who installed
+them, preview the migration, and then apply the same command:
+
+```bash
+npx @madojs/ui@latest migrate badge dialog --dry-run
+npx @madojs/ui@latest migrate badge dialog
+```
+
+Migration succeeds only when those roots and their dependency closure exactly
+reproduce the complete legacy installation. It updates lock metadata
+transactionally and does not rewrite installed source. If the original roots
+cannot be established, stop and resolve that ownership decision rather than
+inferring it from current files or the current registry.
 
 ## Inspect and update
 
@@ -68,6 +101,30 @@ overwriting a customization. Replacing one requires
 `update <item> --overwrite`; the flag is invalid without explicit item names
 and never expands to implicit dependencies.
 
+## Remove owned source
+
+Removal is explicit and conservative:
+
+```bash
+npx @madojs/ui@latest remove tooltip --dry-run
+npx @madojs/ui@latest remove tooltip
+```
+
+`remove` accepts one or more items recorded in `explicitItems`; it never means
+"remove everything". It plans from the dependency edges in the lock, keeps
+items still reachable from another explicit root and includes newly orphaned
+dependencies in the preview.
+
+Only regular files whose current hash still matches the lock are deleted.
+Missing owned files are forgotten, while customized files, shared lock
+targets, paths outside configured roots, symlinks and non-regular files stop
+the complete transaction. Directories and untracked files are never removed.
+If another explicit root still depends on a selected item, remove the
+dependent roots together or leave the shared item installed.
+
+Do not replace this command with manual file deletion or hand-edit the lock.
+Use `--dry-run` first when reviewing the exact deletion plan.
+
 ## Core generator or UI registry?
 
 ```bash
@@ -84,6 +141,7 @@ similar platform elements remain semantic HTML plus opt-in CSS and, where
 behavior requires it, a copied binding helper. A custom element is used only
 when that boundary improves rather than weakens browser behavior.
 
-The catalog changes faster than framework documentation, so the canonical
-item list, accessibility contracts and CLI details live in the
-[Mado UI repository](https://github.com/madojs/ui).
+The catalog changes faster than framework documentation. Use the
+[live Mado UI catalog](https://ui.madojs.dev) for the canonical item list,
+accessibility contracts and CLI guide; implementation history and registry
+source live in the [Mado UI repository](https://github.com/madojs/ui).

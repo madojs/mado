@@ -26,8 +26,8 @@
 
 ## Mado UI boundary
 
-- [`@madojs/ui`](https://github.com/madojs/ui) is a separate development CLI
-  and versioned source registry. Use `npx @madojs/ui@latest ...` only when the
+- [`@madojs/ui`](https://ui.madojs.dev) is a separate development CLI and
+  versioned source registry. Use `npx @madojs/ui@latest ...` only when the
   application opts into the official UI registry.
 - Never generate a browser import from `@madojs/ui`. Installed files belong to
   the application and may be edited.
@@ -35,6 +35,16 @@
   `mado-ui add` installs reviewed registry source and its dependencies.
 - If `mado-ui.json` exists, inspect it and `.mado-ui.lock.json` before adding,
   updating or recreating UI source. Commit both project-state files.
+- Lock format 2 records the developer's `explicitItems` and every installed
+  item's direct dependency edges. Treat them as ownership metadata; never
+  reconstruct roots or removal edges from the current registry.
+- A format-1 lock requires the original explicit roots:
+  `mado-ui migrate <explicit-item...> --dry-run`, then the same command without
+  `--dry-run`. Never infer those roots from installed files; ask when they
+  cannot be recovered.
+- Remove only explicit roots with
+  `mado-ui remove <item...> --dry-run`, review the plan, then rerun without
+  `--dry-run`. Do not manually delete copied files or hand-edit the lock.
 
 ## HARD RULES — violation = bug
 

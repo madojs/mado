@@ -26,7 +26,7 @@
 
 [Website](https://madojs.dev) ·
 [Documentation](./docs/en/README.md) ·
-[Mado UI](https://github.com/madojs/ui)
+[Mado UI](https://ui.madojs.dev)
 
 Build with real Web Components, signals, routing, data and forms.
 Ship live SPAs and browser-rendered static documents from one
@@ -259,21 +259,27 @@ become part of the production application.
 
 ## UI without a runtime dependency
 
-[`@madojs/ui`](https://github.com/madojs/ui) is a separate development CLI
-and versioned source registry. It copies reviewed components, native CSS
-recipes, blocks and templates into the application; the application owns the
-resulting files.
+[`@madojs/ui`](https://ui.madojs.dev) is a separate development CLI and
+versioned source registry. Its live catalog documents the source,
+dependencies, accessibility and fallback contract for each reviewed
+foundation, component, block and template. The CLI copies selected source into
+the application; the application owns the resulting files.
 
 ```bash
 npx @madojs/ui@latest init
 npx @madojs/ui@latest list
 npx @madojs/ui@latest add button field panel
+npx @madojs/ui@latest remove panel --dry-run
 ```
 
 Applications never import `@madojs/ui` in browser code. `mado new component`
 creates a minimal application-owned component skeleton; `mado-ui add` resolves
-reviewed registry source and its dependencies. See
-[the Mado UI guide](./docs/en/17-mado-ui.md).
+reviewed registry source and its dependencies. Lock format 2 records explicit
+installation roots and their dependency edges so updates and removals do not
+guess ownership. Legacy format-1 locks require an explicit
+`mado-ui migrate <explicit-item...>`; use the dry run first and never infer the
+roots. See [the Mado UI guide](./docs/en/17-mado-ui.md) or the
+[registry source](https://github.com/madojs/ui).
 
 ## Honest boundaries
 

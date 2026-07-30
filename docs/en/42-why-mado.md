@@ -120,7 +120,7 @@ maintain, but it does not erase the cost of choosing a smaller project.
 ## The UI ecosystem, honestly
 
 Mado does have an official UI path:
-[`@madojs/ui`](https://github.com/madojs/ui) is a focused, open-code source
+[`@madojs/ui`](https://ui.madojs.dev) is a focused, open-code source
 registry. Its CLI copies reviewed foundations, primitives, blocks and
 templates into the application. The application owns and may change every
 installed file, and no Mado UI runtime is shipped to the browser.

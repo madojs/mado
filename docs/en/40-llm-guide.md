@@ -681,6 +681,46 @@ automatically on navigation. Only raw browser APIs need explicit
 
 ---
 
+### Pitfall #25: treating Mado UI as runtime or guessing lock ownership
+
+Mado UI is copied source, not a browser package:
+
+```ts
+// ❌ There is no Mado UI runtime to ship
+import { Badge } from "@madojs/ui";
+
+// ✅ Import the application-owned file copied by the CLI
+import "../components/mado-ui-badge.component";
+```
+
+Before generating a generic component or changing installed UI, inspect
+`mado-ui.json`, `.mado-ui.lock.json` and the
+[live catalog](https://ui.madojs.dev). Lock format 2 records
+`explicitItems` plus the direct dependencies captured for each installed item.
+Those fields are ownership history. Never replace them with guesses from the
+current registry graph.
+
+A format-1 lock cannot say which items were requested directly. Ask for or
+recover the original roots, then use the explicit migration:
+
+```bash
+npx @madojs/ui@latest migrate badge dialog --dry-run
+npx @madojs/ui@latest migrate badge dialog
+```
+
+Do not delete copied files manually. Remove an explicit root by reviewing the
+CLI's deterministic plan first:
+
+```bash
+npx @madojs/ui@latest remove dialog --dry-run
+npx @madojs/ui@latest remove dialog
+```
+
+The command protects locally modified files and dependencies still reachable
+from another explicit root.
+
+---
+
 ## Part 2 — Cheat-sheet
 
 | If you want to do…                    | Correct in Mado                              |
@@ -751,7 +791,9 @@ Required behaviour:
 
 This test intentionally evaluates the core application API without assuming
 that Mado UI has been initialized. In a real application, inspect
-`mado-ui.json` and the registry before recreating a generic UI item.
+`mado-ui.json`, `.mado-ui.lock.json` and the catalog before recreating a
+generic UI item. Never import `@madojs/ui` in browser code or infer explicit
+roots for a legacy lock.
 
 ### Failure checklist
 

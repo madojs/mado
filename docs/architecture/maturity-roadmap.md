@@ -14,15 +14,22 @@ The invariant is product-shaped, not version-shaped:
 - features earn permanence through real applications, the Mado site and Mado
   UI rather than through roadmap pressure.
 
-## Current phase: contract simplification
+## Current phase: application validation
 
-1. Make templates transactional and update bindings independently.
-2. Give `ref()` a real post-bind, post-connect commit contract.
-3. Make pages and components use the same slot-owned reactivity model.
-4. Remove compatibility paths, documentation and examples that describe
-   superseded models.
-5. Dogfood every change in the framework starters and Mado UI, then validate
-   the settled contract in the rewritten Mado site.
+The 0.14 line completed the transactional template, `ref()` and slot-owned
+reactivity work. The next evidence must come from applications rather than
+another speculative API cycle:
+
+1. Keep the page, component, template and lifecycle contracts steady while
+   `madojs.dev` and Mado UI exercise them.
+2. Record repeated application workarounds as framework defects and fix the
+   smallest general contract instead of adding private escape hatches.
+3. Use the production site to validate static documents, SPA takeover,
+   wildcard 404 behavior, head metadata and host deployment together.
+4. Use the independent Mado UI catalog and copied registry source to validate
+   component lifecycle, native semantics and AI-facing documentation.
+5. Validate the resulting product surface in at least one external
+   application before declaring a v1 candidate.
 
 ## Product-surface review
 

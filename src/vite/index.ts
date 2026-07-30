@@ -9,8 +9,7 @@ export interface MadoVitePluginOptions {
    *
    * Combined with Vite's `base`, the canonical URL for a route is
    * `site + base + pathname`. Required when at least one page declares
-   * `static`; otherwise the build emits absolute URLs that point
-   * nowhere.
+   * `static`; snapshot capture stops with a targeted error when it is absent.
    */
   site?: string;
 }

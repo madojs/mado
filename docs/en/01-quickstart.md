@@ -1,7 +1,7 @@
 # Quickstart
 
-> Goal: have a Mado app running locally, edited from VS Code, and shipped to
-> a static host — in under 10 minutes.
+> Goal: have a Mado app running locally, edited from VS Code, and ready to
+> ship to a static host.
 
 ---
 
@@ -11,12 +11,15 @@ Mado ships with a small **universal** starter by default. A larger
 **modular** starter remains available as an optional architecture experiment,
 not as a requirement for production applications.
 
+Prerequisite: Node.js 22.12 or newer.
+
 ```bash
 # Universal starter (default) — ~15 files, one shared component
-npm exec --package @madojs/mado -- mado init my-app
+npm exec --yes --package @madojs/mado@latest -- mado init my-app
 
-# Modular reference starter — auth shell, guarded zones, billing module
-npm exec --package @madojs/mado -- mado init my-app --starter modular
+# Optional modular experiment — auth shell, guarded zones, billing module
+npm exec --yes --package @madojs/mado@latest -- \
+  mado init my-app --starter modular
 
 cd my-app
 npm install
@@ -37,14 +40,15 @@ What you get either way:
 ```bash
 npm run dev        # Vite dev server, fast HMR for templates/styles
 npm run typecheck  # tsc --noEmit
-npm run test       # node --test (if your project has tests)
+npm run test       # starter verification; add app-specific tests as it grows
 npm run build      # SPA build only (out/ without snapshots)
 npm run release    # typecheck + vite build + static snapshots + deploy files
 npm run preview    # serve out/ like a real static host
 ```
 
 `mado release` is the single command you ship. It produces one folder,
-`out/`, that you can `rsync`/upload to any static host:
+`out/`, that you can `rsync` or upload to a static host after configuring its
+routing policy for your static, SPA or hybrid route mix:
 
 ```bash
 npm run release
@@ -182,3 +186,4 @@ they just won't be syntax-highlighted as HTML.
 - [14 — Forms](./14-forms.md) — `useForm()` + Shadow DOM input recipes.
 - [15 — Static snapshots](./15-static-snapshots.md) — SEO without SSR.
 - [16 — App architecture](./16-app-architecture.md) — start flat, then evaluate optional module boundaries.
+- [17 — Mado UI](./17-mado-ui.md) — copy reviewed UI source into your app.

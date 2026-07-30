@@ -1,15 +1,16 @@
 # Contributing to Mado
 
 Thanks for your interest. Mado is intentionally small, and the contribution
-rules are stricter than in many projects because the code should remain readable
-in one evening.
+rules are stricter than in many projects because each public behavior should
+remain traceable through a focused source path and its tests.
 
 ## Principles
 
 1. **Every line has a cost.** Features add cognitive load for every future
    reader. If a feature can live in user-land, it usually should.
-2. **Zero runtime dependencies.** This is a hard rule. `typescript` is the only
-   required dev dependency; other tools stay optional.
+2. **Zero third-party browser-runtime dependencies.** This is a hard rule for
+   Mado core. Build, test and release tooling plus optional Vite/Chromium peers
+   are allowed only when their purpose and maintenance cost are explicit.
 3. **One file, one responsibility.** If code no longer fits the current module,
    prefer a small new file over a swollen one.
 4. **Failing test → implementation → green test.** Bug fixes and features need
@@ -42,12 +43,18 @@ We do not accept new translation trees at this time.
 ## Not Accepted
 
 - Large new modules without a prior RFC issue.
-- Runtime dependencies in `dependencies` or `peerDependencies`.
+- Third-party packages that execute in the browser runtime.
+- New package dependencies or tooling peers without a concrete need and
+  lifecycle/maintenance analysis.
 - Public API changes without motivation and migration notes.
 - Tooling/config churn for its own sake.
 - Generic utilities added “just in case”.
 
 ## Before Opening A PR
+
+Use Node.js 22.12 or newer. `packageManager` in `package.json` declares the
+expected maintainer npm version but does not switch it automatically; verify
+`npm --version` before a release.
 
 ```bash
 npm install

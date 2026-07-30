@@ -1,203 +1,199 @@
-# Why Mado (and why not Lit / Solid / Alpine / htmx)
+# Why Mado — and when not to choose it
 
-> If you are choosing a frontend stack for an admin panel, internal tool or
-> business SPA, this page is for you.  
-> If you already have something working — **don't migrate for the sake of
-> migration**, it always costs more than it seems.
+> Choose a framework for the application you have, not for the migration you
+> could invent. If an existing stack works, changing it only for novelty is
+> usually the wrong trade.
 
-Mado is not a "killer" of React/Vue/Svelte. It is a focused tool for teams that
-want a complete app stack (routing, forms, data, state, prerender) without
-frontend infrastructure overhead. Here is an honest comparison of **when Mado is
-genuinely better than the alternatives**, and when it is not.
+Mado is a focused frontend framework for public sites and live applications.
+It combines Web Components, signals, routing, data, forms and
+browser-rendered static snapshots without a framework compiler or third-party
+browser-runtime dependencies.
 
----
+That coherence is its advantage. Its pre-1.0 status and smaller ecosystem are
+real costs.
 
-## TL;DR — one table
+## Short answer
 
-| If you care about…                                                                                             | Choose                    |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| Best learning infrastructure / huge ecosystem                                                                  | **React** or **Vue**      |
-| Component design system for embedding into any framework                                                       | **Lit**                   |
-| Top performance on large lists, "close to vanilla" with JSX                                                    | **Solid** or **Svelte 5** |
-| Progressive enhancement of classic server-rendered apps                                                        | **htmx** + your backend   |
-| "Sprinkling" reactivity onto a static site                                                                     | **Alpine.js**             |
-| Minimal tooling, maximum platform, everything in one box (router + data + forms + SEO), readable in an evening | **Mado** ✓                |
+| Your primary requirement | Start with |
+| --- | --- |
+| Broad third-party integrations, training material and an established hiring pool | React or Vue |
+| Interoperable Web Components for use across several host frameworks | Lit |
+| A compiled JSX or component-language workflow with an established full-stack rendering path | SolidStart or SvelteKit |
+| A backend that owns HTML and returns document fragments | htmx |
+| Small enhancements on server-rendered or static HTML | Alpine.js |
+| One browser-native TypeScript model for static documents and a live client application | **Mado** |
 
-If your case does not fall into the last point — Mado is most likely not the best choice. That's fine.
+This table is a routing hint, not a benchmark. Validate the difficult part of
+your own application before committing to any option.
 
----
+## The trade Mado makes
 
-## Mado vs Lit
+Mado deliberately puts these concerns behind one contract:
 
-**Lit** is the closest alternative in spirit. Same approach: Web Components + tagged templates + minimal magic.
+- `component()` defines autonomous Web Components with scoped styles;
+- `page()` defines route, data, head metadata, view and optional static
+  capture;
+- signals update individual template bindings;
+- `routes()`, `resource()`, `mutation()` and `useForm()` cover common
+  frontend application work;
+- `mado release` builds the client and captures declared public routes in a
+  real Chromium;
+- Vite remains the development and delivery transport rather than becoming a
+  second application framework.
 
-|                | Lit                                                            | Mado                                                   |
-| -------------- | -------------------------------------------------------------- | ------------------------------------------------------ |
-| Size           | ~6 KB                                                          | ~16 KB                                                 |
-| Age / support  | ~10 years, Google                                              | 6 months, single author                                |
-| Reactivity     | `@property` decorators + manual `requestUpdate`                | signals (`signal`/`computed`/`effect`) out of the box  |
-| Router         | none, you need to find one (`@lit-labs/router`, etc)           | included: `routes()` + layout groups + prefetch        |
-| Data fetching  | none, you need to assemble it                                  | `resource()` + `mutation()` + glob invalidation        |
-| Forms          | none                                                           | `useForm()` with HTML-like constraints                 |
-| SEO / static   | complex (`@lit-labs/ssr`)                                      | `mado static` (real Chromium snapshot + DSD)           |
-| Build          | needs framework-specific build plugins                         | Vite transport + native runtime                         |
-| Code style     | classes + decorators                                           | functions + tagged templates                           |
-| Ecosystem      | real (Shoelace, Material Web, etc.)                            | none                                                   |
-| When to choose | writing a design system / Web Components library for embedding | writing a full application, want everything in one box |
+In return, Mado deliberately does **not** provide a backend, server rendering,
+hydration, a framework-specific compiler or compatibility with legacy
+browsers.
 
-**Honest pitch:** _"Lit is better if you're writing a component design system. Mado is better if you're writing an application and want batteries included without assembling 8 packages."_
+## Mado and Lit
 
----
+Mado and [Lit](https://lit.dev/) share important platform choices: Custom
+Elements, Shadow DOM and tagged-template HTML.
 
-## Mado vs Solid
+Lit is centered on building reusable Web Components that can live in many host
+environments. It provides a mature component base, reactive properties,
+templating and lifecycle tools while leaving application routing, data and
+delivery architecture open.
 
-**Solid** is a top-tier reactive library built on signals. Technically very impressive.
+Mado is centered on building a complete frontend application. Its component
+model is accompanied by pages, routing, resources, forms and static capture.
 
-|                 | Solid                                                       | Mado                                                 |
-| --------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
-| Size            | ~7 KB                                                       | ~16 KB                                               |
-| Performance     | top-3 on js-framework-benchmark                             | good, but not top                                    |
-| Reactivity      | signals (same class of ideas)                               | signals                                              |
-| Templates       | JSX (compiled to reactive expressions)                      | tagged template `html\`\``                           |
-| Component model | functions, Solid virtual nodes                              | Web Components                                       |
-| Build           | Vite + babel-plugin-solid required                          | Vite for dev/build, no runtime dependencies          |
-| Router          | `@solidjs/router`                                           | included                                             |
-| Data            | `createResource`                                            | `resource()`                                         |
-| SSR             | seriously supported (SolidStart)                            | intentionally none                                   |
-| Ecosystem       | growing, ~50 packages                                       | none                                                 |
-| When to choose  | need top performance + JSX + willing to configure the build | want browser-native runtime with simple tooling      |
+Choose Lit when the deliverable is primarily an interoperable component
+library or design system. Choose Mado when the deliverable is the application
+and one integrated contract is more valuable than selecting those layers
+independently.
 
-**Honest pitch:** _"Solid is technically faster and more mature. Mado is smaller in concept: browser-native runtime, Web Components, tagged templates, and Vite doing the boring dev/build work. If you want JSX and a larger ecosystem, go with Solid."_
+## Mado and Solid or Svelte
 
----
+[Solid](https://docs.solidjs.com/) and [Svelte](https://svelte.dev/docs) offer
+fine-grained reactive application models with compilation integrated into
+their authoring workflows. Their surrounding application frameworks also
+cover server and full-stack rendering modes that Mado intentionally excludes.
 
-## Mado vs Svelte 5
+Mado uses plain TypeScript and tagged templates, produces real Custom Elements
+for reusable components and has no framework compiler. Public documents come
+from browser capture, followed by atomic client takeover rather than server
+rendering and hydration.
 
-**Svelte 5** with runes — also a signal model, also minimalist.
+Choose Solid or Svelte when their syntax, tooling, ecosystem or server
+rendering path is a requirement. Choose Mado when staying close to browser
+APIs and keeping one client-side mental model matters more.
 
-|                 | Svelte 5                           | Mado                                   |
-| --------------- | ---------------------------------- | -------------------------------------- |
-| Runtime size    | ~3 KB                              | ~16 KB                                 |
-| Compiler        | required (.svelte → JS)            | none                                   |
-| Syntax          | custom .svelte format              | TS + tagged templates                  |
-| Reactivity      | `$state`/`$derived` (runes)        | `signal`/`computed`                    |
-| SSR / SvelteKit | full-featured, mature              | intentionally none                     |
-| Ecosystem       | large, excellent dev-tools         | none                                   |
-| When to choose  | new production project with a team | private/internal tool, need simplicity |
+## Mado and htmx
 
-**Honest pitch:** _"Svelte is a product choice. Mado is an engineering one. If you have a team and a production app — Svelte. If you're alone and want control — Mado."_
+[htmx](https://htmx.org/docs/) normally asks the server for HTML or HTML
+fragments and swaps the response into the document. It fits especially well
+when the backend already owns rendering, authorization and navigation.
 
----
+Mado normally treats the backend as an HTTP API. The browser owns route state,
+reactive data, optimistic mutations and form interaction. Static public pages
+are captured during release, but the production application does not need a
+Node renderer.
 
-## Mado vs htmx
+Choose htmx when HTML is naturally the server's application protocol. Choose
+Mado when the client is a substantial application with its own state and
+navigation.
 
-**htmx** is a different school: HTML-fragments over the wire.
+## Mado and Alpine.js
 
-|                    | htmx                                                                     | Mado                                                |
-| ------------------ | ------------------------------------------------------------------------ | --------------------------------------------------- |
-| Architecture       | HTML from server, updated via fragments                                  | SPA: JS loads data, renders itself                  |
-| Backend dependency | strong (backend must be able to serve HTML)                              | weak (backend is a JSON API)                        |
-| Client state       | minimal (cookies, localStorage)                                          | full (signal, persisted)                            |
-| Optimistic updates | difficult                                                                | easy (mutation + invalidates)                       |
-| Offline / PWA      | poor                                                                     | decent                                              |
-| Size               | ~14 KB                                                                   | ~16 KB                                              |
-| When to choose     | classic server-rendered app (Rails, Django, Phoenix), need to "liven up" | SPA experience is required, backend is REST/GraphQL |
+[Alpine.js](https://alpinejs.dev/) is a good fit for adding local behavior to
+HTML that already exists. Mado owns an explicit route and component graph and
+is intended for a complete frontend.
 
-**Honest pitch:** _"htmx — if the backend is solid and can serve HTML. Mado — if the backend serves JSON and you need a full SPA experience."_
+Choose Alpine when the page is primary and JavaScript is a small enhancement.
+Choose Mado when pages, client navigation, shared data and reusable components
+form one application.
 
----
+## Mado and mainstream application frameworks
 
-## Mado vs Alpine.js
+React and Vue have a breadth of libraries, integrations, educational material
+and operational experience that a young framework cannot reproduce. If the
+project depends on a specific vendor SDK, enterprise component suite, hosted
+rendering platform or readily available specialist experience, that ecosystem
+may decide the choice before syntax does.
 
-**Alpine** — reactive attributes directly in HTML.
+Mado offers a narrower surface: one Vite transport, built-in frontend
+primitives, browser standards and no third-party browser-runtime dependency in
+core. That can reduce the number of independent contracts an application must
+maintain, but it does not erase the cost of choosing a smaller project.
 
-|                  | Alpine                                                  | Mado                                     |
-| ---------------- | ------------------------------------------------------- | ---------------------------------------- |
-| Purpose          | enhancing static HTML                                   | full SPA                                 |
-| Size             | ~7 KB                                                   | ~16 KB                                   |
-| State management | `x-data` locally                                        | signals + context + persisted            |
-| Routing          | none                                                    | included                                 |
-| TypeScript       | poor                                                    | first-class                              |
-| When to choose   | static sites, landing pages, need 5 interactive buttons | full app: pages, navigation, forms, data |
+## The UI ecosystem, honestly
 
-**Honest pitch:** _"Alpine — for interactivity on static sites. Mado — for a full application."_
+Mado does have an official UI path:
+[`@madojs/ui`](https://github.com/madojs/ui) is a focused, open-code source
+registry. Its CLI copies reviewed foundations, primitives, blocks and
+templates into the application. The application owns and may change every
+installed file, and no Mado UI runtime is shipped to the browser.
 
----
+This provides a strong starting point, not a broad third-party marketplace.
+If the application needs the depth of a mature commercial or community UI
+ecosystem, verify that requirement before choosing Mado.
 
-## Mado vs React + ecosystem
+## Choose Mado when
 
-I won't dwell on this for long, because React is in a **different weight class** in terms of ecosystem and maturity. But if you're seriously comparing:
+- the product is a frontend, not a backend hidden inside a frontend
+  framework;
+- evergreen browser APIs are an acceptable platform baseline;
+- public static documents and live SPA routes should share one page and
+  component model;
+- Web Components and Shadow DOM are useful boundaries for reusable UI;
+- built-in routing, data, forms and release behavior are preferable to
+  assembling several packages;
+- the team accepts a pre-1.0 contract and can evaluate the source when an edge
+  case appears.
 
-**React wins:**
+## Do not choose Mado when
 
-- massive ecosystem: thousands of UI kits, thousands of articles, endless tutorials;
-- AI assistants (ChatGPT, Copilot) know React better than anything;
-- better job market;
-- better SSR support (Next.js).
+- request-time SSR, streaming HTML or server actions are requirements;
+- the backend already renders HTML and only progressive enhancement is needed;
+- a broad third-party UI or integration ecosystem is a hard dependency;
+- legacy browser support is required;
+- release infrastructure cannot provide a compatible Chromium for declared
+  static routes;
+- the project cannot absorb documented pre-1.0 migrations.
 
-**Mado wins:**
+## Ownership and maintenance
 
-- bundle size dozens of times smaller;
-- one conventional Vite transport without a framework compiler or Babel layer;
-- readable in an evening — if something breaks, open `src/`;
-- signals instead of hooks (no "can't use in an if" rules, no stale-closure traps);
-- no need to migrate between major versions.
+Mado's ownership argument is not a frozen line count or a promise that no
+migration will ever happen. It is structural:
 
-**When to choose Mado over React:**
+- the public API is explicit and checked against a golden type surface;
+- core behavior is split into focused TypeScript modules;
+- application code uses browser primitives rather than framework-specific
+  server abstractions;
+- Mado UI installs editable source instead of adding another browser runtime;
+- `AGENTS.md` and `llms.txt` make the current contract available to coding
+  agents instead of relying on model memory.
 
-- 1–3 person project, for years to come;
-- bundle size is critical;
-- you're tired of React fatigue and are ready to sacrifice the ecosystem for simplicity.
+When evaluating maintenance cost, inspect the actual package version, run
+`npm run size`, read the relevant source path and prototype the application's
+hardest interaction.
 
-**When to choose React:**
+## Performance
 
-- team of 5 or more people;
-- you need UI kits, you need the ecosystem;
-- a project that will be hiring new people from the market;
-- you need SSR with hydration (Next.js).
+Mado does not claim a benchmark rank. It supplies lazy computed values,
+batched signal scheduling, keyed `each()` reconciliation, route chunk
+prefetch, shared stylesheets and binding-level DOM updates.
 
----
+Whether that is sufficient depends on the product. Measure the real route,
+data volume, interaction latency and shipped artifact. A spreadsheet-scale
+grid, media editor or graphics-heavy tool may need specialized rendering
+regardless of the framework around it.
 
-## Mado's strongest argument
+## Pre-1.0 means pre-1.0
 
-Not size, not performance, not signals — everything has better competitors.
-
-> **"Open the source and read it in an evening. ~3500 lines, small modules. If something breaks — you don't go to an issue with 3000 comments. You go to `src/router/` and read the code."**
-
-This is called **ownership** — you own the code, rather than depending on someone else's.
-
-For backend developers who are used to small, understandable libraries (chi in Go, axum in Rust, FastAPI in Python), this is a **familiar feeling**. For those to whom this doesn't matter — take whatever is bigger and more mature.
-
----
-
-## What about performance?
-
-Honestly: **Mado is not the fastest**. The top-3 on js-framework-benchmark are Solid, Inferno, and Svelte. Mado is closer to Lit / Preact in characteristics.
-
-What Mado does for performance out of the box:
-
-- **lazy `computed`** (dirty-flag, not eager);
-- **batch microtask scheduler** for `signal.set`;
-- **keyed reconciliation** in `each()` with real DOM reuse;
-- **sync-rendering** for cached pages in the router;
-- **hover-prefetch** for lazy chunks;
-- **View Transitions API** for smooth transitions;
-- **shared `adoptedStyleSheets`** for CSS;
-- **`modulepreload` hints** on the dev server.
-
-This is sufficient for most applications. If you're building Excel in the browser or 60fps WebGL visualization — that's not here (that's Solid or native JS).
-
----
+Dogfooding may still reveal a simpler public contract. Before v1, a minor
+release may include a documented migration; patch releases remain compatible
+bug fixes. Read [the API surface](./30-api-surface.md),
+[the v1 stability contract](./32-v1-stability.md) and the current changelog
+instead of assuming permanence from marketing copy.
 
 ## Summary
 
-Mado is a **narrow** tool with honest positioning. It is strongest where:
+Mado is a good fit when a team wants to build a browser-native frontend with
+one understandable contract for components, pages, data, forms and static
+delivery. It is a poor fit when the project primarily needs server rendering,
+a large existing ecosystem or a stable mainstream hiring default.
 
-1. You want to **own** the code and read it in its entirety.
-2. **Infrastructure simplicity** is critical (one Vite transport, no custom compiler).
-3. You need **batteries in one box** (router + data + forms + SEO).
-4. You are not a junior and are not afraid of Web Components.
-
-If even one point doesn't apply to you — take an alternative from the table above. Don't put up with a tool that doesn't fit.
-
-— The author of Mado, a former React developer who moved to the backend and now glues together frontends in his spare time.
+That boundary is a feature: choose Mado for the work it is intentionally
+designed to do.

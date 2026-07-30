@@ -16,7 +16,8 @@ This document is for **two audiences**:
    understand what's wrong.
 
 If anything below doesn't fit a real Mado codebase, open `mado/src/` and read
-the relevant 500 lines. Mado is intentionally small to be readable.
+the relevant source path together with its focused tests. Do not rely on a
+remembered line count or an older model snapshot.
 
 ---
 
@@ -276,21 +277,25 @@ component("x-child", ({ host }) => {
 if (typeof window !== "undefined") { ... }
 ```
 
-Mado **does not do SSR with hydration**. Page logic does not run on a
-server — there is `mado static`, which renders the page in a real
-Chromium at release time and freezes the resulting HTML (including
-Shadow DOM via Declarative Shadow DOM). On first paint the live app
-performs an **atomic takeover** of the snapshot — not hydration, not
-reconciliation, not per-attribute diffing.
+Mado **does not do SSR with hydration**. Page views render in a real browser:
+`mado static` opens the built application in Chromium at release time and
+freezes the resulting HTML (including Shadow DOM via Declarative Shadow DOM).
+On first paint the live app performs an **atomic takeover** of the snapshot —
+not hydration, not reconciliation, not per-attribute diffing.
 
 This means:
 
-- ✅ `window`, `document`, `location`, `fetch` are always available.
-- ❌ Don't gate logic on `typeof window`.
+- ✅ Browser APIs belong directly in page views and component setup; do not
+  add SSR-only branches around them.
+- ⚠️ Vite imports route/page modules in Node as a discovery control plane.
+  Keep module initialization environment-neutral and do not perform browser
+  work at module top level.
+- ❌ Don't wrap page-view logic in `typeof window` checks copied from an SSR
+  framework.
 - ❌ Don't use Next.js patterns (`getServerSideProps`, `headers()`).
-- ⚠️ `static.paths()` and `static.initialData()` run **in the snapshot
-  browser AND in the user bundle**. Keep them browser-safe and
-  secret-free.
+- ⚠️ `static.paths()` and `static.initialData()` execute during Node
+  discovery, while their module and callback code remain in the client
+  bundle. Use environment-neutral code and keep it secret-free.
 
 ---
 
@@ -716,8 +721,10 @@ For the first pass, give the agent only:
 - `AGENTS.md`
 - `README.md`
 - `docs/en/40-llm-guide.md` (this file)
-- specific files from the external `madojs-examples` workspace when the
-  agent asks for a larger app pattern
+- specific files from `starters/default/src/` when the agent asks for a
+  complete small-app pattern
+- specific files from `starters/modular/src/` only when the task already
+  demonstrates a need for guarded zones or module boundaries
 
 The agent may search targeted APIs in `mado/src/` when blocked, but it
 should not load the whole framework into context.
@@ -737,9 +744,14 @@ Required behaviour:
 - shared route chrome implemented as a `page()` layout with `{ child }`, wired
   through `layout()` in the route manifest and rendered in Light DOM rather
   than through a slotted shell component;
-- a native metric-card recipe plus an autonomous badge component that
+- a domain-specific `ticket-summary` recipe plus an autonomous
+  `ticket-status-badge` component that
   exercises scoped Shadow-DOM styles, slots and reactive `ctx.attr()` state;
 - a smoke test importing the built example.
+
+This test intentionally evaluates the core application API without assuming
+that Mado UI has been initialized. In a real application, inspect
+`mado-ui.json` and the registry before recreating a generic UI item.
 
 ### Failure checklist
 

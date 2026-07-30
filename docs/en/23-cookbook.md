@@ -45,45 +45,47 @@ out/
   _headers / _redirects
 ```
 
-## 2. Blog with file-system content
+## 2. Blog with browser-safe generated content
 
 ```ts
 // src/content/posts.ts
-import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 export interface Post {
   slug: string;
   title: string;
   date: string;
-  html: string;
+  sanitizedHtml: string;
 }
 
-const dir = resolve(process.cwd(), "content/posts");
+// This array may be generated from Markdown by a separate build script.
+// The generated module itself must stay browser-safe.
+export const posts: readonly Post[] = [
+  {
+    slug: "hello-mado",
+    title: "Hello, Mado",
+    date: "2026-07-30",
+    sanitizedHtml: "<p>One page model for static and live routes.</p>",
+  },
+];
 
-export function listPosts(): Post[] {
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".md"))
-    .map((file) => loadPost(file));
-}
-
-export function loadPost(file: string): Post {
-  // Replace with your real Markdown pipeline.
-  return JSON.parse(readFileSync(resolve(dir, file), "utf8"));
+export function findPost(slug: string): Post | undefined {
+  return posts.find((post) => post.slug === slug);
 }
 ```
 
 ```ts
 // src/pages/post.page.ts
-import { html, page } from "@madojs/mado";
-import { listPosts, loadPost, type Post } from "../content/posts";
+import { html, page, unsafeHTML } from "@madojs/mado";
+import { findPost, posts, type Post } from "../content/posts";
 
 export default page<{ slug: string }, Post>({
   static: {
     paths: async () =>
-      listPosts().map((p) => ({ slug: p.slug })),
-    initialData: async ({ slug }) =>
-      loadPost(`${slug}.json`),
+      posts.map((post) => ({ slug: post.slug })),
+    initialData: async ({ slug }) => {
+      const post = findPost(slug);
+      if (!post) throw new Error(`Unknown post: ${slug}`);
+      return post;
+    },
   },
   title: (_, seed) => seed?.title ?? "Post",
   head: (_, seed) => ({
@@ -92,8 +94,8 @@ export default page<{ slug: string }, Post>({
   view: (ctx) => html`
     <article>
       <h1>${ctx.data.title}</h1>
-      <time>${ctx.data.date}</time>
-      ${html([ctx.data.html] as unknown as TemplateStringsArray)}
+      <time datetime=${ctx.data.date}>${ctx.data.date}</time>
+      ${unsafeHTML(ctx.data.sanitizedHtml)}
     </article>
   `,
 });
@@ -102,9 +104,12 @@ export default page<{ slug: string }, Post>({
 Output: one `out/posts/<slug>/index.html` per post, each carrying its
 own canonical and `og:url`.
 
-> File-system reads happen during *discovery* (Node side). They never
-> ship in the client bundle. The captured *initial data* does ship —
-> keep it free of secrets.
+> `paths()` and `initialData()` execute during Node discovery, but the page
+> module and everything it imports remain in the client graph. Do not import
+> `node:fs` or `node:path` from a page content module. If source content lives
+> in files, preprocess it with a separate Node script into browser-safe JSON or
+> TypeScript before `mado release`. Keep generated content secret-free, and
+> pass only trusted, sanitized HTML to `unsafeHTML()`.
 
 ## 3. Product catalogue from JSON
 
@@ -167,20 +172,47 @@ SPA fallback (`_mado/spa.html`).
 ```ts
 import { html, page } from "@madojs/mado";
 
-interface Release { tag: string; date: string }
+interface GitHubReleaseDto {
+  tag_name: string;
+  published_at: string | null;
+}
+
+interface Release {
+  tag: string;
+  date: string;
+}
+
+async function githubJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: { Accept: "application/vnd.github+json" },
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub API ${response.status}: ${response.statusText}`);
+  }
+  return (await response.json()) as T;
+}
 
 export default page<{ tag: string }, Release>({
   static: {
     paths: async () => {
-      const res = await fetch("https://api.github.com/repos/madojs/mado/releases");
-      const list = (await res.json()) as Release[];
-      return list.map((r) => ({ tag: r.tag }));
+      const releases = await githubJson<GitHubReleaseDto[]>(
+        "https://api.github.com/repos/madojs/mado/releases",
+      );
+      return releases
+        .filter((release) => release.published_at !== null)
+        .map((release) => ({ tag: release.tag_name }));
     },
     initialData: async ({ tag }) => {
-      const res = await fetch(
-        `https://api.github.com/repos/madojs/mado/releases/tags/${tag}`,
+      const release = await githubJson<GitHubReleaseDto>(
+        `https://api.github.com/repos/madojs/mado/releases/tags/${encodeURIComponent(tag)}`,
       );
-      return (await res.json()) as Release;
+      if (!release.published_at) {
+        throw new Error(`Release is not published: ${tag}`);
+      }
+      return {
+        tag: release.tag_name,
+        date: release.published_at,
+      };
     },
   },
   title: (_, seed) => `Release ${seed?.tag ?? ""}`,
@@ -193,8 +225,11 @@ export default page<{ tag: string }, Release>({
 });
 ```
 
-Network calls in `paths()` / `initialData()` are perfectly fine — they
-run in the discovery Node process, not in the browser at capture.
+Public network calls in `paths()` / `initialData()` are allowed, but they make
+the build depend on service availability and rate limits. The callbacks run in
+the discovery Node process, while their code remains in the client graph: do
+not embed credentials. For deterministic releases, prefer a CI-generated,
+browser-safe content artifact.
 
 ## 6. Sub-path deployment
 

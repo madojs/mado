@@ -30,7 +30,7 @@ export default page({
         <feature-card title="Live + static, one model">
           Each <code>feature-card</code> below the title is a real custom
           element with its own open shadow root. It works inside the
-          server-rendered snapshot and inside this SPA-only route without
+          browser-rendered snapshot and inside this SPA-only route without
           changing a single line.
         </feature-card>
         <p>And here is a tiny reactive component you can drive locally:</p>

@@ -109,7 +109,7 @@ MADO_SITE=https://staging.example mado release
 
 ## What the generated HTML contains
 
-For every captured route:
+For every captured non-wildcard route:
 
 - The full rendered light DOM.
 - Every open shadow root serialised through Declarative Shadow DOM
@@ -191,5 +191,6 @@ multi-locale builds live in [23-cookbook.md](./23-cookbook.md).
 
 - Declare `static: true | { paths, initialData }` on `page({ ... })`.
 - Run `mado release`.
-- Ship `out/` to any static host.
+- Ship `out/` to a static host with the routing policy described in
+  [Deployment](./20-deployment.md).
 - The live SPA takes over atomically on first paint.

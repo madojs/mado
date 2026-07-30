@@ -46,7 +46,8 @@ Test behavior, not internal implementation details:
 - signal/computed scheduling and cleanup;
 - template binding edges: child values, attributes, events, directives;
 - route guards, redirects, scroll/focus behavior, error boundaries;
-- forms: validation, async validation races, field arrays;
+- forms: validation, async validation races and native controls added or
+  removed dynamically;
 - resources/mutations: cache keys, invalidation, lifecycle cleanup;
 - CLI flows: `mado release`, `mado static`, `mado preview`.
 

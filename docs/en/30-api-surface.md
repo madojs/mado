@@ -10,13 +10,24 @@ code from the package root:
 import { component, html, resource, routes, signal } from "@madojs/mado";
 ```
 
-The public package subpaths are the devtools controller and the Vite tooling
-integration:
+The public package subpaths are the Vite tooling integration and the devtools
+controller. They belong in different application files:
 
 ```ts
-import { devtools } from "@madojs/mado/devtools.js";
+// vite.config.ts
 import { mado } from "@madojs/mado/vite";
 ```
+
+```ts
+// src/main.ts — before mounting the application
+if (import.meta.env.DEV) {
+  const { devtools } = await import("@madojs/mado/devtools.js");
+  devtools.open();
+}
+```
+
+Load devtools conditionally before mounting the application; an unconditional
+side-effect import also installs its hook and keyboard handler in production.
 
 Everything else under `dist/src/` is an implementation detail, even when it is
 visible in the repository.

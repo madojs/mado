@@ -105,6 +105,7 @@ const ROOTS = [
   "README.md",
   "AGENTS.md",
   "llms.txt",
+  ".github/copilot-instructions.md",
   "CONTRIBUTING.md",
   "TODO.md",
   "docs/README.md",

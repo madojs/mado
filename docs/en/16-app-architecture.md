@@ -32,6 +32,11 @@ my-app/
 template, not a static public file. Create `public/` only when the application
 has copy-as-is assets such as favicons, images or `robots.txt`.
 
+The optional [`@madojs/ui`](./17-mado-ui.md) CLI does not change the
+one-runtime-dependency contract. It copies ordinary source and CSS into
+configured application paths, normally under `src/`; applications do not
+import the UI package in browser code.
+
 The modular starter targets the same runtime but intentionally has a different
 source tree: it adds `layouts/`, `modules/` and `shared/` for applications that
 already need those boundaries. Its optional shape is documented separately
@@ -45,7 +50,9 @@ below; it is not the universal starter with a few empty folders filled in.
 | `public/` | static assets copied as-is                                  | you             | Vite build              | ✅ via `out/` |
 | `out/`    | **deploy artifact**: assets + snapshots + SPA/404 policy    | `mado release`  | nginx / CDN / CF Pages  | ✅ **yes**    |
 
-One-liner: develop with `mado dev`, ship with `mado release`, upload `out/`.
+One-liner: develop with `mado dev`, ship with `mado release`, then deploy
+`out/` with the host-specific routing policy from
+[Deployment](./20-deployment.md).
 
 ### Naming rules
 
@@ -209,6 +216,10 @@ Vite 8's standard CSS pipeline owns transforms and minification. Mado adds no
 CSS transformer; applications can configure Vite directly when they have a
 measured need.
 
+Mado UI may install its theme and opt-in native CSS recipes into either style
+root. Treat those files as application-owned source, import only what the app
+uses and layer project overrides normally.
+
 ## Growth
 
 Start flat when a module is small:
@@ -256,6 +267,17 @@ mado new layout app-shell
 
 The generator only writes new files. It does not edit `app.routes.ts`, does
 not scan the filesystem, and refuses to overwrite existing files.
+
+For reviewed UI source, use the separate registry CLI:
+
+```bash
+mado new component billing/components/invoice-status-badge
+npx @madojs/ui@latest add badge
+```
+
+The first command creates a minimal component skeleton. The second resolves a
+reviewed registry item and its dependencies, then copies them into the paths
+declared by `mado-ui.json`. See [Mado UI](./17-mado-ui.md).
 
 ## Release
 

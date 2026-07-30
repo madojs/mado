@@ -10,7 +10,9 @@
 - **Mado** — a calm native-first web framework for both static sites
   and live SPAs. One Web Component model, one page model, one release
   command.
-- Current phase: **pre-1.0 contract simplification**. Read `package.json` for
+- Current phase: **pre-1.0 application validation** through
+  [madojs.dev](https://madojs.dev), Mado UI and external applications.
+  Read `package.json` for
   the current package version; do not infer stability from a roadmap date.
 - Built on Web Components + signals + tagged-template `html`.
 - **Vite is the canonical transport** for development, build and the
@@ -20,6 +22,18 @@
 - Zero runtime dependencies (Vite is dev/build tooling, not bundled).
 - Small TypeScript core in `src/`; bundle size is measured but is not a hard
   gate while the public contract is still changing.
+
+## Mado UI boundary
+
+- [`@madojs/ui`](https://github.com/madojs/ui) is a separate development CLI
+  and versioned source registry. Use `npx @madojs/ui@latest ...` only when the
+  application opts into the official UI registry.
+- Never generate a browser import from `@madojs/ui`. Installed files belong to
+  the application and may be edited.
+- `mado new component` creates a minimal local component skeleton.
+  `mado-ui add` installs reviewed registry source and its dependencies.
+- If `mado-ui.json` exists, inspect it and `.mado-ui.lock.json` before adding,
+  updating or recreating UI source. Commit both project-state files.
 
 ## HARD RULES — violation = bug
 
@@ -490,9 +504,10 @@ them. If you see them in older docs, treat them as obsolete.
 - **TypeScript strict.** Use `noUncheckedIndexedAccess`-aware code (with `!` or a type guard).
 - **Imports:** generated Vite apps may use extensionless local imports. Browser-native
   package examples that run without Vite should use `.js` specifiers.
-- **Public imports only.** App code imports from `@madojs/mado` and, when
-  needed, side-effect `@madojs/mado/devtools.js`. Other package subpaths and
-  `dist/src/*` are internal.
+- **Public imports only.** App code imports from `@madojs/mado`. Load the
+  public `@madojs/mado/devtools.js` subpath dynamically behind
+  `import.meta.env.DEV` when needed. Other package subpaths and `dist/src/*`
+  are internal.
 - **One file = one responsibility.** Don't put 5 components in one file "because they're all small".
 - **Do not add runtime dependencies** (`npm install` in `dependencies`). This violates the framework's principle.
 - **JSDoc on public functions** is required. Comments explain "why", not "what".
@@ -573,6 +588,7 @@ business frontends, not a structure to impose on every project.
 | How does resource + cache work?  | `src/resource.ts`                |
 | How do forms work?               | `src/forms.ts`                   |
 | How should an app be structured? | `docs/en/16-app-architecture.md` |
+| How should official UI source be installed? | `docs/en/17-mado-ui.md` |
 | How should errors be handled?    | `docs/en/21-error-handling.md`   |
 | How should static snapshots be used? | `docs/en/15-static-snapshots.md` / `docs/en/23-cookbook.md` |
 | What API may applications use?   | `docs/en/30-api-surface.md`      |

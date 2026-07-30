@@ -9,6 +9,8 @@ Mado is intentionally pre-1.0 while its contracts are dogfooded. Read
 `package.json` for the current package version; do not infer stability from an
 old roadmap or changelog entry.
 
+Production dogfood: https://madojs.dev
+
 Mado deliberately rejects compilers (no JSX, no special template
 language), VDOM diffing, and SSR/hydration. Static documents are
 captured by a real headless Chromium during `mado release`, including
@@ -50,6 +52,14 @@ node reconciliation.
   spawns Playwright (`playwright-core`) and captures real DOM. There is
   no `linkedom`-based renderer, no `npm run bake`, no "meta-shell".
 <!-- /docs-lint:allow-legacy-mention -->
+- **Mado UI is source, not a second runtime.** `@madojs/ui` is a separate
+  development CLI and versioned registry. Use
+  `npx @madojs/ui@latest ...`, never import it in browser code. Installed
+  files belong to the application.
+- **Do not recreate installed UI blindly.** `mado new component` makes a minimal
+  skeleton; `mado-ui add` installs reviewed registry source. If
+  `mado-ui.json` exists, inspect it and `.mado-ui.lock.json` before adding,
+  updating or recreating UI files.
 
 ## Critical template rules
 
@@ -106,11 +116,20 @@ import {
   createContext, provide, inject,
   persisted,
 } from "@madojs/mado";
+```
 
-// Development overlay/controller:
-import { devtools } from "@madojs/mado/devtools.js";
+Development overlay/controller in `src/main.ts`, before mounting:
 
-// Vite plugin:
+```ts
+if (import.meta.env.DEV) {
+  const { devtools } = await import("@madojs/mado/devtools.js");
+  devtools.open();
+}
+```
+
+Vite plugin in `vite.config.ts`:
+
+```ts
 import { mado } from "@madojs/mado/vite";
 ```
 
@@ -325,6 +344,7 @@ Highlights:
 - `docs/en/14-forms.md`               — `useForm()` + Shadow DOM inputs
 - `docs/en/15-static-snapshots.md`    — static snapshots guide
 - `docs/en/16-app-architecture.md`    — canonical app layout
+- `docs/en/17-mado-ui.md`             — copy-owned official UI source
 - `docs/en/20-deployment.md`          — deployment recipes (including base)
 - `docs/en/23-cookbook.md`            — static snapshots cookbook
 - `docs/en/30-api-surface.md`         — candidate public API vs internal

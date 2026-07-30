@@ -20,7 +20,9 @@ The minimum contract to remember while loading that file:
 - Start applications with the small default structure. Add modular layers only
   after real application boundaries appear.
 - Treat Mado UI as immediate dogfood that may expose a core contract defect;
-  do not hide such defects behind library workarounds. The current experimental
-  `site` is intentionally awaiting a rewrite and is not a migration target.
+  do not hide such defects behind library workarounds.
+- Treat the production site at `madojs.dev` as an active framework dogfood
+  application. Fix a general contract defect in Mado rather than teaching the
+  site a private workaround.
 
 When this summary and `AGENTS.md` differ, `AGENTS.md` wins.

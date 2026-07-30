@@ -38,6 +38,7 @@ section you need from the matrix below.
 | Forms                              | [14-forms.md](./14-forms.md)                               |
 | Static snapshots                   | [15-static-snapshots.md](./15-static-snapshots.md)         |
 | App architecture                   | [16-app-architecture.md](./16-app-architecture.md)         |
+| Mado UI source registry            | [17-mado-ui.md](./17-mado-ui.md)                           |
 
 ### Production
 
@@ -65,7 +66,7 @@ section you need from the matrix below.
 | ------------------------------------------------------ | ------------------------------------------ |
 | LLM guide (pitfalls + zero-history test)               | [40-llm-guide.md](./40-llm-guide.md)       |
 | For backenders                                         | [41-for-backenders.md](./41-for-backenders.md) |
-| Why Mado vs Lit / Solid / Svelte / htmx / React        | [42-why-mado.md](./42-why-mado.md)         |
+| Why Mado — and when not to choose it                    | [42-why-mado.md](./42-why-mado.md)         |
 
 ## Migrating from v0.11.x doc layout
 

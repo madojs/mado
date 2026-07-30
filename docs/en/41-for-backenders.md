@@ -2,7 +2,7 @@
 
 > You write in Go / Rust / .NET / Java / Python and you need to build a web UI
 > for an admin panel, internal tool or dashboard.  
-> This page is the mental model of Mado in 10 minutes, in your language.
+> This page explains Mado in backend-oriented terms.
 
 ---
 
@@ -414,7 +414,8 @@ Module connectors build on this transport and map DTOs to domain types.
 - **`useEffect` dependency arrays.** `effect()` sees what you read on its own.
 - **State management libraries** (Redux/Zustand). Signals + context.
 - **CSS-in-JS transformations.** Shadow DOM + `css\`\`` + cssVars.
-- **Routing v6 → v7 migration guide.** `routes()` is 500 lines, readable in 20 minutes.
+- **A framework-specific router migration ladder.** The router is split into
+  focused source modules with an explicit public contract.
 
 ---
 
@@ -422,9 +423,13 @@ Module connectors build on this transport and map DTOs to domain types.
 
 These are new concepts. Not scary, but they are additions to your React/Vue base:
 
-1. **Custom Elements / Shadow DOM.** `<x-foo>` is not a div, it is a full-fledged element with its own DOM. Slots, scoped CSS. One evening of MDN reading.
+1. **Custom Elements / Shadow DOM.** `<x-foo>` is not a div; it is a
+   full-fledged element with its own DOM. Review the MDN model for slots,
+   scoped CSS and the custom-element lifecycle.
 2. **`attribute` vs `property`.** Attribute is a string in HTML (`data-id="5"`), property is a JS property (`el.id = 5`). `?attr=${flag}` and `.prop=${value}` in templates refer to different things. Main rule: **numbers/objects/arrays — via `.prop`, flags — via `?attr`, strings — via `attr`**.
-3. **Signals.** If it's your first time — you'll get stuck for 10 minutes, then it's easier than hooks.
+3. **Signals.** They are getter functions with automatic dependency tracking;
+   the important new habit is passing a getter, rather than an already-read
+   value, into a reactive template slot.
 4. **`html\`\``-templates.** It's just a JS function with highlighting via [lit-plugin](./01-quickstart.md#4-ide-setup). Not magic.
 
 Everything else — standard browser + TypeScript.
@@ -435,8 +440,11 @@ Everything else — standard browser + TypeScript.
 
 - The built-in overlay covers runtime inspection; a browser extension remains
   an evidence-driven backlog item rather than a release promise.
-- No StackBlitz starters (yet).
-- No AI assistant that knows Mado as well as React. When in doubt — read `src/`, it's not scary.
+- No hosted playground is part of the framework contract; the local starter is
+  the canonical runnable example.
+- General-purpose AI assistants have seen far less Mado code than mainstream
+  frameworks. Give them `AGENTS.md` or `llms.txt`, then verify the relevant
+  source and tests when a contract is unclear.
 
 ---
 
@@ -445,6 +453,9 @@ Everything else — standard browser + TypeScript.
 - **[`12-routing.md`](./12-routing.md)** — the router in detail.
 - **[`16-app-architecture.md`](./16-app-architecture.md)** — project structure.
 - **[`15-static-snapshots.md`](./15-static-snapshots.md)** — SEO without SSR.
-- **External `madojs-examples` workspace** — full demos (landing + admin).
+- **[`17-mado-ui.md`](./17-mado-ui.md)** — reviewed UI source without another runtime.
+- **[madojs.dev](https://madojs.dev)** — the production framework dogfood site.
+- **`starters/default/`** — the canonical local end-to-end example.
 
-If something is unclear — open an issue, or just open the source. It really is readable in an evening.
+If something is unclear, open an issue or inspect the focused source module and
+its tests.

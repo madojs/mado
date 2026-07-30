@@ -6,8 +6,8 @@ import { parseFlags } from "../_config.mjs";
 import { logger } from "../logger.mjs";
 
 // `default` is the universal starter: minimal, runnable, zero backend.
-// `modular` is the long-lived business-app reference architecture:
-//   auth, billing, guards, layouts, services, connectors, contracts.
+// `modular` is an optional architecture experiment demonstrating auth,
+// billing, guards, layouts, services, connectors and contracts.
 // Both target the same Mado runtime — they only differ in how much
 // structure they pre-create.
 const STARTERS = ["default", "modular"];
@@ -16,7 +16,11 @@ export async function runInit(ctx, rawArgs) {
   const { flags, positional } = parseFlags(rawArgs);
   const targetArg = positional[0];
   if (!targetArg) {
-    logger.error("mado", "usage", "usage: mado init <name> [--starter default] [--force]");
+    logger.error(
+      "mado",
+      "usage",
+      "usage: mado init <name> [--starter default|modular] [--force]",
+    );
     process.exit(1);
   }
 

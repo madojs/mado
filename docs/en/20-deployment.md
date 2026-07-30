@@ -45,7 +45,7 @@ fully emulated; use the provider's local emulator for custom hybrid rules.
 ## Recipe 1: VPS + nginx
 
 The framework ships an optional nginx recipe in
-[`docs/recipes/nginx`](../recipes/nginx/): `nginx.conf` for static hosting and a
+[`docs/recipes/nginx`](../recipes/nginx/README.md): `nginx.conf` for static hosting and a
 `Containerfile` you can copy into generated apps. Drop `out/` into the host and
 point nginx at it.
 
@@ -114,15 +114,17 @@ Build command:    npm ci && npx mado release
 Output directory: out
 ```
 
-For catalogs too big to snapshot at release time, keep on-demand snapshot
-experiments in the external examples workspace rather than in the core
-package.
+For catalogs too large to capture within the release budget, keep the affected
+routes SPA-only or reduce the declared static path set. Mado does not provide
+an on-demand snapshot service.
 
 ---
 
 ## Recipe 3: Static-only hosts (S3, Netlify, GitHub Pages)
 
-Any static host works because `out/` is just files. Pick whichever you have:
+The `out/` files are portable, but SPA and hybrid request routing remains
+host-specific. Choose a host whose rewrite/404 policy can represent the route
+mix described above:
 
 **Netlify**
 ```bash

@@ -7,8 +7,9 @@
  * Vite is the canonical transport: every official starter, generator
  * and CLI command resolves `@madojs/mado` from `node_modules` through
  * the Vite plugin (`@madojs/mado/vite`). Native ESM consumers (tests,
- * partial-SSR probes) get the same surface area; anything that touches
- * `import.meta.env.BASE_URL` falls back to "/" outside Vite.
+ * package tools and browser integrations) get the same surface area;
+ * anything that touches `import.meta.env.BASE_URL` falls back to "/"
+ * outside Vite.
  */
 
 // --- core ---

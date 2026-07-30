@@ -11,7 +11,7 @@
  *
  * There is intentionally NO `<meta name="mado:base">`, no
  * `routes({}, { base })`, no second runtime config. Tools that load Mado
- * outside Vite (native ESM tests, partial SSR probes) fall back to "/".
+ * outside Vite (native ESM tests and package tools) fall back to "/".
  */
 function readEnvBase(): string {
   // Direct access to the well-known constant so Vite's static
@@ -154,4 +154,3 @@ export function routeUrl(pathname: string, base: string = appBase): string {
   if (path === "") path = "/";
   return withBase(path, base) + suffix;
 }
-

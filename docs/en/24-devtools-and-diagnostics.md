@@ -1,13 +1,19 @@
 # Devtools and diagnostics
 
-Development instrumentation is opt-in and compiled out of production builds.
-Import the stable devtools subpath before application startup:
+Development instrumentation is opt-in. Load the public pre-v1 candidate
+subpath only during development and before mounting the application:
 
 ```ts
-import { devtools } from "@madojs/mado/devtools.js";
-
-devtools.open();
+if (import.meta.env.DEV) {
+  const { devtools } = await import("@madojs/mado/devtools.js");
+  devtools.open();
+}
 ```
+
+The Vite production definition disables instrumentation emitted by core. The
+conditional import also keeps the overlay controller, keyboard handler and
+hook installation out of the normal production graph; an unconditional
+side-effect import does not.
 
 `Alt+Shift+M` toggles the Shadow DOM overlay. Its Overview, Reactivity,
 Components, Router/Data and Timeline/Errors views are fed by a versioned
@@ -15,8 +21,9 @@ internal hook. The controller also exposes `close()`, `toggle()`, `clear()`,
 `setLogLevel()` and `snapshot()`. Snapshots contain safe previews rather than
 live application objects.
 
-`localStorage.madoDebug = "1"` is accepted during 0.13 migration only and emits
-a deprecation warning.
+`localStorage.madoDebug = "1"` remains a deprecated compatibility alias and
+emits a warning. It may be removed before v1; use the controller or
+`mado:log-level` instead.
 
 ## Runtime diagnostics
 

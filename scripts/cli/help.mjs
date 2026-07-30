@@ -6,7 +6,7 @@ export function printHelp(ctx) {
   console.log(`mado commands (${mode}):
 
   Project lifecycle:
-    mado init <name> [--starter default] [--force]
+    mado init <name> [--starter default|modular] [--force]
                            scaffold a new app
     mado dev               Vite dev server
 ${buildLine}

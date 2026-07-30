@@ -1,10 +1,10 @@
 # Mado modular starter
 
-Reference architecture for long-lived modular business applications:
-admin panels, internal tools, SaaS backoffice. The starter ships the
-opinions a team of more than one person will eventually adopt anyway —
-auth shell, guarded zones, module boundaries, HTTP client and
-contracts.
+Optional architecture experiment for modular business frontends such as
+admin panels, internal tools and SaaS backoffices. It demonstrates an auth
+shell, guarded zones, module boundaries, an HTTP client and external
+contracts. These layers are examples, not requirements: adopt them only after
+the application demonstrates the corresponding boundary.
 
 If you are building a website, a landing page, a docs site or any
 small interactive app, prefer the universal starter:

@@ -98,9 +98,11 @@ DOM** as the canonical SEO/static path:
 
 - The product surface widens from "internal tools / admin panels" to
   "sites and apps". Marketing copy, package metadata, GitHub topics
-  and the default starter all change accordingly. The previous
-  modular reference architecture is preserved as
-  `mado init --starter modular` for long-lived business apps.
+  and the default starter all change accordingly. The previous modular
+  architecture is preserved as the optional
+  `mado init --starter modular` experiment for applications that already
+  demonstrate a need for those boundaries; it is not a production
+  requirement.
 
 ## Known limits
 

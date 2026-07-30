@@ -24,6 +24,10 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Donate: PayPal](https://img.shields.io/badge/Donate-PayPal-ff3f59.svg)](https://www.paypal.com/paypalme/tsekhmister)
 
+[Website](https://madojs.dev) ·
+[Documentation](./docs/en/README.md) ·
+[Mado UI](https://github.com/madojs/ui)
+
 Build with real Web Components, signals, routing, data and forms.
 Ship live SPAs and browser-rendered static documents from one
 component model.
@@ -66,8 +70,10 @@ dependencies.
 
 ## Quick start
 
+Requires Node.js 22.12 or newer.
+
 ```bash
-npm exec --package @madojs/mado -- mado init my-app
+npm exec --yes --package @madojs/mado@latest -- mado init my-app
 cd my-app
 npm install
 npm run dev
@@ -81,7 +87,8 @@ Evaluating a larger business frontend with an auth shell, guarded zones and
 explicit module boundaries? The optional modular experiment is available:
 
 ```bash
-mado init my-app --starter modular
+npm exec --yes --package @madojs/mado@latest -- \
+  mado init my-app --starter modular
 ```
 
 ## The Mado way
@@ -222,7 +229,7 @@ reconciliation, no per-attribute diffing.
 
 ```bash
 mado init my-app                  # scaffold universal starter
-mado init my-app --starter modular  # scaffold modular reference architecture
+mado init my-app --starter modular  # scaffold optional modular experiment
 mado dev                          # Vite dev server
 mado build                        # Vite production SPA build
 mado typecheck                    # tsc --noEmit
@@ -239,12 +246,34 @@ timestamp. Use `--log-level`, `--log-format=pretty|plain|json`,
 ## Devtools
 
 ```ts
-import { devtools } from "@madojs/mado/devtools.js";
-devtools.open();
+if (import.meta.env.DEV) {
+  const { devtools } = await import("@madojs/mado/devtools.js");
+  devtools.open();
+}
 ```
 
 The development-only Shadow DOM overlay is toggled with `Alt+Shift+M` and
 inspects reactivity, components, routing, data and structured diagnostics.
+Load its public subpath only in development so the overlay itself does not
+become part of the production application.
+
+## UI without a runtime dependency
+
+[`@madojs/ui`](https://github.com/madojs/ui) is a separate development CLI
+and versioned source registry. It copies reviewed components, native CSS
+recipes, blocks and templates into the application; the application owns the
+resulting files.
+
+```bash
+npx @madojs/ui@latest init
+npx @madojs/ui@latest list
+npx @madojs/ui@latest add button field panel
+```
+
+Applications never import `@madojs/ui` in browser code. `mado new component`
+creates a minimal application-owned component skeleton; `mado-ui add` resolves
+reviewed registry source and its dependencies. See
+[the Mado UI guide](./docs/en/17-mado-ui.md).
 
 ## Honest boundaries
 
@@ -253,7 +282,8 @@ inspects reactivity, components, routing, data and structured diagnostics.
 - No framework compiler.
 - No runtime dependencies.
 - No built-in backend.
-- No UI-kit marketplace.
+- No bundled UI runtime. Mado UI provides a focused, copy-owned official
+  registry; the broader third-party ecosystem is still early.
 - Modern evergreen browsers only.
 - A compatible Chromium is required at release time for static routes.
 - Static `paths()` and `initialData()` callbacks must be browser-safe
@@ -264,9 +294,9 @@ inspects reactivity, components, routing, data and structured diagnostics.
 
 | What matters to you | Best choice |
 |---|---|
-| Largest ecosystem, most hires available | React or Vue |
+| Existing team, vendor integration or hiring constraint points there | React or Vue |
 | Reusable design-system components across host frameworks | Lit |
-| Maximum rendering performance, JSX workflow | Solid or Svelte 5 |
+| Compiled JSX or component-language workflow | Solid or Svelte |
 | Progressive enhancement of server-rendered pages | htmx + your backend |
 | One component model for sites and apps with calm maintenance | **Mado** |
 
@@ -277,8 +307,9 @@ mado release    # typecheck + vite build + static snapshots + deployment files
 mado preview    # serve out/ like a real static host
 ```
 
-One command, one artifact (`out/`). Upload anywhere: VPS, Cloudflare
-Pages, GitHub Pages (with base), any static CDN.
+One command, one artifact (`out/`). Upload it to a static host after applying
+the host-specific routing policy for static, SPA or hybrid routes; see
+[Deployment](./docs/en/20-deployment.md).
 
 ## Documentation
 

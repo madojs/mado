@@ -71,6 +71,8 @@ starter instead:
 mado init my-app --starter modular
 ```
 
-The modular starter is the reference architecture for long-lived
-business apps. Both starters target the same Mado runtime — they only
-differ in how much structure they pre-create for you.
+The modular starter is an optional architecture experiment for applications
+that already demonstrate a need for guarded zones and explicit module
+boundaries. Adopt only the parts that solve a present problem. Both starters
+target the same Mado runtime — they differ only in how much structure they
+pre-create.

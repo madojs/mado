@@ -1,4 +1,9 @@
-/** Dev-only instrumentation overlay. Import this subpath before app startup. */
+/**
+ * Development instrumentation overlay.
+ *
+ * Applications should load this subpath conditionally behind
+ * `import.meta.env.DEV` before mounting.
+ */
 
 import {
   installDevtoolsHook,

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.14.3 - 2026-07-30
+
+### Fixed
+
+- A literal global wildcard with `static: true` now produces a single
+  pathname-independent `404.html`. The fallback is excluded from the sitemap,
+  forced to one managed `noindex` tag, stripped of canonical/`og:url`, and
+  keeps rendering the wildcard after production boot even when the requested
+  path also matches a dynamic route.
+- Static capture and SPA navigation normalize known singleton head metadata
+  instead of accumulating shell fallbacks. Root-relative canonical and
+  `og:url` values preserve the configured public origin and active Vite
+  `base`; arbitrary singleton entries follow the same rules.
+- `mado release` now derives one explicit host policy. Captured or current
+  public 404 pages suppress the generated SPA catch-all, public output wins
+  without an unnecessary browser capture, and `--no-clean` refreshes stale
+  `404.html`/`_redirects` policy files.
+- `mado preview` mirrors the generated SPA-versus-host-404 policy, including
+  the correct status for unknown document requests.
+
+### Tooling
+
+- Chromium CI covers the complete release pipeline, static fallback takeover,
+  base-path metadata and public-404 precedence. Deployment and testing guides
+  document the same contracts and the maintainer release procedure.
+
 ## 0.14.2 - 2026-07-30
 
 ### Fixed

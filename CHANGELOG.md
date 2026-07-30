@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.2 - 2026-07-30
+
+### Fixed
+
+- Router navigation now handles the View Transition `ready` rejection when
+  the browser skips or aborts only the visual transition, such as after a
+  viewport change. Successful route updates no longer become unhandled page
+  errors, while update-callback failures remain observable.
+
 ## 0.14.1 - 2026-07-29
 
 ### Fixed

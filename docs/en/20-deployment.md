@@ -8,6 +8,7 @@
 
 ```
 out/
+├── .mado-output            ← path-free Mado ownership marker
 ├── index.html              ← captured snapshot for / (or SPA shell)
 ├── assets/                 ← Vite hashed assets
 │   ├── *.gz                ← precompressed gzip (gzip_static / Accept-Encoding)
@@ -20,6 +21,10 @@ out/
 ├── _redirects              ← optional Cloudflare Pages / Netlify policy
 └── _headers                ← Cloudflare Pages / Netlify cache rules
 ```
+
+`.mado-output` lets a later release clean only an artifact previously claimed
+by Mado. Its contents are limited to `{ "owner": "@madojs/mado" }`; it never
+records the build machine's project path.
 
 `_headers` is generated when the project does not provide one. `_redirects`
 is generated with the SPA catch-all only when release did not already produce

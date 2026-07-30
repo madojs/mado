@@ -1,7 +1,7 @@
 # Templates and signals
 
 > Reactivity in Mado is one primitive — `signal()` — composed into
-> three reading patterns. Templates are tagged `html\`\`` literals
+> three reading patterns. Templates are tagged ``` html`` ``` literals
 > the browser understands directly.
 
 By the end of this page you should be able to read and write any
@@ -50,7 +50,7 @@ standalone resources similarly expose `resource.dispose()`.
 
 ## Templates
 
-`html\`\`` parses once per template literal into a static fragment +
+``` html`` ``` parses once per template literal into a static fragment +
 binding indices, then patches only the changing slots when their inputs
 change.
 

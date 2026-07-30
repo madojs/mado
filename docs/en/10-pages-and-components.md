@@ -74,7 +74,7 @@ component(
 );
 ```
 
-Same signals. Same `html\`\`` templates. Same lifecycle. Same data
+Same signals. Same ``` html`` ``` templates. Same lifecycle. Same data
 model (`resource()`, `mutation()`, `useForm()`, `effect()`). The
 only thing that changes is *where* the DOM lives.
 
@@ -124,7 +124,7 @@ identity, lifecycle and Shadow DOM boundary.
 | Participates in a parent `<form>`              | Yes          | No in Shadow DOM; use a native control or intentional `shadow:false` |
 | Is captured by `mado static`                   | If `static: true \| { ... }` | Yes (DSD serialised) |
 | Has a hyphenated custom-element tag            | No           | Yes (`x-foo`, `my-bar`)        |
-| Owns its own CSS isolation                    | No           | Yes (via `css\`\``)            |
+| Owns its own CSS isolation                    | No           | Yes (via ``` css`` ```)        |
 
 That is the entire decision matrix. Anything beyond it is detail.
 
@@ -167,11 +167,11 @@ Page-shaped wrappers (layouts, route shells) are written with
 | A landing page                                | `page({ static: true, view })`                |
 | A dynamic SEO page (`/product/:slug`)         | `page({ static: { paths, initialData } })`    |
 | An app screen behind auth                     | `page({ view })` (no `static`)                |
-| A shared shell that wraps several pages       | `page({ view: ({ child }) => html\`...\` })`  |
+| A shared shell that wraps several pages       | `` page({ view: ({ child }) => html`...` }) `` |
 | A native UI recipe (button, card, dialog)    | semantic markup, CSS or an `html` helper      |
 | An autonomous encapsulated widget            | `component("x-foo", setup, { styles })`       |
 | A custom form input                          | `component("x-input", setup, { shadow: false })` |
-| A small inline render helper (no state)       | a plain `(arg) => html\`...\`` function      |
+| A small inline render helper (no state)       | a plain `` (arg) => html`...` `` function    |
 
 When in doubt: a URL-owned document is a page; an autonomous reusable DOM
 boundary is a component; everything else can stay native markup or a plain
@@ -274,7 +274,7 @@ itself or in a `resource()` whose key is the page's identity.
 - `page()` lives in the light DOM. Use `content.css` / `shell.css`
   from `src/styles/` (universal starter) or `src/shared/styles/`
   (modular starter). Class selectors work normally.
-- `component()` carries its own `css\`\``. CSS custom properties
+- `component()` carries its own ``` css`` ```. CSS custom properties
   (`--accent`, `--bg`) cross the Shadow boundary; class selectors
   from the document do not.
 - The shared design tokens (colours, spacing, type) live in
@@ -311,7 +311,7 @@ Full router contract: [12-routing.md](./12-routing.md).
 ## Further reading
 
 - [11-templates-and-signals.md](./11-templates-and-signals.md) — the
-  `html\`\`` parser, signals, `each`, reactive bindings.
+  ``` html`` ``` parser, signals, `each`, reactive bindings.
 - [12-routing.md](./12-routing.md) — `routes()`, layouts, guards,
   `routeUrl`, `navigate`, prefetch.
 - [15-static-snapshots.md](./15-static-snapshots.md) — when to mark

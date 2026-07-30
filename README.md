@@ -317,7 +317,8 @@ Canonical docs (English) live in [`docs/en/`](./docs/en/README.md).
 
 Build tools can resolve the same ordered source set from the published
 `@madojs/mado/docs/en/manifest.json` asset. The compact framework contract is
-also published as `@madojs/mado/llms.txt`.
+also published as `@madojs/mado/llms.txt`, and the exact package identity and
+version are available through `@madojs/mado/package.json`.
 
 AI-agent entrypoints: [AGENTS.md](./AGENTS.md) · [llms.txt](./llms.txt)
 

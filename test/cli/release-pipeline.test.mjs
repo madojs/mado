@@ -201,6 +201,17 @@ test("mado release: produces out/ with Vite assets, static HTML, public assets, 
     }
     const out = join(app, "out");
     assert.ok(existsSync(out), "out/ exists");
+    const outputMarker = readFileSync(join(out, ".mado-output"), "utf8");
+    assert.deepEqual(
+      JSON.parse(outputMarker),
+      { owner: "@madojs/mado" },
+      "the deployable ownership marker has the minimal public schema",
+    );
+    assert.equal(
+      outputMarker.includes(app),
+      false,
+      "the deployable ownership marker must not expose the private project path",
+    );
 
     // Public assets copied
     assert.ok(existsSync(join(out, "robots.txt")), "public/robots.txt copied to out/");

@@ -10,6 +10,10 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  backslashEscapedBacktickLines,
+} from "./docs-markdown-rules.mjs";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 
@@ -121,6 +125,7 @@ const publicSubpaths = new Set([
   "@madojs/mado/devtools.js",
   "@madojs/mado/docs/en/manifest.json",
   "@madojs/mado/llms.txt",
+  "@madojs/mado/package.json",
 ]);
 
 let errors = 0;
@@ -161,14 +166,38 @@ function scan(path) {
 
   const body = readFileSync(path, "utf8");
   const lines = body.split("\n");
+  const invalidBacktickLines = new Set(
+    backslashEscapedBacktickLines(body),
+  );
   let inIgnoreBlock = false;
-  let fence = "";
+  let fence = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const fenceMatch = line.trimStart().match(/^(`{3,}|~{3,})/);
-    if (fenceMatch) {
-      if (!fence) fence = fenceMatch[1][0];
-      else if (fence === fenceMatch[1][0]) fence = "";
+    const fenceMatch = line.trimStart().match(/^(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (
+        fenceMatch &&
+        fenceMatch[1][0] === fence.marker &&
+        fenceMatch[1].length >= fence.length &&
+        fenceMatch[2].trim() === ""
+      ) {
+        fence = null;
+        continue;
+      }
+    } else if (
+      fenceMatch &&
+      (
+        fenceMatch[1][0] === "~" ||
+        !fenceMatch[2].includes("`")
+      )
+    ) {
+      // Backtick fence info strings cannot contain a backtick. This
+      // distinction matters for valid inline spans such as
+      // ``` html`` ```, which may begin a prose line but are not fences.
+      fence = {
+        length: fenceMatch[1].length,
+        marker: fenceMatch[1][0],
+      };
       continue;
     }
 
@@ -184,6 +213,13 @@ function scan(path) {
     if (inIgnoreBlock) continue;
 
     const prose = line.replace(/(`+)(.*?)\1/g, "");
+    if (invalidBacktickLines.has(i + 1)) {
+      errors++;
+      console.error(
+        `${rel}:${i + 1}: backslash-escaped backticks are literal inside ` +
+          "CommonMark code spans; use a longer backtick delimiter",
+      );
+    }
     if (
       !fence &&
       rel.startsWith("docs/en/") &&

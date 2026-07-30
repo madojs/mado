@@ -34,7 +34,7 @@ export const guides: Guide[] = [
       "Read with `count()`, write with `count.set()`, derive with `computed()`.",
     body:
       "Signals are getter functions. Subscriptions are automatic inside " +
-      "`html\\`...\\`` template fragments and `effect()` callbacks, and " +
+      "html`...` template fragments and `effect()` callbacks, and " +
       "released when the surrounding component or page unmounts.",
   },
   {

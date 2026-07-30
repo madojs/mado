@@ -63,7 +63,7 @@ node reconciliation.
 
 ## Critical template rules
 
-`html\`...\`` is a tagged template parser, not JSX. Only these bindings
+`` html`...` `` is a tagged template parser, not JSX. Only these bindings
 are recognised:
 
 - `${value}`           — child content (text, nodes, arrays, nested templates, `each`)
@@ -133,8 +133,11 @@ Vite plugin in `vite.config.ts`:
 import { mado } from "@madojs/mado/vite";
 ```
 
-Everything else under the package is internal and subject to change
-without notice (see `docs/en/30-api-surface.md`).
+Build tools may resolve the ordered English documentation map through
+`@madojs/mado/docs/en/manifest.json`, the compact framework contract through
+`@madojs/mado/llms.txt`, and exact package identity/version through
+`@madojs/mado/package.json`. Everything else under the package is internal and
+subject to change without notice (see `docs/en/30-api-surface.md`).
 
 `page.load` is synchronous: return a plain value or `Resource`, never a
 Promise. Async work belongs in `resource()` so navigation can commit or roll
@@ -355,7 +358,7 @@ trees were removed at v0.12 and survive only in git history.
 
 ## What Mado does NOT do (intentionally)
 
-- ❌ JSX                              → tagged template `html\`...\``
+- ❌ JSX                              → tagged template `` html`...` ``
 - ❌ Virtual DOM                      → fine-grained signal updates
 - ❌ SSR with hydration               → browser-rendered static snapshots + atomic takeover
 - ❌ React-style hooks                → signals

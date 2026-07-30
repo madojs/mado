@@ -35,14 +35,14 @@ export async function prepareOutputDirectory({
     await rm(safe.outDir, { recursive: true, force: true });
   }
   await mkdir(safe.outDir, { recursive: true });
-  await writeSentinel(safe.outDir, safe.projectRoot);
+  await writeSentinel(safe.outDir);
   return safe.outDir;
 }
 
 export async function claimOutputDirectory({ projectRoot, outDir, force = false }) {
   const safe = await validateOutputDirectory({ projectRoot, outDir, force });
   await mkdir(safe.outDir, { recursive: true });
-  await writeSentinel(safe.outDir, safe.projectRoot);
+  await writeSentinel(safe.outDir);
   return safe.outDir;
 }
 
@@ -98,10 +98,10 @@ async function ownershipState(outDir) {
   return "foreign";
 }
 
-async function writeSentinel(outDir, projectRoot) {
+async function writeSentinel(outDir) {
   await writeFile(
     join(outDir, OUTPUT_SENTINEL),
-    `${JSON.stringify({ owner: "@madojs/mado", projectRoot }, null, 2)}\n`,
+    `${JSON.stringify({ owner: "@madojs/mado" }, null, 2)}\n`,
   );
 }
 

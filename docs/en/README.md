@@ -8,7 +8,8 @@ section you need from the matrix below.
 Build tools can resolve the same ordered map through the versioned
 `@madojs/mado/docs/en/manifest.json` package subpath. Every listed `file`
 is relative to that manifest; the Markdown remains the source of document
-titles and content.
+titles and content. Resolve `@madojs/mado/package.json` when the generated
+output also needs the exact owning package identity or version.
 
 ## Reading paths
 

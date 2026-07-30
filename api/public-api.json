@@ -4,6 +4,7 @@
     "./devtools.js",
     "./docs/en/manifest.json",
     "./llms.txt",
+    "./package.json",
     "./vite"
   ],
   "runtimeExports": [

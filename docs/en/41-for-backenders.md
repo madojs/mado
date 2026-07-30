@@ -13,9 +13,9 @@ Mado is structured **like an HTTP server**. Seriously:
 | Server world                        | Mado                                           |
 | ----------------------------------- | ---------------------------------------------- |
 | HTTP router (chi, axum, mux)        | `routes()` — path manifest                     |
-| Handler `func(req, resp)`           | `page({ view: (ctx) => html\`...\` })`         |
+| Handler `func(req, resp)`           | `` page({ view: (ctx) => html`...` }) ``       |
 | Middleware                          | `layout()` route group (wraps the handler)     |
-| Template engine (Jinja, Handlebars) | `html\`\`` tagged template                     |
+| Template engine (Jinja, Handlebars) | ``` html`` ``` tagged template                 |
 | HTTP client with cache              | `resource()` — fetch + cache + invalidation    |
 | Reactive variable / atom            | `signal()` — reactive getter                   |
 | Background goroutine / task         | `effect()` — auto-reruns when a signal changes |
@@ -413,7 +413,7 @@ Module connectors build on this transport and map DTOs to domain types.
   three-line `vite.config.ts` with `mado()`.
 - **`useEffect` dependency arrays.** `effect()` sees what you read on its own.
 - **State management libraries** (Redux/Zustand). Signals + context.
-- **CSS-in-JS transformations.** Shadow DOM + `css\`\`` + cssVars.
+- **CSS-in-JS transformations.** Shadow DOM + ``` css`` ``` + cssVars.
 - **A framework-specific router migration ladder.** The router is split into
   focused source modules with an explicit public contract.
 
@@ -430,7 +430,7 @@ These are new concepts. Not scary, but they are additions to your React/Vue base
 3. **Signals.** They are getter functions with automatic dependency tracking;
    the important new habit is passing a getter, rather than an already-read
    value, into a reactive template slot.
-4. **`html\`\``-templates.** It's just a JS function with highlighting via [lit-plugin](./01-quickstart.md#4-ide-setup). Not magic.
+4. **``` html`` ```-templates.** It's just a JS function with highlighting via [lit-plugin](./01-quickstart.md#4-ide-setup). Not magic.
 
 Everything else — standard browser + TypeScript.
 

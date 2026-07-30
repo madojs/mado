@@ -18,7 +18,8 @@ After v1, Mado treats these as SemVer-protected:
 - Public exports from `@madojs/mado`.
 - Public TypeScript types exported from `@madojs/mado`.
 - The `@madojs/mado/devtools.js` controller subpath, `@madojs/mado/vite`,
-  the documentation manifest schema and the `@madojs/mado/llms.txt` asset.
+  the documentation manifest schema, the `@madojs/mado/llms.txt` asset and the
+  `@madojs/mado/package.json` metadata subpath.
 - Template binding syntax: child `${}`, `@event`, `.prop`, `?boolean`,
   attribute bindings, directives and `each()`.
 - Signal semantics documented in the reactivity ordering guide.
@@ -53,7 +54,8 @@ reactivity ordering contract.
 
 These are intentionally not SemVer-protected:
 
-- Internal package subpaths other than `@madojs/mado/devtools.js`.
+- Internal package subpaths other than the documented public tooling,
+  documentation and metadata subpaths.
 - Files under `src/`, `dist/src/`, and implementation module boundaries.
 - `_testHooks`, diagnostics internals and warning codes.
 - Exact generated JavaScript text, chunk names, sourcemap content and bundle

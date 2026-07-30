@@ -51,6 +51,10 @@ test("package self-import blocks internal subpaths", async () => {
   }
   const llmsUrl = import.meta.resolve("@madojs/mado/llms.txt");
   assert.match(readFileSync(new URL(llmsUrl), "utf8"), /^# Mado$/m);
+  const packageUrl = import.meta.resolve("@madojs/mado/package.json");
+  const publicPackage = JSON.parse(readFileSync(new URL(packageUrl), "utf8"));
+  assert.equal(publicPackage.name, "@madojs/mado");
+  assert.equal(publicPackage.version, pkg.version);
 
   await assert.rejects(
     import("@madojs/mado/lifecycle.js"),

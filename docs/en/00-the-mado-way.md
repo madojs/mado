@@ -114,7 +114,7 @@ See [`12-routing.md`](./12-routing.md).
   custom elements: `user-card` is ok, `usercard` is not.
 - `x-*` is only a convention for Mado examples and tests, not a brand standard.
   In production use a domain prefix: `app-*`, `crm-*`, `ticket-*`, `admin-*`.
-- ❌ Do not assign `innerHTML` directly. Build structure with `html\`\``; use
+- ❌ Do not assign `innerHTML` directly. Build structure with ``` html`` ```; use
   `unsafeHTML()` only for content you own or have already sanitized.
 - ❌ Do not start timers or raw browser subscriptions without cleanup. Pair them
   with the page/component `onDispose`; an `effect()` may return cleanup for work

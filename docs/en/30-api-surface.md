@@ -29,16 +29,19 @@ if (import.meta.env.DEV) {
 Load devtools conditionally before mounting the application; an unconditional
 side-effect import also installs its hook and keyboard handler in production.
 
-Two non-executable package assets support documentation tooling:
+Three non-executable package metadata/assets support build tooling:
 
 - `@madojs/mado/docs/en/manifest.json` is the versioned, ordered English
   documentation map. Resolve it with `import.meta.resolve()` and read each
   manifest entry's Markdown file relative to that URL.
 - `@madojs/mado/llms.txt` is the compact AI-facing framework contract.
+- `@madojs/mado/package.json` exposes the exact package identity, version and
+  published metadata without requiring a consumer to depend on the physical
+  `node_modules` layout.
 
-These asset subpaths are public, but they are build-time inputs rather than
-browser runtime modules. Their schema and location follow SemVer; document
-content may improve in compatible releases.
+These metadata and asset subpaths are public, but they are build-time inputs
+rather than browser runtime modules. Their schema and location follow SemVer;
+document content may improve in compatible releases.
 
 Everything else under `dist/src/` is an implementation detail, even when it is
 visible in the repository.
@@ -71,7 +74,7 @@ These are not public API:
 
 - Package subpaths other than `@madojs/mado`, `@madojs/mado/devtools.js`,
   `@madojs/mado/vite`, `@madojs/mado/docs/en/manifest.json` and
-  `@madojs/mado/llms.txt`.
+  `@madojs/mado/llms.txt`, and `@madojs/mado/package.json`.
 - Template parser/binding internals such as `html/parser.js`,
   `html/bindings.js`, `ChildState`, and `EachEntry`.
 - Router implementation modules such as `router/match.js`,

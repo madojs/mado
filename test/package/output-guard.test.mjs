@@ -63,10 +63,43 @@ test("output guard cleans only a sentinel-owned directory", async () => {
   const output = join(project, "out");
   try {
     await claimOutputDirectory({ projectRoot: project, outDir: output });
+    const marker = readFileSync(join(output, OUTPUT_SENTINEL), "utf8");
+    assert.deepEqual(JSON.parse(marker), { owner: "@madojs/mado" });
+    assert.equal(
+      marker.includes(project),
+      false,
+      "the deployable ownership marker must not expose the private project path",
+    );
     writeFileSync(join(output, "old.txt"), "old\n");
     await prepareOutputDirectory({ projectRoot: project, outDir: output });
     assert.equal(existsSync(join(output, "old.txt")), false);
     assert.equal(existsSync(join(output, OUTPUT_SENTINEL)), true);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("output guard accepts a legacy path-bearing sentinel and rewrites it safely", async () => {
+  const { parent, project } = fixture();
+  const output = join(project, "out");
+  try {
+    mkdirSync(output);
+    writeFileSync(
+      join(output, OUTPUT_SENTINEL),
+      `${JSON.stringify({
+        owner: "@madojs/mado",
+        projectRoot: project,
+      })}\n`,
+    );
+    writeFileSync(join(output, "old.txt"), "old\n");
+
+    await prepareOutputDirectory({ projectRoot: project, outDir: output });
+
+    assert.equal(existsSync(join(output, "old.txt")), false);
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(output, OUTPUT_SENTINEL), "utf8")),
+      { owner: "@madojs/mado" },
+    );
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }

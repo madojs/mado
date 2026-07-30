@@ -37,7 +37,7 @@
 
 ## HARD RULES — violation = bug
 
-### 1. Templates — tagged template `html\`\`` only
+### 1. Templates — tagged template ``` html`` ``` only
 
 ```ts
 // ❌ NO
@@ -349,7 +349,7 @@ html`
 HTML owns native constraints. Custom validation receives an `AbortSignal`.
 Use `setField`, not a schema/field-array abstraction.
 
-### 11. Styles — `css\`\`` + Shadow DOM by default
+### 11. Styles — ``` css`` ``` + Shadow DOM by default
 
 Screens and layouts are `page()` definitions in the light DOM. Import their
 global stylesheet from the application entry:

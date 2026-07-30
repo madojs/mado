@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.15.2 - 2026-07-30
+
+### Added
+
+- The exact published package identity and version can now be resolved through
+  the public build-time metadata subpath `@madojs/mado/package.json`.
+
+### Fixed
+
+- The `.mado-output` ownership marker in deployable `out/` artifacts no longer
+  serializes the build machine's absolute project path. Existing path-bearing
+  markers remain accepted and are rewritten to the minimal owner-only schema
+  on the next release.
+- Published English Markdown and current AI instruction assets use longer
+  CommonMark delimiters for tagged template examples instead of
+  backslash-escaped backticks that render as visible slashes or broken code
+  spans. The default starter copy no longer emits those slashes either, and
+  documentation lint now rejects the non-portable Markdown pattern outside
+  fenced code.
+
 ## 0.15.1 - 2026-07-30
 
 ### Fixed

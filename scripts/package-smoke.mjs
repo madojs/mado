@@ -13,6 +13,9 @@ import { platformInvocation } from "./platform-command.mjs";
 
 const exec = promisify(execFile);
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const packageVersion = JSON.parse(
+  await readFile(join(repoRoot, "package.json"), "utf8"),
+).version;
 const tempRoot = await mkdtemp(join(tmpdir(), "mado-package-smoke-"));
 let tarball = "";
 
@@ -63,6 +66,14 @@ try {
         const llmsUrl = import.meta.resolve("@madojs/mado/llms.txt");
         const llms = await readFile(new URL(llmsUrl), "utf8");
         if (!/^# Mado$/m.test(llms)) throw new Error("published llms.txt contract failed");
+        const packageUrl = import.meta.resolve("@madojs/mado/package.json");
+        const publicPackage = JSON.parse(await readFile(new URL(packageUrl), "utf8"));
+        if (
+          publicPackage.name !== "@madojs/mado" ||
+          publicPackage.version !== ${JSON.stringify(packageVersion)}
+        ) {
+          throw new Error("published package metadata contract failed");
+        }
 
         try {
           await import("@madojs/mado/lifecycle.js");

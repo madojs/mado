@@ -332,7 +332,7 @@ const f = useForm({
 
 Screens and layouts are `page()` definitions in the light DOM, so a global
 stylesheet imported by `main.ts` reaches them. Autonomous Web Components use
-Shadow DOM + `css\`\`` + CSS variables by default:
+Shadow DOM + ``` css`` ``` + CSS variables by default:
 
 ```ts
 // Light-DOM screen — document-level utility classes apply
@@ -410,7 +410,7 @@ page({
 ```
 
 If the section is an autonomous reusable widget instead of screen content,
-make it a `component()` and colocate its styles in `css\`\``. Layouts remain
+make it a `component()` and colocate its styles in ``` css`` ```. Layouts remain
 `page()` wrappers using `{ child }`; do not replace them with slotted custom
 elements.
 

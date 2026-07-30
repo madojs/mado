@@ -159,6 +159,9 @@ export function serializeJsonForScript(value, contextLabel) {
  */
 export function injectSnapshotMode(html, record) {
   let out = setHtmlAttribute(html, "data-mado-static-capture", "");
+  if (record.notFound) {
+    out = setHtmlAttribute(out, "data-mado-static-fallback", "");
+  }
   if ("initialData" in record) {
     const seedScript =
       `<script type="application/json" data-mado-static-data="${escapeAttr(record.pathname)}">` +
@@ -187,13 +190,54 @@ function escapeAttr(value) {
 }
 
 export function addNoIndex(html) {
-  if (/<meta\s+[^>]*(?:name=["']robots["']|content=["'][^"']*noindex)/i.test(html)) {
-    return html;
+  const robotsPattern =
+    /<meta\b(?=[^>]*\bname\s*=\s*(?:"robots"|'robots'|robots)(?=\s|\/?>))[^>]*>/gi;
+  const robots = [...html.matchAll(robotsPattern)];
+  if (robots.length > 0) {
+    const contentPattern =
+      /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
+    const directives = forceNoIndexDirectives(
+      robots
+        .map((match) => {
+          const content = contentPattern.exec(match[0]);
+          return content?.[1] ?? content?.[2] ?? content?.[3] ?? "";
+        })
+        .join(", "),
+    );
+    const replacement =
+      `<meta name="robots" content="${escapeAttr(directives)}" ` +
+      `data-mado-head="static">`;
+    let inserted = false;
+    return html.replace(robotsPattern, () => {
+      if (inserted) return "";
+      inserted = true;
+      return replacement;
+    });
   }
   return injectAfterHeadOpen(
     html,
-    `<meta name="robots" content="noindex">`,
+    `<meta name="robots" content="noindex" data-mado-head="static">`,
   );
+}
+
+function forceNoIndexDirectives(content) {
+  const directives = content
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const directive = value.toLowerCase();
+      return directive !== "index" && directive !== "all" && directive !== "noindex";
+    });
+  const seen = new Set();
+  return ["noindex", ...directives]
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(", ");
 }
 
 export function escapeXml(value) {

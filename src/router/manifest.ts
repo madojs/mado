@@ -38,7 +38,11 @@ import {
   type RoutesMap,
 } from "./match.js";
 import { stripBase } from "./base.js";
-import { navigate, router, type RouterApi } from "./navigation.js";
+import {
+  _routerWithInitialFallback,
+  navigate,
+  type RouterApi,
+} from "./navigation.js";
 import {
   beginStaticRoute,
   consumeStaticSeed,
@@ -137,6 +141,18 @@ export function routes(
   manifest: RoutesMap,
   options: RoutesOptions = {},
 ): RouterApi {
+  // A static host 404 can be served at a pathname that also matches a dynamic
+  // application route (for example `/guides/missing` vs `/guides/:slug`).
+  // Claim the marker once at the application manifest boundary and force the
+  // wildcard only while this router remains on that initial pathname.
+  // Removing the marker immediately keeps raw or nested routers independent.
+  const captureStaticFallback =
+    typeof document !== "undefined" &&
+    document.documentElement?.hasAttribute("data-mado-static-fallback") === true;
+  if (captureStaticFallback) {
+    document.documentElement.removeAttribute("data-mado-static-fallback");
+  }
+
   const ctx: RoutesContext = {
     moduleCache: new Map(),
     pathToFlat: new Map(),
@@ -170,7 +186,7 @@ export function routes(
         };
         beginStaticRoute(pathname);
       }
-      return renderEntry(ctx, entry, params, options, ++ctx.renderSeq);
+      return renderEntry(ctx, pattern, entry, params, options, ++ctx.renderSeq);
     };
     ctx.pathToFlat.set(pattern, entry);
     if (pattern !== "*") {
@@ -178,13 +194,17 @@ export function routes(
     }
   }
 
-  const api = router(lowLevel, {
-    viewTransitions: options.viewTransitions,
-    scrollRestoration: options.scrollRestoration,
-    focusManagement: options.focusManagement,
-    // Raise prefetch into sub-router: hover on a link → find matching FlatEntry → load loader + layouts.
-    prefetch: (pathname) => prefetchPathInContext(ctx, pathname),
-  });
+  const api = _routerWithInitialFallback(
+    lowLevel,
+    {
+      viewTransitions: options.viewTransitions,
+      scrollRestoration: options.scrollRestoration,
+      focusManagement: options.focusManagement,
+      // Raise prefetch into sub-router: hover on a link → find matching FlatEntry → load loader + layouts.
+      prefetch: (pathname) => prefetchPathInContext(ctx, pathname),
+    },
+    captureStaticFallback ? stripBase(location.pathname) : null,
+  );
   const origDispose = api.dispose;
   api.dispose = () => {
     activeRoutes.delete(ctx);
@@ -311,6 +331,7 @@ function tryLoadSync(
  */
 function applyPageMeta(
   page: Page,
+  pattern: string,
   params: RouteParams,
   seed: JsonValue | undefined,
   options: RoutesOptions,
@@ -319,19 +340,77 @@ function applyPageMeta(
     typeof page.title === "function" ? page.title(params) : page.title;
   let head: HeadMeta = {};
   if (!page.head) {
-    applyHead({});
+    head = {};
   } else {
     try {
       head = page.head(params, seed);
-      applyHead(head);
     } catch (err) {
-      applyHead({});
+      head = {};
       recordStaticError(err);
       reportError("router", "page-head", "page.head() threw", err);
     }
   }
+  if (pattern === "*" && page.static === true) {
+    head = withNoIndex(head);
+  }
+  applyHead(head);
   const title = head.title ?? pageTitle;
   document.title = title ? title + (options.titleSuffix ?? "") : "";
+}
+
+function withNoIndex(head: HeadMeta): HeadMeta {
+  const robots = (head.meta ?? [])
+    .filter((entry) => entry.name?.toLowerCase() === "robots")
+    .map((entry) => entry.content)
+    .join(", ");
+  const meta = (head.meta ?? []).filter(
+    (entry) =>
+      entry.property?.toLowerCase() !== "og:url" &&
+      entry.name?.toLowerCase() !== "robots",
+  );
+  // A hostile or accidental second robots entry must not be able to win
+  // applyHead()'s singleton replacement order and turn the host fallback
+  // back into an indexable page. Collapse every authored robots value into
+  // one framework-owned directive set.
+  meta.push({ name: "robots", content: noIndexDirectives(robots) });
+  const link = (head.link ?? []).filter(
+    (entry) =>
+      !entry.rel
+        .toLowerCase()
+        .split(/\s+/)
+        .includes("canonical"),
+  );
+  return {
+    ...head,
+    canonical: undefined,
+    og: head.og ? { ...head.og, url: undefined } : undefined,
+    meta,
+    link,
+  };
+}
+
+function noIndexDirectives(content: string): string {
+  const directives = content
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const directive = value.toLowerCase();
+      return (
+        directive !== "index" &&
+        directive !== "all" &&
+        directive !== "noindex"
+      );
+    });
+  const seen = new Set<string>();
+  return ["noindex", ...directives]
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(", ");
 }
 
 /**
@@ -346,6 +425,7 @@ function applyPageMeta(
  */
 function renderEntry(
   ctx: RoutesContext,
+  pattern: string,
   entry: FlatEntry,
   params: RouteParams,
   options: RoutesOptions,
@@ -377,7 +457,7 @@ function renderEntry(
       const view = renderInPageLifecycle(ctx, () =>
         renderWithLayouts(sync.page, sync.layouts, params, seed),
       );
-      applyPageMeta(sync.page, params, seed, options);
+      applyPageMeta(sync.page, pattern, params, seed, options);
       ctx.guardRedirects = 0;
       markStaticRouteReady("ready");
       if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:ready", ctx, { seq, params, mode: "sync" });
@@ -459,7 +539,13 @@ function renderEntry(
         // a fresh route transaction, while halt remains intentionally blank.
         return;
       }
-      applyPageMeta(pg as Page, params, ctx.seedForPathname?.value, options);
+      applyPageMeta(
+        pg as Page,
+        pattern,
+        params,
+        ctx.seedForPathname?.value,
+        options,
+      );
       state.set({ kind: "ready", page: pg as Page, layouts: lts as Page[] });
     } catch (err: unknown) {
       resolved = true;

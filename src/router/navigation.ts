@@ -76,6 +76,28 @@ export function router(
   routes: Routes,
   options: RouterOptions = {},
 ): RouterApi {
+  return createRouter(routes, options, null);
+}
+
+/**
+ * Internal manifest bridge for a host-served 404 document. Raw router()
+ * instances never receive this override.
+ *
+ * @internal
+ */
+export function _routerWithInitialFallback(
+  routes: Routes,
+  options: RouterOptions,
+  initialFallbackPath: string | null,
+): RouterApi {
+  return createRouter(routes, options, initialFallbackPath);
+}
+
+function createRouter(
+  routes: Routes,
+  options: RouterOptions,
+  initialFallbackPath: string | null,
+): RouterApi {
   const useViewTransitions = options.viewTransitions !== false;
   const useScrollRestoration = options.scrollRestoration !== false;
   const useFocusManagement = options.focusManagement !== false;
@@ -196,6 +218,9 @@ export function router(
       // slot and must not subscribe the whole router view.
       const p = path();
       return untracked(() => {
+        if (initialFallbackPath !== null && p === initialFallbackPath) {
+          return fallback.handler({});
+        }
         const m = matchRoute(p, compiled);
         if (m) return m.route.handler(m.params);
         return fallback.handler({});

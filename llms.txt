@@ -260,7 +260,12 @@ controls for checkbox/radio groups, multiple select, files and keyboard submit.
   client bundle. Keep them browser-safe; never read secrets.
 - Pages marked `static` cannot use guards (route- or layout-level) —
   they are public by definition.
-- `*` and other wildcard routes cannot be static.
+- A global `*` route may declare literal `static: true` to produce a generic
+  noindex `404.html`. Its view must be pathname-independent. Without `static`,
+  it remains the SPA fallback. Object configs and other wildcard patterns
+  cannot be static. A captured or public `404.html` disables the generated
+  catch-all SPA `_redirects`; mixed static/SPA apps need explicit host rules
+  for known SPA-only routes or should leave the wildcard non-static.
 - Discovery uses Vite SSR as a control plane only; nothing is rendered
   in Node. The actual capture happens in headless Chromium.
 

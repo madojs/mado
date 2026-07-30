@@ -55,8 +55,24 @@ try {
     projectRoot,
     entry: typeof flags.entry === "string" ? flags.entry : undefined,
   });
+  const preservePublicNotFound =
+    flags["preserve-public-404"] === true ||
+    (
+      existsSync(join(projectRoot, "public", "404.html")) &&
+      existsSync(join(outDir, "404.html"))
+    );
+  const captureRecords = preservePublicNotFound
+    ? records.filter((record) => !record.notFound)
+    : records;
 
-  logger.info("static", "discover", `discovered ${records.length} static route(s)`);
+  logger.info(
+    "static",
+    "discover",
+    `discovered ${records.length} static route(s)` +
+      (records.length !== captureRecords.length
+        ? "; public 404 owns the host fallback"
+        : ""),
+  );
 
   await claimOutputDirectory({
     projectRoot,
@@ -64,7 +80,7 @@ try {
     force: flags["force-output"] === true,
   });
 
-  if (records.length > 0 && !site) {
+  if (captureRecords.length > 0 && !site) {
     throw new Error(
       "[mado:static] missing public origin for static routes.\n" +
         "Provide one of:\n" +
@@ -83,16 +99,16 @@ try {
     ? joinSite(publicOrigin, base)
     : "/";
 
-  if (records.length > 0) {
+  if (captureRecords.length > 0) {
     const server = await createStaticCaptureServer({
       outDir,
       shellHtml,
-      records,
+      records: captureRecords,
       base,
     });
     try {
       const captured = await captureStaticRoutes({
-        records,
+        records: captureRecords,
         serverOrigin: server.origin,
         baseUrl,
         base,
@@ -119,9 +135,10 @@ try {
     }
   }
 
-  // SPA shell is promoted only after every route survived capture and
-  // promotion. On a re-run with broken pages this guarantees that the
-  // previous (working) `_mado/spa.html` is preserved.
+  // SPA shell is promoted only after every route survived capture and route
+  // promotion. Capture/serialization failures therefore preserve the
+  // previous `_mado/spa.html`; final filesystem promotion is not presented as
+  // an atomic directory transaction.
   await promoteSpaShell({ outDir, stagedSpaPath });
 
   await writeStaticDeploymentFiles({

@@ -197,14 +197,22 @@ async function captureRoute(browser, record, options) {
       );
     }
 
-    return await serializeDocument(page, {
+    const html = await serializeDocument(page, {
       appId: options.appId ?? "app",
       serverOrigin: options.serverOrigin,
       baseUrl: options.baseUrl,
       site: options.site ?? "",
       base: options.base ?? "/",
       pathname: record.pathname,
+      notFound: record.notFound === true,
     });
+    if (record.notFound && html.includes(record.pathname)) {
+      throw new Error(
+        "[mado:static] the static wildcard must render pathname-independent " +
+          "fallback copy; its synthetic capture pathname leaked into 404.html.",
+      );
+    }
+    return html;
   } finally {
     await context.close();
   }
@@ -300,12 +308,13 @@ async function collectUndefinedCustomElements(page) {
 
 async function serializeDocument(page, options) {
   return page.evaluate((opts) => {
-    const { appId, serverOrigin, baseUrl, site, base, pathname } = opts;
+    const { appId, serverOrigin, baseUrl, site, base, pathname, notFound } = opts;
     const added = [];
     // Strip both the modern attribute marker and the legacy inline script
     // (older snapshots may still contain it). The seed <script> is
     // intentionally kept so the production client can consume it on boot.
     document.documentElement.removeAttribute("data-mado-static-capture");
+    document.documentElement.removeAttribute("data-mado-static-fallback");
     for (const script of document.querySelectorAll("script[data-mado-static-mode]")) {
       script.remove();
     }
@@ -313,16 +322,28 @@ async function serializeDocument(page, options) {
     const app = document.getElementById(appId);
     if (app) app.setAttribute("data-mado-static", "");
 
+    // Head values such as description and social-card metadata are
+    // singletons even when the base index.html contains a generic fallback.
+    // Prefer the page-owned runtime tag and discard the shell duplicate.
+    normalizeKnownSingletons();
+
     // ---- canonical / og:url fallback ----
     //
     // If page.head() did not produce these, derive them from `site + base
     // + pathname` so static documents always carry the production URL.
     // We only fill in absent values; explicit user-provided canonical /
     // og:url wins.
-    if (site) {
+    if (site && !notFound) {
       const absoluteUrl = buildAbsoluteUrl(site, base, pathname);
       ensureCanonical(absoluteUrl);
       ensureOgUrl(absoluteUrl);
+    }
+    if (notFound) {
+      normalizeNotFoundHead();
+      // The capture marker was consumed by the application router. Restore a
+      // fresh marker in the deployable 404 so production boot also selects
+      // the wildcard when the requested URL matches a dynamic route pattern.
+      document.documentElement.setAttribute("data-mado-static-fallback", "");
     }
 
     // Walk every open shadow root reachable from the document and run the
@@ -402,16 +423,14 @@ async function serializeDocument(page, options) {
     }
 
     function ensureCanonical(absoluteUrl) {
-      const existing = document.head.querySelectorAll('link[rel="canonical"]');
-      // De-duplicate: keep the first, drop the rest. A second canonical
-      // is always wrong and confuses search engines.
-      for (let i = 1; i < existing.length; i++) existing[i].remove();
-      const first = existing[0];
+      const first = preferManagedSingleton('link[rel~="canonical" i]');
       if (first) {
         const href = first.getAttribute("href") || "";
-        if (!isUsableAbsoluteUrl(href)) {
-          first.setAttribute("href", absoluteUrl);
-        }
+        const value = first.hasAttribute("data-mado-head")
+          ? normalizePublicHttpUrl(href, absoluteUrl) ?? absoluteUrl
+          : absoluteUrl;
+        first.setAttribute("href", value);
+        first.setAttribute("data-mado-head", "static");
         return;
       }
       const link = document.createElement("link");
@@ -426,14 +445,14 @@ async function serializeDocument(page, options) {
     }
 
     function ensureOgUrl(absoluteUrl) {
-      const existing = document.head.querySelectorAll('meta[property="og:url"]');
-      for (let i = 1; i < existing.length; i++) existing[i].remove();
-      const first = existing[0];
+      const first = preferManagedSingleton('meta[property="og:url" i]');
       if (first) {
         const content = first.getAttribute("content") || "";
-        if (!isUsableAbsoluteUrl(content)) {
-          first.setAttribute("content", absoluteUrl);
-        }
+        const value = first.hasAttribute("data-mado-head")
+          ? normalizePublicHttpUrl(content, absoluteUrl) ?? absoluteUrl
+          : absoluteUrl;
+        first.setAttribute("content", value);
+        first.setAttribute("data-mado-head", "static");
         return;
       }
       const meta = document.createElement("meta");
@@ -446,22 +465,106 @@ async function serializeDocument(page, options) {
       document.head.appendChild(meta);
     }
 
-    function isUsableAbsoluteUrl(value) {
-      if (!value) return false;
+    function normalizeKnownSingletons() {
+      for (const selector of [
+        'meta[name="description" i]',
+        'meta[name="robots" i]',
+        'meta[property="og:title" i]',
+        'meta[property="og:description" i]',
+        'meta[property="og:image" i]',
+        'meta[property="og:type" i]',
+        'meta[property="og:url" i]',
+        'meta[name="twitter:card" i]',
+        'meta[name="twitter:title" i]',
+        'meta[name="twitter:description" i]',
+        'meta[name="twitter:image" i]',
+      ]) {
+        preferManagedSingleton(selector);
+      }
+    }
+
+    function preferManagedSingleton(selector) {
+      const nodes = [...document.head.querySelectorAll(selector)];
+      if (nodes.length === 0) return null;
+      let keep = null;
+      for (const node of nodes) {
+        if (node.hasAttribute("data-mado-head")) keep = node;
+      }
+      keep ??= nodes[0];
+      for (const node of nodes) {
+        if (node !== keep) node.remove();
+      }
+      return keep;
+    }
+
+    function normalizeNotFoundHead() {
+      for (const node of document.head.querySelectorAll(
+        'link[rel~="canonical" i], meta[property="og:url" i]',
+      )) {
+        node.remove();
+      }
+
+      let robots = preferManagedSingleton('meta[name="robots" i]');
+      if (!robots) {
+        robots = document.createElement("meta");
+        robots.setAttribute("name", "robots");
+        document.head.appendChild(robots);
+      }
+      const directives = (robots.getAttribute("content") || "")
+        .split(/[\s,]+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .filter((value) => {
+          const directive = value.toLowerCase();
+          return directive !== "index" && directive !== "all" && directive !== "noindex";
+        });
+      const seen = new Set();
+      const normalized = ["noindex", ...directives].filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      robots.setAttribute("content", normalized.join(", "));
+      // Runtime applyHead() removes static tags before rebuilding the
+      // wildcard page metadata. That prevents noindex from leaking into a
+      // later client-side navigation.
+      robots.setAttribute("data-mado-head", "static");
+    }
+
+    function normalizePublicHttpUrl(value, fallbackUrl) {
+      if (!value) return null;
       let parsed;
       try {
-        parsed = new URL(value);
+        const raw = String(value).trim();
+        if (raw.startsWith("/") && !raw.startsWith("//")) {
+          const normalizedBase =
+            base && base !== "/"
+              ? `/${String(base).replace(/^\/+|\/+$/g, "")}/`
+              : "/";
+          const alreadyBased =
+            normalizedBase !== "/" &&
+            (raw === normalizedBase.slice(0, -1) ||
+              raw.startsWith(normalizedBase));
+          parsed = new URL(
+            alreadyBased
+              ? site.replace(/\/+$/, "") + raw
+              : buildAbsoluteUrl(site, normalizedBase, raw),
+          );
+        } else {
+          parsed = new URL(raw, fallbackUrl);
+        }
       } catch {
-        return false;
+        return null;
       }
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-      if (parsed.hostname === "localhost") return false;
-      if (parsed.hostname === "127.0.0.1") return false;
-      if (parsed.hostname === "::1") return false;
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+      if (parsed.hostname === "localhost") return null;
+      if (parsed.hostname === "127.0.0.1") return null;
+      if (parsed.hostname === "::1") return null;
       // Reject the capture server's own origin: that proves head() emitted
       // a value derived from `location.origin` instead of the public site.
-      if (parsed.origin === serverOrigin) return false;
-      return true;
+      if (parsed.origin === serverOrigin) return null;
+      return parsed.href;
     }
 
     function collectShadowRoots(start) {

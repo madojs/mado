@@ -92,6 +92,7 @@ jobs:
           MADO_REQUIRE_BROWSER: "1"
         run: |
           node --test --test-timeout=180000 \
+            test/cli/release-pipeline.test.mjs \
             test/static/dsd-takeover.test.mjs \
             test/static/base-path.test.mjs
 

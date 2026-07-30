@@ -11,10 +11,11 @@ import { addNoIndex, escapeXml } from "./serialize.mjs";
  *   <os-temp>/spa.html       ← noindexed copy, staged before promotion
  *   <os-temp>/routes/...     ← per-route captured HTML, also staged
  *
- * Nothing inside `out/` is mutated until all routes capture cleanly. A
- * mid-pipeline crash leaves the existing deployment untouched; only a
- * verified, complete capture is promoted by `promoteCapturedRoutes()`
- * and `promoteSpaShell()`.
+ * Nothing inside `out/` is mutated until all routes capture cleanly. Only a
+ * verified, complete capture reaches `promoteCapturedRoutes()` and
+ * `promoteSpaShell()`. Promotion itself is a short series of filesystem
+ * copies, not an atomic directory swap; deploy the clean `mado release`
+ * artifact rather than serving a directory while it is being rebuilt.
  */
 export async function prepareStaticOutput(outDir) {
   const shellPath = join(outDir, "index.html");
@@ -44,7 +45,7 @@ export async function prepareStaticOutput(outDir) {
 
 export async function writeCapturedRoutes(routesDir, captured) {
   for (const record of captured) {
-    const file = safeRouteFile(routesDir, record.pathname);
+    const file = capturedRouteFile(routesDir, record);
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, record.html);
   }
@@ -52,8 +53,8 @@ export async function writeCapturedRoutes(routesDir, captured) {
 
 export async function promoteCapturedRoutes({ outDir, routesDir, captured }) {
   for (const record of captured) {
-    const source = safeRouteFile(routesDir, record.pathname);
-    const target = safeRouteFile(outDir, record.pathname);
+    const source = capturedRouteFile(routesDir, record);
+    const target = capturedRouteFile(outDir, record);
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
   }
@@ -85,11 +86,11 @@ export async function dropBuildBridge(outDir) {
 
 /**
  * Files owned by `mado static`: the sitemap (derived from discovered
- * static routes) and the SPA fallback shell.
+ * static routes), the SPA fallback shell and an opt-in captured 404.html.
  *
  * Files owned by `mado release` (so it can decide writeIfMissing
- * semantics for user-customised deployments): 404.html, _headers,
- * _redirects, and asset precompression.
+ * semantics for user-customised deployments): the default SPA-backed
+ * 404.html, _headers, _redirects, and asset precompression.
  */
 export async function writeStaticDeploymentFiles({ outDir, records, site, base }) {
   await writeFile(join(outDir, "sitemap.xml"), sitemap(records, site, base));
@@ -121,12 +122,19 @@ function safeRouteFile(root, pathname) {
   return target;
 }
 
+function capturedRouteFile(root, record) {
+  return record.notFound
+    ? join(root, "404.html")
+    : safeRouteFile(root, record.pathname);
+}
+
 function sitemap(records, site, base) {
   const origin = (site ?? "").replace(/\/+$/, "");
   const prefix = ((base ?? "/") || "/").replace(/\/+$/, "");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${records
+  .filter((record) => !record.notFound)
   .map((record) => {
     const pathname = record.pathname === "/" ? "" : record.pathname;
     const loc = `${origin}${prefix}${pathname}` || "/";

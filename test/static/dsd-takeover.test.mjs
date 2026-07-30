@@ -99,6 +99,17 @@ function mkProject({ base = "/" } = {}) {
       '<html lang="en">',
       "  <head>",
       '    <meta charset="UTF-8" />',
+      '    <meta name="Description" content="Shell fallback description" />',
+      '    <link rel="CANONICAL" href="https://shell.example/fallback" />',
+      '    <meta property="OG:TITLE" content="Shell OG title" />',
+      '    <meta property="og:description" content="Shell OG description" />',
+      '    <meta property="og:image" content="https://shell.example/og.png" />',
+      '    <meta property="og:type" content="website" />',
+      '    <meta property="og:url" content="https://shell.example/fallback" />',
+      '    <meta name="twitter:card" content="summary" />',
+      '    <meta name="twitter:title" content="Shell Twitter title" />',
+      '    <meta name="twitter:description" content="Shell Twitter description" />',
+      '    <meta name="twitter:image" content="https://shell.example/image.png" />',
       "    <title>App</title>",
       "  </head>",
       "  <body>",
@@ -206,6 +217,20 @@ function mkProject({ base = "/" } = {}) {
       "  head: (_params, seed) => ({",
       "    title: seed?.name,",
       "    description: seed?.description,",
+      '    canonical: "/declared",',
+      "    og: {",
+      '      title: "Mado Keyboard card",',
+      '      description: "Page OG description",',
+      '      image: "/keyboard-og.png",',
+      '      type: "product",',
+      '      url: "/declared",',
+      "    },",
+      "    twitter: {",
+      '      card: "summary_large_image",',
+      '      title: "Mado Keyboard on Twitter",',
+      '      description: "Page Twitter description",',
+      '      image: "/keyboard.png",',
+      "    },",
       '    jsonLd: { "@type": "Product", probe: seed?.xss },',
       "  }),",
       "  view: ({ data }) => html`",
@@ -364,6 +389,12 @@ test(
         html,
         /name="description"[^>]+content="A canonical Mado test product\."/,
       );
+      assert.equal(
+        (html.match(/<meta[^>]+name="description"[^>]*>/g) ?? []).length,
+        1,
+        "snapshot keeps exactly one route-specific description",
+      );
+      assert.doesNotMatch(html, /Shell fallback description/);
       assert.match(html, /<h1>Mado Keyboard[^<]*<!--mado/);
       assert.match(html, /A canonical Mado test product\./);
       assert.match(html, /<template shadowrootmode="open"/);
@@ -380,15 +411,42 @@ test(
       assert.doesNotMatch(html, /127\.0\.0\.1/);
       assert.doesNotMatch(html, /localhost/);
 
-      // Canonical / og:url auto-fallback.
+      // Managed page metadata wins over generic shell defaults. Relative
+      // canonical/og:url values are resolved against the public origin.
       assert.match(
         html,
-        /<link[^>]*rel="canonical"[^>]*href="https:\/\/example\.test\/?"/,
+        /<link[^>]*rel="canonical"[^>]*href="https:\/\/example\.test\/declared"/,
       );
       assert.match(
         html,
-        /<meta[^>]*property="og:url"[^>]*content="https:\/\/example\.test\/?"/,
+        /<meta[^>]*property="og:url"[^>]*content="https:\/\/example\.test\/declared"/,
       );
+      assert.equal(
+        (html.match(/<link[^>]+rel="canonical"[^>]*>/g) ?? []).length,
+        1,
+      );
+      assert.equal(
+        (html.match(/<meta[^>]+property="og:url"[^>]*>/g) ?? []).length,
+        1,
+      );
+      for (const [attribute, value] of [
+        ['property="og:title"', "Mado Keyboard card"],
+        ['property="og:description"', "Page OG description"],
+        ['property="og:image"', "/keyboard-og.png"],
+        ['property="og:type"', "product"],
+        ['name="twitter:card"', "summary_large_image"],
+        ['name="twitter:title"', "Mado Keyboard on Twitter"],
+        ['name="twitter:description"', "Page Twitter description"],
+        ['name="twitter:image"', "/keyboard.png"],
+      ]) {
+        const tags = html.match(
+          new RegExp(`<meta[^>]+${attribute}[^>]*>`, "g"),
+        ) ?? [];
+        assert.equal(tags.length, 1, `${attribute} stays a singleton`);
+        assert.ok(tags[0].includes(`content="${value}"`));
+      }
+      assert.doesNotMatch(html, /shell\.example/);
+      assert.doesNotMatch(html, /Shell (?:OG|Twitter)/);
 
       // Sitemap and SPA shell exist.
       assert.ok(existsSync(join(dir, "out/sitemap.xml")));

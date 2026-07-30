@@ -40,6 +40,7 @@ out/
   index.html               ← captured snapshot
   assets/...
   _mado/spa.html           ← SPA fallback for other routes
+  404.html                 ← noindex copy of the SPA shell
   sitemap.xml
   _headers / _redirects
 ```
@@ -224,9 +225,10 @@ Captured canonicals and `og:url` will be `https://your.site/docs/...`.
 
 ## 7. SPA-only fallback
 
-Any route that does NOT declare `static` is served from
-`out/_mado/spa.html`. That is the right place for authenticated
-zones, search, dashboards, admin tools.
+A route that does NOT declare `static` is served from
+`out/_mado/spa.html` when the host's fallback policy rewrites that URL.
+That is the right place for authenticated zones, search, dashboards and
+admin tools.
 
 ```ts
 // src/pages/app.page.ts
@@ -242,7 +244,36 @@ export default page({
 The fallback is automatically marked `noindex` so search engines do
 not capture the SPA shell.
 
-## 8. Failure modes
+## 8. Static host 404
+
+An all-static site can capture its global wildcard:
+
+```ts
+import { html, page, routeUrl } from "@madojs/mado";
+
+export default page({
+  static: true,
+  title: "Not found",
+  view: () => html`
+    <main>
+      <h1>Page not found</h1>
+      <a data-link href=${routeUrl("/")}>Home</a>
+    </main>
+  `,
+});
+```
+
+The view must be generic: do not render `path()`, because one `404.html`
+serves every missing URL. Mado forces `noindex`, omits canonical/`og:url`,
+excludes it from the sitemap and does not generate the catch-all SPA
+`_redirects` rule.
+
+This default is intended for an all-static route table. In a mixed
+static/SPA app, either keep `*` non-static or provide host-specific rewrites
+for each known SPA-only route family. A standard `public/404.html` takes
+precedence when you want to own the host document completely.
+
+## 9. Failure modes
 
 `mado static` fails the snapshot (non-zero exit) when:
 
@@ -259,10 +290,13 @@ not capture the SPA shell.
   cycles, non-plain prototypes). The validator points at the bad
   field by path.
 
-A failed snapshot leaves the previous `out/` untouched: capture
-writes to a temp tree and only promotes once every route survived.
+A capture or serialization failure leaves the previous route files untouched:
+capture writes to a temp tree and only starts promotion after every route
+survived. Final promotion is a short series of filesystem copies, not an
+atomic directory swap; deploy the clean `mado release` artifact instead of
+serving `out/` while rebuilding it.
 
-## 9. CI guidance
+## 10. CI guidance
 
 ```yaml
 # .github/workflows/ci.yml — extract
@@ -276,9 +310,9 @@ writes to a temp tree and only promotes once every route survived.
   run: npm run release
 ```
 
-`MADO_REQUIRE_BROWSER=1` forces `mado static` to fail loudly if no
-Chromium is resolvable (instead of silently producing a SPA-only
-build).
+`mado static` itself is always strict when a route needs capture.
+`MADO_REQUIRE_BROWSER=1` makes the repository's browser-backed tests run
+instead of skipping on a machine without an explicit browser override.
 
 ## 10. Quick checklist before pushing
 

@@ -10,4 +10,7 @@ docker run --rm -p 8080:80 myapp
 ```
 
 The container runs `npm run release` and serves the resulting `out/` directory
-with nginx. This is a recipe, not a framework runtime requirement.
+with nginx. Its default config uses the mixed static/SPA fallback policy. For
+an all-static site with a captured `404.html`, switch to the host-404
+`try_files` variant in `docs/en/20-deployment.md`. This is a recipe, not a
+framework runtime requirement.

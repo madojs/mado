@@ -13,12 +13,50 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { addNoIndex } from "../../scripts/static/serialize.mjs";
 
 const exec = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../..");
 const STATIC = resolve(REPO_ROOT, "scripts/static.mjs");
 const BAKE = resolve(REPO_ROOT, "scripts/bake.mjs");
+
+test("addNoIndex: replaces an authored index directive", () => {
+  const html =
+    '<html><head><meta name="robots" content="index, follow"></head></html>';
+  const result = addNoIndex(html);
+  assert.match(result, /content="noindex, follow"/);
+  assert.match(result, /data-mado-head="static"/);
+  assert.doesNotMatch(result, /content="[^"]*\bindex\b/);
+});
+
+test("addNoIndex: removes conflicting all and whitespace directives", () => {
+  const html =
+    "<html><head><meta NAME=\"ROBOTS\" content='ALL follow follow'></head></html>";
+  const result = addNoIndex(html);
+  assert.match(result, /content="noindex, follow"/);
+  assert.match(result, /data-mado-head="static"/);
+  assert.doesNotMatch(result, /\bALL\b/);
+});
+
+test("addNoIndex: collapses every robots tag into one managed singleton", () => {
+  const html = [
+    "<html><head>",
+    '<meta name="robots" content="index, follow">',
+    "<meta content=index name=ROBOTS>",
+    '<meta name="description" content="keep">',
+    "</head></html>",
+  ].join("");
+  const result = addNoIndex(html);
+  assert.equal(
+    [...result.matchAll(/<meta\b[^>]*\bname=["']?robots["']?[^>]*>/gi)].length,
+    1,
+  );
+  assert.match(result, /content="noindex, follow"/);
+  assert.match(result, /data-mado-head="static"/);
+  assert.match(result, /name="description" content="keep"/);
+  assert.doesNotMatch(result, /content=["']?index\b/i);
+});
 
 function mkTempProject(layout) {
   const dir = mkdtempSync(join(tmpdir(), "mado-static-"));
@@ -101,6 +139,68 @@ test("static: dynamic static route without paths fails during discovery", async 
   }
 });
 
+test("static: wildcard only accepts literal static true", async () => {
+  const dir = mkTempProject({
+    "package.json": JSON.stringify({ name: "wildcard-static-app", type: "module" }),
+    "out/index.html": "<!doctype html><html><head></head><body><div id=\"app\"></div></body></html>",
+    "src/routes.ts": `
+      const page = {
+        _page: true,
+        static: { initialData: () => ({ message: "missing" }) },
+        view: () => ({ _mado: true, strings: [""], values: [] }),
+      };
+      export const manifest = { "*": page };
+      export default { manifest };
+    `,
+  });
+  try {
+    const result = await runScript(STATIC, dir);
+    assert.notEqual(result.code, 0);
+    assert.match(
+      result.stdout + result.stderr,
+      /wildcard route only supports literal static: true/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("static: an emitted public 404 fully owns wildcard output", async () => {
+  const authored =
+    "<!doctype html><html><head><title>Authored</title></head><body>Public 404</body></html>";
+  const dir = mkTempProject({
+    "package.json": JSON.stringify({ name: "public-404-app", type: "module" }),
+    "public/404.html": authored,
+    "out/404.html": authored,
+    "out/index.html":
+      '<!doctype html><html><head></head><body><div id="app"></div></body></html>',
+    "src/routes.ts": `
+      const page = {
+        _page: true,
+        static: true,
+        view: ({ path }) => ({ _mado: true, strings: [path()], values: [] }),
+      };
+      export const manifest = { "*": page };
+      export default { manifest };
+    `,
+  });
+  try {
+    const result = await runScript(STATIC, dir);
+    if (result.code !== 0) {
+      throw new Error(
+        `static exited ${result.code}\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`,
+      );
+    }
+    assert.equal(readFileSync(join(dir, "out/404.html"), "utf8"), authored);
+    assert.doesNotMatch(
+      result.stdout + result.stderr,
+      /missing public origin|No compatible Chromium/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("static: SPA-only manifest preserves fallback shell and writes sitemap", async () => {
   const dir = mkTempProject({
     "package.json": JSON.stringify({ name: "spa-only-app", type: "module" }),
@@ -124,7 +224,9 @@ test("static: SPA-only manifest preserves fallback shell and writes sitemap", as
     // deployment target.
     assert.ok(existsSync(join(dir, "out/_mado/spa.html")));
     assert.ok(existsSync(join(dir, "out/sitemap.xml")));
-    assert.match(readFileSync(join(dir, "out/_mado/spa.html"), "utf8"), /noindex/);
+    const fallback = readFileSync(join(dir, "out/_mado/spa.html"), "utf8");
+    assert.match(fallback, /noindex/);
+    assert.match(fallback, /data-mado-head="static"/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

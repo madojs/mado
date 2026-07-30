@@ -82,7 +82,7 @@ export interface HeadMeta {
   /** If set — overrides page.title. */
   title?: string;
   description?: string;
-  /** Canonical URL — important for SEO with duplicate content. */
+  /** Canonical URL. Root-relative values are resolved through the active Vite base. */
   canonical?: string;
   /** OpenGraph for social networks. */
   og?: {
@@ -90,6 +90,7 @@ export interface HeadMeta {
     description?: string;
     image?: string;
     type?: string;
+    /** Root-relative values are resolved through the active Vite base. */
     url?: string;
   };
   /** Twitter Cards (inherits og.* if not set). */

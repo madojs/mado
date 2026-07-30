@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { brotliCompressSync, constants as zlibConst, gzipSync } from "node:zlib";
 
@@ -25,7 +25,16 @@ export async function runRelease(ctx, rawArgs) {
     force: releaseFlags["force-output"] === true,
   });
   if (releaseFlags["no-clean"]) {
-    logger.info("release", "clean-skip", "--no-clean: keeping existing out/");
+    // `--no-clean` may preserve Vite assets for an internal debugging loop,
+    // but deployment policy must always be derived from the current sources.
+    // Otherwise a stale captured/public 404 or framework-generated redirect
+    // can silently invert the next release's host behavior.
+    await resetReleasePolicy(outDir);
+    logger.info(
+      "release",
+      "clean-skip",
+      "--no-clean: keeping existing assets; refreshing host policy",
+    );
   } else {
     logger.info("release", "clean", `prepared ${outDir}`);
   }
@@ -37,21 +46,30 @@ export async function runRelease(ctx, rawArgs) {
   await runVite(ctx, ["build", "--outDir", outDir], { defaultConfig: true });
 
   logger.info("release", "step", "step 3/5  static snapshots");
+  const preserveBuiltNotFound = existsSync(join(outDir, "404.html"));
   await runNodeScript(ctx, "scripts/static.mjs", [
     ...rawArgs.filter((a) => a !== "--no-clean"),
+    ...(preserveBuiltNotFound ? ["--preserve-public-404"] : []),
     "--out",
     outDir,
   ]);
 
   logger.info("release", "step", "step 4/5  deployment files");
-  // GitHub Pages / Netlify / Cloudflare Pages fallback. SPA fallback shell
-  // is written by `mado static`; here we only register the deployment
-  // bindings, and respect user-supplied files (writeIfMissing).
+  // GitHub Pages / Netlify / Cloudflare Pages fallback. A wildcard page with
+  // `static: true` is already captured into 404.html by `mado static`.
+  // Otherwise preserve the historical noindex SPA-shell fallback. An
+  // explicit host fallback (captured or public/404.html) disables Mado's
+  // automatic catch-all rewrite; a user-authored _redirects still wins and
+  // may opt a hybrid application back into host-specific SPA rewrites.
   const spaShell = join(outDir, "_mado/spa.html");
+  const notFoundPage = join(outDir, "404.html");
+  const hasHostNotFound = existsSync(notFoundPage);
   if (existsSync(spaShell)) {
-    await writeIfMissing(join(outDir, "404.html"), await readFile(spaShell, "utf8"), "[release]  ");
+    await writeIfMissing(notFoundPage, await readFile(spaShell, "utf8"), "[release]  ");
   }
-  await writeIfMissing(join(outDir, "_redirects"), "/* /_mado/spa.html 200\n", "[release]  ");
+  if (!hasHostNotFound) {
+    await writeIfMissing(join(outDir, "_redirects"), "/* /_mado/spa.html 200\n", "[release]  ");
+  }
   await writeIfMissing(
     join(outDir, "_headers"),
     [
@@ -88,6 +106,17 @@ async function precompressOut(outDir) {
     count++;
   }
   logger.info("release", "compress", `compressed ${count} file(s)`);
+}
+
+async function resetReleasePolicy(outDir) {
+  await Promise.all(
+    [
+      "404.html",
+      "404.html.gz",
+      "404.html.br",
+      "_redirects",
+    ].map((file) => rm(join(outDir, file), { force: true })),
+  );
 }
 
 async function listCompressibleFiles(dir) {

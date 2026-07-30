@@ -56,6 +56,22 @@ npm run build
 npm test
 ```
 
+## Maintainer Release
+
+Tag publication is intentionally small and explicit:
+
+1. Update `CHANGELOG.md`, then bump `package.json` and `package-lock.json`
+   with `npm version <version> --no-git-tag-version`.
+2. Install the browser revision pinned by the lockfile:
+   `node node_modules/playwright-core/cli.js install --with-deps chromium`.
+3. Run `MADO_REQUIRE_BROWSER=1 npm run verify:release`.
+4. Commit the release preparation, create an annotated
+   `v<version>` tag, and push with `git push origin main --follow-tags`.
+
+The tag-triggered GitHub workflow verifies tag/package equality, reruns the
+strict gate, publishes through npm Trusted Publishing, and creates the GitHub
+release. Never publish a stable version from an untagged working tree.
+
 ## Discussing Larger Changes
 
 1. Open an issue that describes the pain, not only the proposed solution.

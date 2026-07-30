@@ -9,12 +9,13 @@
 //      PREVIEW_AUTOBUILD=1.
 //   3. Starts a static server with:
 //        - immutable cache for hashed bundles;
-//        - SPA fallback to _mado/spa.html when present, else index.html;
+//        - the release's declared SPA or host-404 fallback policy;
 //        - exact `out/` route files before SPA fallback;
 //        - precompressed .gz / .br serving via Accept-Encoding.
 //
-// Goal: see production-like output locally without Docker/nginx, identical to
-// what a static host (nginx / Cloudflare Pages / S3) would serve.
+// Goal: rehearse Mado's default release policy locally without Docker/nginx.
+// Provider-specific redirect precedence and error-status behavior still belong
+// to that provider's emulator.
 
 import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
@@ -156,6 +157,8 @@ if (!(await exists(spaShell))) {
   logger.error("preview", "missing-shell", `missing ${spaShell}; mado release did not produce an HTML entry`);
   process.exit(1);
 }
+const notFoundPage = join(OUT, "404.html");
+const useSpaFallback = declaresSpaCatchAll(join(OUT, "_redirects"));
 
 // ---------- 4) Server ----------
 
@@ -185,19 +188,22 @@ const server = createServer(async (req, res) => {
     const pathname = stripBase(fullPathname);
     const accepts = (req.headers["accept-encoding"] ?? "").toString();
 
-    const target = await resolveTarget(pathname);
-    if (!target) {
+    const resolved = await resolveTarget(pathname);
+    if (!resolved) {
       res.writeHead(404).end("not found");
       return;
     }
 
     // Choose encoding: br > gz > raw.
-    let { path: filePath, encoding } = await pickEncoding(target, accepts);
+    let { path: filePath, encoding } = await pickEncoding(
+      resolved.path,
+      accepts,
+    );
     const data = await readFile(filePath);
-    const baseExt = extname(target).toLowerCase();
+    const baseExt = extname(resolved.path).toLowerCase();
     const type = MIME[baseExt] ?? "application/octet-stream";
 
-    const cache = isImmutable(basenameSafe(target))
+    const cache = isImmutable(basenameSafe(resolved.path))
       ? "public, max-age=31536000, immutable"
       : baseExt === ".html"
         ? "no-cache, must-revalidate"
@@ -210,7 +216,7 @@ const server = createServer(async (req, res) => {
     };
     if (encoding) headers["content-encoding"] = encoding;
 
-    res.writeHead(200, headers);
+    res.writeHead(resolved.status, headers);
     res.end(data);
   } catch (err) {
     logger.error("preview", "request", "request failed", err);
@@ -278,30 +284,43 @@ async function resolveTarget(pathname) {
     const s = await stat(candidate);
     if (s.isDirectory()) {
       const idx = join(candidate, "index.html");
-      if (await exists(idx)) return idx;
+      if (await exists(idx)) return { path: idx, status: 200 };
     } else {
-      return candidate;
+      return { path: candidate, status: 200 };
     }
   }
 
   // 2) /foo → /foo/index.html (for sub-folders without trailing slash).
   if (!extname(pathname)) {
     const asDir = join(OUT, pathname, "index.html");
-    if (await exists(asDir)) return asDir;
+    if (await exists(asDir)) return { path: asDir, status: 200 };
   }
 
-  // 3) SPA-fallback: any non-asset path falls back to the SPA shell so
-  //    client-side routing handles it. Asset-looking paths (with an
-  //    extension) deliberately 404 instead — otherwise a 200 on
-  //    /missing.png would mask real bugs.
+  // 3) Apply the same default policy encoded by `mado release`.
+  //    A generated catch-all rewrite serves the SPA shell with 200.
+  //    Without it, an explicit captured/public 404 is served with 404.
+  //    Asset-looking paths deliberately stay plain 404s — returning HTML
+  //    for /missing.png would mask real deployment bugs.
   if (!extname(pathname)) {
-    const spa = existsSync(join(OUT, "_mado", "spa.html"))
-      ? join(OUT, "_mado", "spa.html")
-      : join(OUT, "index.html");
-    if (await exists(spa)) return spa;
+    if (useSpaFallback && (await exists(spaShell))) {
+      return { path: spaShell, status: 200 };
+    }
+    if (await exists(notFoundPage)) {
+      return { path: notFoundPage, status: 404 };
+    }
   }
 
   return null;
+}
+
+function declaresSpaCatchAll(redirectsPath) {
+  try {
+    return /^\s*\/\*\s+\/_mado\/spa\.html\s+200(?:\s|$)/m.test(
+      readFileSync(redirectsPath, "utf8"),
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function pickEncoding(file, accepts) {

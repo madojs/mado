@@ -166,6 +166,7 @@ function mkBaseProject(base) {
       "export default page({",
       "  static: true,",
       '  title: "Docs",',
+      '  head: () => ({ canonical: "/declared", og: { url: "/declared" } }),',
       "  view: (ctx) => html`",
       "    <main>",
       "      <h1>Docs</h1>",
@@ -342,7 +343,11 @@ test(
       const docsHtml = readFileSync(join(out, "docs/index.html"), "utf8");
       assert.match(
         docsHtml,
-        /<link[^>]*rel="canonical"[^>]*href="https:\/\/example\.test\/mado\/docs"/,
+        /<link[^>]*rel="canonical"[^>]*href="https:\/\/example\.test\/mado\/declared"/,
+      );
+      assert.match(
+        docsHtml,
+        /<meta[^>]*property="og:url"[^>]*content="https:\/\/example\.test\/mado\/declared"/,
       );
 
       // Internal <a data-link> must be base-prefixed via routeUrl().
@@ -394,6 +399,16 @@ test(
         // works on the matcher side).
         const probe = await page.textContent("#path-probe");
         assert.equal((probe ?? "").trim(), "/docs", "page.path() is base-free");
+        assert.equal(
+          await page.getAttribute('link[rel~="canonical" i]', "href"),
+          "https://example.test/mado/declared",
+          "runtime canonical keeps the public origin and active base",
+        );
+        assert.equal(
+          await page.getAttribute('meta[property="og:url" i]', "content"),
+          "https://example.test/mado/declared",
+          "runtime og:url keeps the public origin and active base",
+        );
 
         // routeUrl() emits the base-prefixed link, including the
         // trailing slash for the root route.

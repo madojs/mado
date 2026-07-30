@@ -43,7 +43,7 @@ below; it is not the universal starter with a few empty folders filled in.
 | --------- | ----------------------------------------------------------- | --------------- | ----------------------- | ------------- |
 | `src/`    | your TypeScript source                                      | you             | Vite, `tsc --noEmit`    | ❌ no          |
 | `public/` | static assets copied as-is                                  | you             | Vite build              | ✅ via `out/` |
-| `out/`    | **the deploy artifact**: SPA shell + assets + snapshots     | `mado release`  | nginx / CDN / CF Pages  | ✅ **yes**    |
+| `out/`    | **deploy artifact**: assets + snapshots + SPA/404 policy    | `mado release`  | nginx / CDN / CF Pages  | ✅ **yes**    |
 
 One-liner: develop with `mado dev`, ship with `mado release`, upload `out/`.
 

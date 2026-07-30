@@ -74,10 +74,12 @@ services from framework tests. For app tests, make the API client injectable via
 npm run typecheck
 npm run build
 npm test
-npm run release
+npm run verify:release
 ```
 
-`mado release` runs the production path for an app: typecheck, Vite
-build, static-snapshot capture, compression and deploy helper files.
-In the framework repository, `npm run build` still emits `dist/src`
-for package tests and publishing.
+In an application, `mado release` runs typecheck, Vite build,
+static-snapshot capture, compression and deployment-file generation. In the
+framework repository, `npm run verify:release` is the maintainer gate: tests,
+documentation/API checks, size report, packed-package starter smoke and audit.
+Set `MADO_REQUIRE_BROWSER=1` after installing the pinned Playwright Chromium
+to make browser availability strict.

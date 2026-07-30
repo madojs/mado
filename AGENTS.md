@@ -468,7 +468,12 @@ Important constraints:
   public by definition.
 - `paths()` and `initialData()` run at discovery AND ship in the
   client bundle. Keep them browser-safe; never read secrets.
-- Wildcard routes (`*`) cannot be static.
+- A global wildcard route (`*`) may use literal `static: true` to produce a
+  generic noindex `404.html`; its rendered fallback must not depend on
+  `path()`. Without `static` it remains the SPA fallback. Object configs and
+  other wildcard patterns cannot be static. An explicit captured or
+  `public/404.html` disables the generated catch-all SPA `_redirects`; hybrid
+  apps must provide host-specific rewrites for their known SPA-only routes.
 - The `static` discovery uses Vite SSR as a control plane only;
   nothing is rendered in Node. The actual capture happens in
   headless Chromium.

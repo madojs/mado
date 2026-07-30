@@ -13,27 +13,32 @@ out/
 │   ├── *.gz                ← precompressed gzip (gzip_static / Accept-Encoding)
 │   └── *.br                ← precompressed brotli (brotli_static / Accept-Encoding)
 ├── <route>/index.html      ← captured snapshot per static route
+├── 404.html                ← captured static wildcard or noindex SPA shell
 ├── _mado/spa.html          ← SPA fallback shell (noindex)
 ├── sitemap.xml             ← generated sitemap
 ├── favicon.svg             ← your public/ assets copied verbatim
-├── _redirects              ← Cloudflare Pages / Netlify SPA fallback
+├── _redirects              ← optional Cloudflare Pages / Netlify policy
 └── _headers                ← Cloudflare Pages / Netlify cache rules
 ```
 
-`_redirects` and `_headers` are generated automatically and only if they do
-not already exist in your project. They are safely ignored by nginx and other
-hosts.
+`_headers` is generated when the project does not provide one. `_redirects`
+is generated with the SPA catch-all only when release did not already produce
+an explicit host fallback. A captured wildcard or `public/404.html` therefore
+keeps unknown URLs on the host's real 404 path. A user-authored `_redirects`
+always wins.
 
 ## Local rehearsal
 
 ```bash
 mado release
-mado preview      # http://localhost:4173 — serves out/ exactly as a static host would
+mado preview      # http://localhost:4173 — rehearses Mado's output policy
 ```
 
-`mado preview` serves the final `out/` directory like a static host: it picks
-`.br` over `.gz` over raw, serves captured snapshot HTML when a route has an
-`index.html`, and falls back to `index.html` for unknown SPA paths.
+`mado preview` picks `.br` over `.gz` over raw and serves captured route files
+first. For an unknown document it follows Mado's release policy: the generated
+SPA catch-all serves `/_mado/spa.html` with 200, while an explicit host fallback
+serves `404.html` with 404. Arbitrary provider-specific redirect files are not
+fully emulated; use the provider's local emulator for custom hybrid rules.
 
 ---
 
@@ -65,6 +70,19 @@ Key lines of the recipe `nginx.conf`:
 - `try_files $uri $uri/ /_mado/spa.html;` — SPA fallback so deep links work
   after a hard refresh.
 
+That shipped recipe intentionally models the universal starter's mixed
+static/SPA policy. For an all-static site with a literal static wildcard,
+serve the captured host fallback instead:
+
+```nginx
+error_page 404 /404.html;
+location = /404.html { internal; }
+location / { try_files $uri $uri/ =404; }
+```
+
+A hybrid app that also wants a real host 404 must add explicit rewrite
+locations for each known SPA-only URL family before that final `location /`.
+
 Enable HTTPS with Let's Encrypt / Certbot. Add HSTS once you have it.
 
 ---
@@ -76,12 +94,18 @@ mado release
 npx wrangler pages deploy out --project-name=myapp
 ```
 
-- The generated `_redirects` (`/* /_mado/spa.html 200`) gives you SPA fallback.
+- Without an explicit host 404, the generated `_redirects`
+  (`/* /_mado/spa.html 200`) gives you SPA fallback.
+- A literal static wildcard or `public/404.html` suppresses that generated
+  catch-all, allowing Pages to serve `404.html` for unknown URLs.
 - The generated `_headers` (immutable cache for `/assets/*`, `no-cache` for
   HTML) is honored by CF Pages.
-- Baked routes are promoted to real route files (`out/<route>/index.html`),
-  so they take priority over the SPA fallback because CF Pages matches static
-  files first.
+- Captured routes are promoted to real route files (`out/<route>/index.html`),
+  so direct requests receive the captured document.
+
+For a hybrid application, commit your own `public/_redirects`: rewrite known
+SPA route families to `/_mado/spa.html`, and do not add a final `/*` rule if
+unknown URLs should reach `404.html`.
 
 For preview branches, set the same build command in the CF Pages project:
 
@@ -115,16 +139,25 @@ aws s3 sync out/ s3://my-bucket/ --delete \
 aws s3 sync out/ s3://my-bucket/ \
   --cache-control "no-cache, must-revalidate" --include '*.html'
 ```
-Configure CloudFront's "Default root object" to `index.html` and add a custom
-error response: 403/404 → `/_mado/spa.html` with status 200 (SPA fallback).
+Configure CloudFront's "Default root object" to `index.html`. For the SPA
+policy, map 403/404 to `/_mado/spa.html` with status 200. For an all-static
+site with an explicit host fallback, map errors to `/404.html` and preserve
+status 404.
 
 **GitHub Pages**
 ```bash
 mado release
 # Push out/ into the gh-pages branch (or use actions/upload-pages-artifact)
 ```
-Pages handles route `index.html` files automatically. `mado release` also writes
-`404.html` from the noindex SPA shell for client-only routes.
+Pages handles route `index.html` files automatically. If the manifest's global
+`"*"` page declares literal `static: true`, `mado release` captures its
+pathname-independent UI into `404.html`, forces `noindex`, and excludes it from
+the sitemap. Otherwise `404.html` remains a copy of the noindex SPA shell for
+client-only routes. A user-supplied `public/404.html` still wins.
+
+GitHub Pages cannot express targeted rewrites for known SPA-only routes. For a
+mixed application, keep the wildcard non-static so hard refreshes use the SPA
+shell. Reserve the static wildcard for an all-static Pages deployment.
 
 ---
 
@@ -177,6 +210,9 @@ jobs:
 - **404 on hard refresh of a deep link.** Your host did not pick up SPA
   fallback. nginx: check `try_files`. CF/Netlify: `_redirects` is present?
   S3+CloudFront: configure the 404 → `/_mado/spa.html` (200) error response.
+- **A known SPA route receives the captured 404.** The app opted into a
+  static wildcard but the host has no targeted rewrite for that route. Add an
+  explicit provider rule to `/_mado/spa.html`, or keep `*` non-static.
 - **HTML is cached forever.** Either your host sent a default
   `Cache-Control: public, max-age=...` or you are sitting behind a CDN that
   ignores `no-cache`. Add an explicit rule mirroring the matrix above.
@@ -234,15 +270,16 @@ html`<a data-link href=${routeUrl("/guides/intro")}>Intro</a>`;
 - captured snapshots load assets through `/docs/assets/...`;
 - sitemap URLs are `https://your.site/docs/...`;
 - canonicals and `og:url` include the prefix;
-- `mado preview` redirects bare `/` to `/docs/` and serves SPA
-  fallback under `/docs/<anything>`.
+- `mado preview` redirects bare `/` to `/docs/` and applies the artifact's
+  SPA-or-404 policy under `/docs/<anything>`.
 
 On the production host:
 
-- **nginx** — keep `try_files $uri $uri/ /_mado/spa.html;` but mount the
-  app under the matching prefix (`location /docs/ { ... }`).
-- **Cloudflare Pages / Netlify** — `_redirects` is generated with the
-  base prefix already emitted in the captured document.
+- **nginx** — mount under the matching prefix (`location /docs/ { ... }`)
+  and choose the SPA or host-404 `try_files` variant above.
+- **Cloudflare Pages / Netlify** — the default `_redirects` SPA rule uses
+  `/_mado/spa.html`; a static wildcard suppresses that rule. Custom hybrid
+  rewrites remain user-owned.
 - **GitHub Pages (project site)** — set `base: "/<repo>/"` and use
   the `gh-pages` deploy path; canonical URLs land at
   `https://<user>.github.io/<repo>/...`.

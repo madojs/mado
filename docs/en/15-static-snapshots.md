@@ -121,6 +121,8 @@ For every captured route:
   Both are marked `data-mado-head="static"` so the runtime `applyHead`
   removes them on SPA navigation into a page without explicit head
   metadata.
+- Page-declared root-relative canonical and `og:url` values are resolved
+  through the active Vite `base` during both capture and client navigation.
 - The seed `<script type="application/json" data-mado-static-data="…">`
   for routes that declared `initialData()`.
 - Vite assets resolved through the active `base`.
@@ -135,8 +137,20 @@ same shape the snapshot captured.
   client bundle.** Keep them browser-safe. Never read secrets, never
   call private services.
 - **Static pages cannot use guards** — route-level or layout-level.
-- **Wildcard routes (`*`) cannot be static.** They are the SPA
-  fallback.
+- **The global wildcard route (`*`) has one explicit static mode.**
+  Literal `static: true` captures a pathname-independent, noindex host
+  fallback into `out/404.html`. It is excluded from the sitemap and never
+  receives an automatic canonical or `og:url`. Do not render `path()` in its
+  static copy because one fallback file is served for every missing URL.
+  A wildcard without `static` keeps the noindex SPA-shell fallback; wildcard
+  object configs and nested wildcard patterns are not static. A
+  `public/404.html` remains user-owned and wins over the captured copy.
+- **Choose one default host policy.** When a captured or public `404.html`
+  exists, `mado release` does not generate its catch-all SPA `_redirects`
+  rule. This is the right default for an all-static site. A mixed application
+  with known SPA-only routes needs user-authored host rules that rewrite only
+  those routes to `/_mado/spa.html` and leave unknown URLs as 404. On a host
+  that cannot express those rules, keep the wildcard non-static.
 - **A compatible Chromium is required.** CI should install it through
   Playwright:
   ```bash

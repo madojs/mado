@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { detectContext, getPackageRoot, resolveProjectPath } from "../_config.mjs";
 import { assertJsonSerializable } from "./serialize.mjs";
 
+const NOT_FOUND_CAPTURE_PATH = "/__mado_static_not_found__";
+
 /**
  * Build-time route discovery for static snapshots.
  *
@@ -97,6 +99,24 @@ export async function discoverStaticRoutes(options) {
       }
 
       const config = page.static === true ? {} : page.static;
+      if (pattern === "*") {
+        const pathname = NOT_FOUND_CAPTURE_PATH;
+        if (seen.has(pathname)) {
+          throw new Error(
+            `[mado:static] ${pathname} is reserved for static wildcard capture; ` +
+              `already produced by ${seen.get(pathname)}.`,
+          );
+        }
+        seen.set(pathname, pattern);
+        records.push({
+          pattern,
+          pathname,
+          params: {},
+          notFound: true,
+        });
+        continue;
+      }
+
       const paramsList = await resolveParams(pattern, config, paramKeys);
       for (const params of paramsList) {
         const pathname = applyParams(pattern, params);
@@ -130,14 +150,20 @@ export async function discoverStaticRoutes(options) {
 }
 
 function validateStaticRoute(pattern, flat, page, paramKeys) {
-  if (pattern === "*") {
-    throw new Error("[mado:static] wildcard routes cannot be static.");
-  }
   if (flat.guards.length > 0) {
     throw new Error(`[mado:static] ${pattern}: static routes cannot inherit layout guards.`);
   }
   if (page.guard) {
     throw new Error(`[mado:static] ${pattern}: guarded pages cannot be static.`);
+  }
+  if (pattern === "*") {
+    if (page.static !== true) {
+      throw new Error(
+        "[mado:static] the wildcard route only supports literal static: true; " +
+          "its 404 fallback cannot use paths() or initialData().",
+      );
+    }
+    return;
   }
   if (pattern.includes("*")) {
     throw new Error(`[mado:static] ${pattern}: wildcard routes cannot be static.`);

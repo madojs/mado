@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.1 - 2026-07-30
+
+### Fixed
+
+- Published English Markdown no longer contains an obsolete closing sentinel
+  or an ambiguous inline template example that a CommonMark consumer could
+  interpret as raw HTML.
+- Documentation lint now rejects raw HTML outside code spans and fences in the
+  package-owned English source set, keeping build-time consumers safe and
+  deterministic.
+
 ## 0.15.0 - 2026-07-30
 
 ### Added

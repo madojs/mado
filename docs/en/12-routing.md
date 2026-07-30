@@ -85,7 +85,7 @@ content" bug:
 Two acceptable alternatives exist but are escape hatches, not the
 default:
 
-- *Single shell in `main.ts`* — `render(html\`<x-shell>${routes.view}</x-shell>\`)`.
+- *Single shell in `main.ts`* — `` render(html`<x-shell>${routes.view}</x-shell>`) ``.
   Caveat: every route lives inside one shell; no centred login page,
   no marketing landing without admin chrome.
 - *Per-page wrapping inside `view`* — each page repeats the shell.

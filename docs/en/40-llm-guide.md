@@ -776,4 +776,3 @@ The hardest documentation pressure point is **lifecycle**: it should
 never look acceptable to create long-lived `resource()` instances at
 module scope or in route code that never cleans up. If the agent does
 that, the docs need a sharper warning, not a less strict test.
-</content>

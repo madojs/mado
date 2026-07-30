@@ -162,8 +162,16 @@ function scan(path) {
   const body = readFileSync(path, "utf8");
   const lines = body.split("\n");
   let inIgnoreBlock = false;
+  let fence = "";
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const fenceMatch = line.trimStart().match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      if (!fence) fence = fenceMatch[1][0];
+      else if (fence === fenceMatch[1][0]) fence = "";
+      continue;
+    }
+
     // Block-scoped allowance: paragraphs that teach LLMs which names
     // are obsolete must be free to mention those names verbatim.
     //   <!-- docs-lint:allow-legacy-mention -->
@@ -174,6 +182,19 @@ function scan(path) {
       continue;
     }
     if (inIgnoreBlock) continue;
+
+    const prose = line.replace(/(`+)(.*?)\1/g, "");
+    if (
+      !fence &&
+      rel.startsWith("docs/en/") &&
+      /<\/?(?!https?:|mailto:)[A-Za-z][^>]*>/.test(prose)
+    ) {
+      errors++;
+      console.error(
+        `${rel}:${i + 1}: raw HTML is not allowed in published Markdown; ` +
+          "use Markdown or a fenced/inline code span",
+      );
+    }
 
     for (const rule of FORBIDDEN) {
       if (rule.pattern.test(line)) {

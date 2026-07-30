@@ -35,6 +35,23 @@ test("package self-import blocks internal subpaths", async () => {
   const vite = await import("@madojs/mado/vite");
   assert.equal(typeof vite.mado, "function");
 
+  const manifestUrl = import.meta.resolve("@madojs/mado/docs/en/manifest.json");
+  const manifest = JSON.parse(readFileSync(new URL(manifestUrl), "utf8"));
+  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.locale, "en");
+  assert.ok(manifest.sections.length > 0);
+  for (const section of manifest.sections) {
+    for (const entry of section.entries) {
+      assert.match(
+        readFileSync(new URL(entry.file, manifestUrl), "utf8"),
+        /^#\s+\S/,
+        `${entry.file} must resolve relative to the public manifest`,
+      );
+    }
+  }
+  const llmsUrl = import.meta.resolve("@madojs/mado/llms.txt");
+  assert.match(readFileSync(new URL(llmsUrl), "utf8"), /^# Mado$/m);
+
   await assert.rejects(
     import("@madojs/mado/lifecycle.js"),
     (err) =>

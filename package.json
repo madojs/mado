@@ -1,6 +1,6 @@
 {
   "name": "@madojs/mado",
-  "version": "0.14.3",
+  "version": "0.15.0",
   "description": "A calm native-first web framework for sites and apps. Web Components, signals, routing, data, forms and browser-rendered static snapshots. Zero runtime dependencies.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,9 @@
     "./vite": {
       "types": "./dist/src/vite/index.d.ts",
       "import": "./dist/src/vite/index.js"
-    }
+    },
+    "./docs/en/manifest.json": "./docs/en/manifest.json",
+    "./llms.txt": "./llms.txt"
   },
   "files": [
     "dist/src",
@@ -63,6 +65,7 @@
     "AGENTS.md",
     "llms.txt",
     "docs/README.md",
+    "docs/en/manifest.json",
     "docs/en/**/*.md",
     "docs/architecture/**/*.md",
     "docs/recipes/**/*"

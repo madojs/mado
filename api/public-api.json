@@ -2,6 +2,8 @@
   "subpaths": [
     ".",
     "./devtools.js",
+    "./docs/en/manifest.json",
+    "./llms.txt",
     "./vite"
   ],
   "runtimeExports": [

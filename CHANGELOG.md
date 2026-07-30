@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.0 - 2026-07-30
+
+### Added
+
+- The published package now exposes a validated, ordered English documentation
+  manifest at `@madojs/mado/docs/en/manifest.json`. Build tools can resolve the
+  manifest, read every referenced Markdown file relative to it and consume the
+  compact framework contract through `@madojs/mado/llms.txt`.
+- Documentation lint and package smoke tests enforce the manifest schema,
+  stable slugs, complete file coverage, README map alignment and packed
+  artifact boundary.
+
+### Documentation
+
+- The framework guides, README, AI instructions and project positioning now
+  describe the current Mado ecosystem, Mado UI workflow, browser-rendered
+  static pipeline and pragmatic frontend-only boundary consistently.
+
 ## 0.14.3 - 2026-07-30
 
 ### Fixed

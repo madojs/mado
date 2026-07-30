@@ -115,7 +115,13 @@ const ROOTS = [
 ];
 const docsFiles = [];
 const publicNames = publicNamesFromGolden();
-const publicSubpaths = new Set(["@madojs/mado", "@madojs/mado/vite", "@madojs/mado/devtools.js"]);
+const publicSubpaths = new Set([
+  "@madojs/mado",
+  "@madojs/mado/vite",
+  "@madojs/mado/devtools.js",
+  "@madojs/mado/docs/en/manifest.json",
+  "@madojs/mado/llms.txt",
+]);
 
 let errors = 0;
 
@@ -129,13 +135,15 @@ for (const root of ROOTS) {
   scan(full);
 }
 
+validateDocsManifest();
+
 for (const file of docsFiles) {
   validateLinks(file);
   validateImports(file);
 }
 
 if (errors > 0) {
-  console.error(`\n[docs-lint] ${errors} forbidden term(s) in current docs.`);
+  console.error(`\n[docs-lint] ${errors} documentation error(s).`);
   process.exit(1);
 }
 console.log("[docs-lint] OK");
@@ -221,4 +229,163 @@ function publicNamesFromGolden() {
     for (const raw of match[1].split(",")) names.add(raw.trim().split(/\s+as\s+/)[0]);
   }
   return names;
+}
+
+function validateDocsManifest() {
+  const docsRoot = join(REPO_ROOT, "docs", "en");
+  const manifestPath = join(docsRoot, "manifest.json");
+  let manifest;
+  let source;
+
+  try {
+    source = readFileSync(manifestPath, "utf8");
+    manifest = JSON.parse(source);
+  } catch (error) {
+    docsError(`docs/en/manifest.json: cannot read valid JSON (${error.message})`);
+    return;
+  }
+
+  if (source !== `${JSON.stringify(manifest, null, 2)}\n`) {
+    docsError("docs/en/manifest.json: use deterministic two-space JSON formatting");
+  }
+  if (!isRecord(manifest)) {
+    docsError("docs/en/manifest.json: root must be an object");
+    return;
+  }
+  validateKeys(manifest, ["schemaVersion", "locale", "sections"], "manifest");
+  if (manifest.schemaVersion !== 1) {
+    docsError("docs/en/manifest.json: schemaVersion must be 1");
+  }
+  if (manifest.locale !== "en") {
+    docsError('docs/en/manifest.json: locale must be "en"');
+  }
+  if (!Array.isArray(manifest.sections) || manifest.sections.length === 0) {
+    docsError("docs/en/manifest.json: sections must be a non-empty array");
+    return;
+  }
+
+  const sectionIds = new Set();
+  const slugs = new Set();
+  const files = new Set();
+  const flatFiles = [];
+  const sectionTitles = [];
+
+  for (const [sectionIndex, section] of manifest.sections.entries()) {
+    const label = `sections[${sectionIndex}]`;
+    if (!isRecord(section)) {
+      docsError(`docs/en/manifest.json: ${label} must be an object`);
+      continue;
+    }
+    validateKeys(section, ["id", "title", "entries"], label);
+    if (typeof section.id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(section.id)) {
+      docsError(`docs/en/manifest.json: ${label}.id must be a lowercase slug`);
+    } else if (sectionIds.has(section.id)) {
+      docsError(`docs/en/manifest.json: duplicate section id ${section.id}`);
+    } else {
+      sectionIds.add(section.id);
+    }
+    if (typeof section.title !== "string" || section.title.trim() !== section.title || !section.title) {
+      docsError(`docs/en/manifest.json: ${label}.title must be a non-empty trimmed string`);
+    } else {
+      sectionTitles.push(section.title);
+    }
+    if (!Array.isArray(section.entries) || section.entries.length === 0) {
+      docsError(`docs/en/manifest.json: ${label}.entries must be a non-empty array`);
+      continue;
+    }
+
+    for (const [entryIndex, entry] of section.entries.entries()) {
+      const entryLabel = `${label}.entries[${entryIndex}]`;
+      if (!isRecord(entry)) {
+        docsError(`docs/en/manifest.json: ${entryLabel} must be an object`);
+        continue;
+      }
+      validateKeys(entry, ["slug", "file"], entryLabel);
+
+      if (typeof entry.slug !== "string" || !/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(entry.slug)) {
+        docsError(`docs/en/manifest.json: ${entryLabel}.slug must be a lowercase URL slug`);
+      } else if (slugs.has(entry.slug)) {
+        docsError(`docs/en/manifest.json: duplicate document slug ${entry.slug}`);
+      } else {
+        slugs.add(entry.slug);
+      }
+
+      if (
+        typeof entry.file !== "string" ||
+        !/^\d{2}-[a-z0-9]+(?:[.-][a-z0-9]+)*\.md$/.test(entry.file) ||
+        entry.file.includes("..") ||
+        entry.file.includes("/") ||
+        entry.file.includes("\\")
+      ) {
+        docsError(`docs/en/manifest.json: ${entryLabel}.file must be a safe numbered Markdown basename`);
+        continue;
+      }
+      if (files.has(entry.file)) {
+        docsError(`docs/en/manifest.json: duplicate document file ${entry.file}`);
+        continue;
+      }
+      files.add(entry.file);
+      flatFiles.push(entry.file);
+
+      try {
+        const firstLine = readFileSync(join(docsRoot, entry.file), "utf8").split(/\r?\n/, 1)[0];
+        if (!/^#\s+\S/.test(firstLine)) {
+          docsError(`docs/en/${entry.file}: first line must be a non-empty H1`);
+        }
+      } catch {
+        docsError(`docs/en/manifest.json: missing document ${entry.file}`);
+      }
+    }
+  }
+
+  const expectedFiles = readdirSync(docsRoot)
+    .filter((file) => /^\d{2}-.*\.md$/.test(file))
+    .sort();
+  if (JSON.stringify(flatFiles) !== JSON.stringify(expectedFiles)) {
+    docsError(
+      "docs/en/manifest.json: flattened entries must cover every numbered Markdown file in filename order",
+    );
+  }
+
+  validateReadmeMap(docsRoot, sectionTitles, flatFiles);
+}
+
+function validateReadmeMap(docsRoot, expectedTitles, expectedFiles) {
+  const readme = readFileSync(join(docsRoot, "README.md"), "utf8");
+  const start = readme.indexOf("\n## Map\n");
+  const end = start < 0 ? -1 : readme.indexOf("\n## ", start + "\n## Map\n".length);
+  if (start < 0 || end < 0) {
+    docsError("docs/en/README.md: expected a bounded ## Map section");
+    return;
+  }
+  const map = readme.slice(start, end);
+  const titles = [...map.matchAll(/^### (.+)$/gm)].map((match) => match[1]);
+  const files = [...map.matchAll(/\]\(\.\/(\d{2}-[^)#]+\.md)(?:#[^)]+)?\)/g)].map(
+    (match) => match[1],
+  );
+  if (JSON.stringify(titles) !== JSON.stringify(expectedTitles)) {
+    docsError("docs/en/README.md: ## Map section headings must match manifest sections");
+  }
+  if (JSON.stringify(files) !== JSON.stringify(expectedFiles)) {
+    docsError("docs/en/README.md: ## Map links must match manifest entries in order");
+  }
+}
+
+function validateKeys(value, allowed, label) {
+  const actual = Object.keys(value).sort();
+  const expected = allowed.slice().sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    docsError(
+      `docs/en/manifest.json: ${label} keys must be exactly ${expected.join(", ")}`,
+    );
+  }
+}
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function docsError(message) {
+  errors++;
+  console.error(message);
 }

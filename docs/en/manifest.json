@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "locale": "en",
+  "sections": [
+    {
+      "id": "start-here",
+      "title": "Start here",
+      "entries": [
+        {
+          "slug": "the-mado-way",
+          "file": "00-the-mado-way.md"
+        },
+        {
+          "slug": "quickstart",
+          "file": "01-quickstart.md"
+        }
+      ]
+    },
+    {
+      "id": "concepts",
+      "title": "Concepts (read once)",
+      "entries": [
+        {
+          "slug": "pages-and-components",
+          "file": "10-pages-and-components.md"
+        },
+        {
+          "slug": "templates-and-signals",
+          "file": "11-templates-and-signals.md"
+        },
+        {
+          "slug": "routing",
+          "file": "12-routing.md"
+        },
+        {
+          "slug": "data",
+          "file": "13-data.md"
+        },
+        {
+          "slug": "forms",
+          "file": "14-forms.md"
+        },
+        {
+          "slug": "static-snapshots",
+          "file": "15-static-snapshots.md"
+        },
+        {
+          "slug": "app-architecture",
+          "file": "16-app-architecture.md"
+        },
+        {
+          "slug": "mado-ui",
+          "file": "17-mado-ui.md"
+        }
+      ]
+    },
+    {
+      "id": "production",
+      "title": "Production",
+      "entries": [
+        {
+          "slug": "deployment",
+          "file": "20-deployment.md"
+        },
+        {
+          "slug": "error-handling",
+          "file": "21-error-handling.md"
+        },
+        {
+          "slug": "testing",
+          "file": "22-testing.md"
+        },
+        {
+          "slug": "cookbook",
+          "file": "23-cookbook.md"
+        },
+        {
+          "slug": "devtools-and-diagnostics",
+          "file": "24-devtools-and-diagnostics.md"
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "title": "Reference",
+      "entries": [
+        {
+          "slug": "api-surface",
+          "file": "30-api-surface.md"
+        },
+        {
+          "slug": "reactivity-ordering",
+          "file": "31-reactivity-ordering.md"
+        },
+        {
+          "slug": "v1-stability",
+          "file": "32-v1-stability.md"
+        },
+        {
+          "slug": "migration-0.12-0.13",
+          "file": "33-migration-0.12-0.13.md"
+        },
+        {
+          "slug": "migration-0.13-0.14",
+          "file": "34-migration-0.13-0.14.md"
+        }
+      ]
+    },
+    {
+      "id": "meta",
+      "title": "Meta",
+      "entries": [
+        {
+          "slug": "llm-guide",
+          "file": "40-llm-guide.md"
+        },
+        {
+          "slug": "for-backenders",
+          "file": "41-for-backenders.md"
+        },
+        {
+          "slug": "why-mado",
+          "file": "42-why-mado.md"
+        }
+      ]
+    }
+  ]
+}

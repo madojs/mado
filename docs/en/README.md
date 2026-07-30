@@ -5,6 +5,11 @@
 Read top-to-bottom for a complete mental model, or jump to the
 section you need from the matrix below.
 
+Build tools can resolve the same ordered map through the versioned
+`@madojs/mado/docs/en/manifest.json` package subpath. Every listed `file`
+is relative to that manifest; the Markdown remains the source of document
+titles and content.
+
 ## Reading paths
 
 - **First time here?** Start with [00 — The Mado way](./00-the-mado-way.md)

@@ -38,6 +38,7 @@ try {
         import { html, signal, routeUrl, appBase } from "@madojs/mado";
         import "@madojs/mado/devtools.js";
         import { mado } from "@madojs/mado/vite";
+        import { readFile } from "node:fs/promises";
         if (typeof html !== "function" || typeof signal !== "function") {
           throw new Error("public root import failed");
         }
@@ -45,6 +46,24 @@ try {
           throw new Error("routing helpers missing from public root");
         }
         if (typeof mado !== "function") throw new Error("vite plugin import failed");
+
+        const manifestUrl = import.meta.resolve("@madojs/mado/docs/en/manifest.json");
+        const manifest = JSON.parse(await readFile(new URL(manifestUrl), "utf8"));
+        if (manifest.schemaVersion !== 1 || manifest.locale !== "en") {
+          throw new Error("documentation manifest contract failed");
+        }
+        for (const section of manifest.sections) {
+          for (const entry of section.entries) {
+            const source = await readFile(new URL(entry.file, manifestUrl), "utf8");
+            if (!/^#\\s+\\S/.test(source)) {
+              throw new Error(\`published documentation is missing H1: \${entry.file}\`);
+            }
+          }
+        }
+        const llmsUrl = import.meta.resolve("@madojs/mado/llms.txt");
+        const llms = await readFile(new URL(llmsUrl), "utf8");
+        if (!/^# Mado$/m.test(llms)) throw new Error("published llms.txt contract failed");
+
         try {
           await import("@madojs/mado/lifecycle.js");
           throw new Error("internal lifecycle subpath unexpectedly resolved");

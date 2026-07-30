@@ -315,6 +315,10 @@ the host-specific routing policy for static, SPA or hybrid routes; see
 
 Canonical docs (English) live in [`docs/en/`](./docs/en/README.md).
 
+Build tools can resolve the same ordered source set from the published
+`@madojs/mado/docs/en/manifest.json` asset. The compact framework contract is
+also published as `@madojs/mado/llms.txt`.
+
 AI-agent entrypoints: [AGENTS.md](./AGENTS.md) · [llms.txt](./llms.txt)
 
 ## Tests

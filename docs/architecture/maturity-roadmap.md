@@ -16,12 +16,14 @@ The invariant is product-shaped, not version-shaped:
 
 ## Current phase: application validation
 
-The 0.14 line completed the transactional template, `ref()` and slot-owned
-reactivity work. The next evidence must come from applications rather than
-another speculative API cycle:
+The 0.15.2 package and its versioned documentation have now been exercised by
+the initial production `madojs.dev` documentation and release pipeline. That
+is meaningful first-party dogfood, but it is neither sustained use nor
+independent external validation. Further evidence must keep coming from
+applications rather than another speculative API cycle:
 
 1. Keep the page, component, template and lifecycle contracts steady while
-   `madojs.dev` and Mado UI exercise them.
+   routine `madojs.dev` and Mado UI work continues to exercise them.
 2. Record repeated application workarounds as framework defects and fix the
    smallest general contract instead of adding private escape hatches.
 3. Use the production site to validate static documents, SPA takeover,

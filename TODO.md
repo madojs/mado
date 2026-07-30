@@ -4,7 +4,11 @@ This is not a release schedule. The current decision process lives in the
 [maturity roadmap](./docs/architecture/maturity-roadmap.md): features remain
 candidates until real frontend use proves that they simplify Mado.
 
-- Dogfood 0.14 in Mado UI and in the rewritten Mado site.
+The initial `madojs.dev` documentation and release dogfood slice succeeded on
+Mado 0.15.2. It is first-party evidence, not external application validation.
+
+- Validate the current public contract in at least one independent external
+  frontend before proposing a v1 candidate.
 - Decide whether the modular starter earns its maintenance cost in a real
   long-lived application; otherwise keep only its useful conventions in docs.
 - Browser extension backed by the existing versioned devtools hook.

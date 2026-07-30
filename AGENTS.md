@@ -11,7 +11,8 @@
   and live SPAs. One Web Component model, one page model, one release
   command.
 - Current phase: **pre-1.0 application validation** through
-  [madojs.dev](https://madojs.dev), Mado UI and external applications.
+  [madojs.dev](https://madojs.dev) and Mado UI; independent external
+  application validation is still pending.
   Read `package.json` for
   the current package version; do not infer stability from a roadmap date.
 - Built on Web Components + signals + tagged-template `html`.

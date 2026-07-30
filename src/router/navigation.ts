@@ -224,10 +224,16 @@ export function router(
       // if the browser supports it. Psychologically removes flashing
       // even if the new page renders in 50-100ms.
       const doc = document as Document & {
-        startViewTransition?: (cb: () => void) => unknown;
+        startViewTransition?: (cb: () => void) => {
+          ready: Promise<unknown>;
+        };
       };
       if (useViewTransitions && typeof doc.startViewTransition === "function") {
-        doc.startViewTransition(apply);
+        const transition = doc.startViewTransition(apply);
+        // A visual transition may be skipped after the navigation update
+        // succeeds. Its ready promise rejects in that case and must be handled
+        // so a progressive enhancement does not become a page error.
+        void transition.ready.catch(() => {});
       } else {
         apply();
       }

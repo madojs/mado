@@ -189,6 +189,44 @@ test("two independent router() instances do not interfere during navigation", ()
   r2.dispose();
 });
 
+test("router(): handles a skipped View Transition as visual-only failure", () => {
+  setUrl("/");
+  const originalStartViewTransition = document.startViewTransition;
+  let readyCatchCount = 0;
+  document.startViewTransition = (apply) => {
+    apply();
+    return {
+      ready: {
+        catch(onRejected) {
+          readyCatchCount++;
+          onRejected(
+            new Error("Transition was aborted because of invalid state"),
+          );
+          return Promise.resolve();
+        },
+      },
+    };
+  };
+  const r = router({
+    "/": () => html`<x-home/>`,
+    "/about": () => html`<x-about/>`,
+  });
+
+  try {
+    r.navigate("/about");
+    assert.equal(r.path(), "/about");
+    assert.equal(fakeLocation.pathname, "/about");
+    assert.equal(readyCatchCount, 1);
+  } finally {
+    r.dispose();
+    if (originalStartViewTransition === undefined) {
+      delete document.startViewTransition;
+    } else {
+      document.startViewTransition = originalStartViewTransition;
+    }
+  }
+});
+
 test("router(): intercepts data-link through shadow/composedPath", () => {
   setUrl("/");
   const r = router({

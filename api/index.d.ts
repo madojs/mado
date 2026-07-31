@@ -1,30 +1,43 @@
-export { signal, computed, effect, untracked, batch, flushSync } from "./signal.js";
+/**
+ * Mado — public API.
+ *
+ * Import everything from one place:
+ *   import { signal, computed, effect, component, html, router } from "@madojs/mado";
+ *
+ * Vite is the canonical transport: every official starter, generator
+ * and CLI command resolves `@madojs/mado` from `node_modules` through
+ * the Vite plugin (`@madojs/mado/vite`). Native ESM consumers (tests,
+ * package tools and browser integrations) get the same surface area;
+ * anything that touches `import.meta.env.BASE_URL` falls back to "/"
+ * outside Vite.
+ */
+export { signal, computed, effect, untracked, batch, flushSync, } from "./signal.js";
 export type { Signal, Computed, ComputedOptions, Disposer } from "./signal.js";
 export { html, render, unmount } from "./html/template.js";
-export { unsafeHTML, ref, classMap, styleMap } from "./html/bindings.js";
+export { unsafeHTML, ref, classMap, styleMap, } from "./html/bindings.js";
 export type { TemplateResult } from "./html/template-types.js";
-export type { HtmlDirective, UnsafeHTMLDirective, RefCallback, RefDirective, ClassMap, ClassMapDirective, StyleMap, StyleMapDirective } from "./html/bindings.js";
+export type { HtmlDirective, UnsafeHTMLDirective, RefCallback, RefDirective, ClassMap, ClassMapDirective, StyleMap, StyleMapDirective, } from "./html/bindings.js";
 export { each } from "./each.js";
 export { component } from "./component.js";
-export type { ComponentContext, ComponentOptions, SetupFn, StyleInput } from "./component.js";
+export type { ComponentContext, ComponentOptions, SetupFn, StyleInput, } from "./component.js";
 export { css, cssVars } from "./css.js";
 export type { CSSResult } from "./css.js";
-export { router, queryParam, navigate } from "./router/navigation.js";
+export { router, queryParam, navigate, } from "./router/navigation.js";
 export { routes, prefetchPath } from "./router/manifest.js";
 export { appBase, routeUrl } from "./router/base.js";
-export type { RouterApi, QueryParam, QuerySignal } from "./router/navigation.js";
-export type { RouteHandler, RouteParams, Routes, RoutesMap } from "./router/match.js";
+export type { RouterApi, QueryParam, QuerySignal, } from "./router/navigation.js";
+export type { RouteHandler, RouteParams, Routes, RoutesMap, } from "./router/match.js";
 export type { RoutesOptions } from "./router/manifest.js";
 export { page, layout } from "./page.js";
-export type { Page, PageContext, PageData, RouteEntry, LayoutRoutes, HeadMeta, StaticPageConfig, Guard, GuardResult, JsonPrimitive, JsonValue } from "./page.js";
+export type { Page, PageContext, PageData, RouteEntry, LayoutRoutes, HeadMeta, StaticPageConfig, Guard, GuardResult, JsonPrimitive, JsonValue, } from "./page.js";
 export { applyHead } from "./head.js";
-export { resource, mutation, invalidate, jsonFetcher, HttpError } from "./resource.js";
-export type { Resource, ResourceOptions, Mutation, MutationOptions } from "./resource.js";
+export { resource, mutation, invalidate, jsonFetcher, HttpError, } from "./resource.js";
+export type { Resource, ResourceOptions, Mutation, MutationOptions, } from "./resource.js";
 export { useForm } from "./forms.js";
-export type { FormApi, FormValue, FormValues, FormErrors, FormTouched, FormValidator, FormValidationContext, UseFormOptions } from "./forms.js";
+export type { FormApi, FormValue, FormValues, FormErrors, FormTouched, FormValidator, FormValidationContext, UseFormOptions, } from "./forms.js";
 export { createContext, provide, inject } from "./context.js";
 export type { Context } from "./context.js";
 export { persisted } from "./persisted.js";
 export type { PersistedOptions, PersistedSignal } from "./persisted.js";
-export { getCurrentLifecycle, runInLifecycle, createLifecycle } from "./lifecycle.js";
+export { getCurrentLifecycle, runInLifecycle, createLifecycle, } from "./lifecycle.js";
 export type { Lifecycle, LifecycleHandle } from "./lifecycle.js";

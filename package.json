@@ -90,6 +90,7 @@
     "package:smoke": "node scripts/package-smoke.mjs",
     "docs:lint": "node scripts/docs-lint.mjs && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.docs.json",
     "api:check": "node scripts/api-check.mjs",
+    "api:update": "npm run build && node scripts/api-check.mjs --update",
     "benchmark:static": "node scripts/benchmark-static.mjs",
     "test": "node scripts/cli.mjs test",
     "typecheck": "node scripts/cli.mjs typecheck",

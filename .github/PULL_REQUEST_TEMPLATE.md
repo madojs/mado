@@ -15,6 +15,7 @@ Thanks for the PR. Please run through this checklist to keep review fast.
 - [ ] `npm test` passes, including new tests for changed behavior
 - [ ] Documentation / JSDoc updated where relevant
 - [ ] Public API changes update README and `docs/`
+- [ ] Public declaration changes include a reviewed `npm run api:update` diff
 - [ ] New features were discussed in an issue before implementation
 - [ ] No runtime dependencies were added
 

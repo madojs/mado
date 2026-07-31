@@ -14,7 +14,7 @@ test("package exports expose only the public entrypoints", () => {
 
 test("package self-import blocks internal subpaths", async () => {
   const api = await import("@madojs/mado");
-  assert.deepEqual(Object.keys(api).sort(), contract.runtimeExports.slice().sort());
+  assert.deepEqual(Object.keys(api).sort(), contract.runtimeExports["."].slice().sort());
   assert.equal(typeof api.html, "function");
   assert.equal(typeof api.layout, "function");
   assert.equal(api.nested, undefined);
@@ -31,8 +31,16 @@ test("package self-import blocks internal subpaths", async () => {
     assert.equal(api[removed], undefined, `${removed} must not leak from the root API`);
   }
   const devtools = await import("@madojs/mado/devtools.js");
+  assert.deepEqual(
+    Object.keys(devtools).sort(),
+    contract.runtimeExports["./devtools.js"].slice().sort(),
+  );
   assert.equal(typeof devtools.devtools?.open, "function");
   const vite = await import("@madojs/mado/vite");
+  assert.deepEqual(
+    Object.keys(vite).sort(),
+    contract.runtimeExports["./vite"].slice().sort(),
+  );
   assert.equal(typeof vite.mado, "function");
 
   const manifestUrl = import.meta.resolve("@madojs/mado/docs/en/manifest.json");

@@ -46,6 +46,26 @@ document content may improve in compatible releases.
 Everything else under `dist/src/` is an implementation detail, even when it is
 visible in the repository.
 
+## Machine-checked declaration contract
+
+The API gate checks more than root export names. It follows every local
+declaration imported by the package root, devtools and Vite entrypoints, then
+compares that reachable graph with the reviewed snapshots under
+`api/declarations/`. A change to an exported interface member such as
+`FormApi`, or to a type used transitively by a public signature, therefore
+cannot pass merely because `index.d.ts` still contains the same re-export.
+
+After an intentional public type change, run:
+
+```bash
+npm run api:update
+npm run api:check
+```
+
+Review the resulting `api/` diff as API design, not generated noise, and update
+the changelog, documentation and migration guidance when required. CI runs the
+same check after building the declarations.
+
 ## Candidate public API
 
 These names are supported application-facing imports today. They remain open

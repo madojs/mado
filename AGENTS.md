@@ -589,6 +589,13 @@ Generate the smallest structure justified by the application. The default
 starter is canonical; the modular starter is an experiment for larger
 business frontends, not a structure to impose on every project.
 
+Before creating an application helper or workaround, check the public surface
+in `docs/en/30-api-surface.md`, `llms.txt` and the package declarations. If Mado
+already owns the contract, use it. If the browser platform owns it, use the
+platform directly. Keep only genuinely application-specific policy in the
+application; a repeated workaround for missing general behavior is evidence
+for a focused core fix and regression test, not another local abstraction.
+
 - `src/main.ts` mounts `routesApi.view` and imports global styles and component
   registrations.
 - `src/app.routes.ts` owns the manifest and `routes(...)`.
@@ -629,6 +636,7 @@ business frontends, not a structure to impose on every project.
 ```bash
 npm run typecheck   # must pass
 npm run build       # must build without warnings
+npm run api:check   # public names and reachable declaration shapes are reviewed
 npm test            # all tests green
 ```
 

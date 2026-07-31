@@ -60,8 +60,14 @@ expected maintainer npm version but does not switch it automatically; verify
 npm install
 npm run typecheck
 npm run build
+npm run api:check
 npm test
 ```
+
+If a public export or any reachable TypeScript declaration changed
+intentionally, run `npm run api:update` and review the complete `api/` diff.
+Never update the snapshot only to silence CI; it is the review record for the
+contract applications and AI tools consume.
 
 ## Maintainer Release
 

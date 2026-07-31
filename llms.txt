@@ -60,6 +60,12 @@ node reconciliation.
   skeleton; `mado-ui add` installs reviewed registry source. If
   `mado-ui.json` exists, inspect it and `.mado-ui.lock.json` before adding,
   updating or recreating UI files.
+- **Do not recreate Mado or the browser platform in application helpers.**
+  Check the public API below before adding a wrapper. Use an existing Mado
+  contract when it owns the behavior, use the native platform when it already
+  supplies the primitive, and keep only application-specific policy locally.
+  A workaround repeated across applications is evidence for a focused core
+  fix, not a new private abstraction layer.
 
 ## Critical template rules
 

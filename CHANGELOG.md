@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.1 - 2026-07-31
+
+### Fixed
+
+- Controlled `<select .value=${...}>` bindings stay synchronized when Mado
+  mounts, reorders or updates their options, including options that arrive
+  asynchronously or acquire a matching value reactively.
+
 ## 0.16.0 - 2026-07-31
 
 ### Added

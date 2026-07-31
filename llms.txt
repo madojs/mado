@@ -208,6 +208,20 @@ The router only intercepts anchors that opt in with `data-link`. Bare
 `<a href>` performs a full document load (intentional, for foreign URLs
 and downloads).
 
+URL-backed filters and pagination use the reactive `queryParam()` contract:
+
+```ts
+const status = queryParam("status", "all");
+status();                         // read reactively
+status.set("open");              // replaceState
+status.set("closed", { push: true });
+status.set(null);                 // delete the parameter
+```
+
+Do not capture `window.location.search` once with `URLSearchParams` for state
+that must follow SPA navigation. `queryParam()` tracks programmatic,
+`data-link` and browser history changes.
+
 ## Components are Shadow DOM by default
 
 ```ts
@@ -275,6 +289,11 @@ html`<form @submit=${form.onSubmit(save)}>
 Native constraints and `ValidityState` are authoritative. Custom async
 validation is `validate(values, { signal, form })`; reset aborts it. Use native
 controls for checkbox/radio groups, multiple select, files and keyboard submit.
+Normalize authoritative server field errors into
+`form.setErrors({ email: "Unavailable", $form: "Review the form" })`; Mado
+does not prescribe the backend error envelope. Editing a field clears its
+external error and `$form`, while `reset()` clears the complete external error
+map.
 
 ## Static snapshot constraints
 
@@ -290,6 +309,8 @@ controls for checkbox/radio groups, multiple select, files and keyboard submit.
   for known SPA-only routes or should leave the wildcard non-static.
 - Discovery uses Vite SSR as a control plane only; nothing is rendered
   in Node. The actual capture happens in headless Chromium.
+- Same-origin assets and module preloads stay base-relative in captured HTML;
+  canonical and `og:url` use the configured absolute public origin.
 
 ## Canonical "hello world"
 

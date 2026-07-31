@@ -224,8 +224,12 @@ page.set("3", { push: true }); // history.pushState
 page.set(null);                // delete the parameter
 ```
 
-`queryParam()` returns a `Signal<string>`. Reading inside a
-template slot subscribes; updating patches that slot.
+`queryParam()` returns a signal-like `QueryParam` getter with `.set()`.
+Reading inside a template slot subscribes; updating patches that slot. It
+stays synchronized when the application uses `navigate()`,
+`RouterApi.navigate()`, an intercepted `data-link`, or browser back/forward.
+Use it for URL-backed application state instead of reading
+`window.location.search` once with `URLSearchParams`.
 
 ## Prefetch
 

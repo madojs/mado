@@ -160,6 +160,79 @@ test("useForm: reset aborts validation and preserves the new baseline", async ()
   assert.equal(f.validating(), false);
 });
 
+test("useForm: setErrors replaces authoritative errors without touching touched state", () => {
+  const email = control({ name: "email" });
+  const f = useForm({ initial: { email: "", name: "" } });
+
+  f.onBlur(eventFor(email));
+  f.setErrors({ email: "already registered", $form: "Review the form" });
+  assert.deepEqual(f.errors(), {
+    email: "already registered",
+    $form: "Review the form",
+  });
+  assert.deepEqual(f.touched(), { email: true });
+  assert.equal(f.isValid(), false);
+
+  f.setErrors({ name: "reserved" });
+  assert.deepEqual(f.errors(), { name: "reserved" });
+  assert.deepEqual(f.touched(), { email: true });
+
+  f.setErrors({});
+  assert.deepEqual(f.errors(), {});
+  assert.deepEqual(f.touched(), { email: true });
+  assert.equal(f.isValid(), true);
+});
+
+test("useForm: external errors are copied and outlive an older async validation", async () => {
+  const gate = deferred();
+  const f = useForm({
+    initial: { email: "" },
+    validate: async () => {
+      await gate.promise;
+      return { email: "client validation" };
+    },
+  });
+
+  const pending = f.validate();
+  const response = { email: "server validation" };
+  f.setErrors(response);
+  response.email = "mutated after setErrors";
+  gate.resolve();
+
+  assert.equal(await pending, false);
+  assert.equal(f.errors().email, "server validation");
+  f.setErrors({});
+  assert.equal(f.errors().email, "client validation");
+});
+
+test("useForm: field changes clear their external error and the form error", async () => {
+  const name = control({ name: "name", value: "Grace" });
+  const host = form([name]);
+  name.form = host;
+  const f = useForm({ initial: { email: "ada@example.test", name: "Ada" } });
+
+  f.setErrors({
+    email: "email rejected",
+    name: "name rejected",
+    $form: "submitted values were rejected",
+  });
+  assert.equal(await f.validate(host), false);
+
+  f.setField("email", "grace@example.test");
+  assert.deepEqual(f.errors(), { name: "name rejected" });
+
+  f.onInput(eventFor(name, host));
+  assert.deepEqual(f.errors(), {});
+  assert.deepEqual(f.values(), {
+    email: "grace@example.test",
+    name: "Grace",
+  });
+
+  f.setErrors({ name: "rejected again", $form: "Try again" });
+  f.reset();
+  assert.deepEqual(f.errors(), {});
+});
+
 test("useForm: submit validates, marks touched and tracks concurrent handlers", async () => {
   const gate = deferred();
   const email = control({ name: "email", value: "ok@example.test" });

@@ -101,6 +101,7 @@ function mkProject({ base = "/" } = {}) {
       '    <meta charset="UTF-8" />',
       '    <meta name="Description" content="Shell fallback description" />',
       '    <link rel="CANONICAL" href="https://shell.example/fallback" />',
+      '    <link rel="alternate" href="https://external.example/feed.xml" />',
       '    <meta property="OG:TITLE" content="Shell OG title" />',
       '    <meta property="og:description" content="Shell OG description" />',
       '    <meta property="og:image" content="https://shell.example/og.png" />',
@@ -130,6 +131,8 @@ function mkProject({ base = "/" } = {}) {
       "});",
       "",
     ].join("\n"),
+    "public/probe.svg":
+      '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><path fill="red" d="M0 0h2v2H0z"/></svg>',
     "tsconfig.json": JSON.stringify(
       {
         compilerOptions: {
@@ -157,7 +160,7 @@ function mkProject({ base = "/" } = {}) {
       "",
     ].join("\n"),
     "src/product-card.ts": [
-      'import { component, css, html, signal } from "@madojs/mado";',
+      'import { component, css, html, routeUrl, signal } from "@madojs/mado";',
       "",
       "declare global {",
       "  interface Window {",
@@ -186,7 +189,7 @@ function mkProject({ base = "/" } = {}) {
       "  {",
       "    styles: css`",
       "      :host { display: block; padding: 1rem; }",
-      "      .card { border: 1px solid hotpink; }",
+      '      .card { border: 1px solid hotpink; background-image: url("${new URL(routeUrl("/probe.svg"), location.origin).href}"); }',
       "      h2 { margin: 0; }",
       "    `,",
       "  },",
@@ -195,13 +198,12 @@ function mkProject({ base = "/" } = {}) {
     ].join("\n"),
     "src/routes.ts": [
       'import { routes } from "@madojs/mado";',
-      'import productPage from "./product.page";',
-      'export const manifest = { "/": productPage };',
+      'export const manifest = { "/": () => import("./product.page") };',
       "export default routes(manifest);",
       "",
     ].join("\n"),
     "src/product.page.ts": [
-      'import { html, page } from "@madojs/mado";',
+      'import { html, page, routeUrl } from "@madojs/mado";',
       "",
       "type Product = { name: string; description: string; xss: string };",
       "",
@@ -241,6 +243,11 @@ function mkProject({ base = "/" } = {}) {
       "      </product-card>",
       '      <pre id="xss-probe">${() => data?.xss ?? ""}</pre>',
       '      <input id="takeover-input" name="draft" .value=${"snapshot"}>',
+      '      <picture>',
+      '        <source srcset=${`${new URL(routeUrl("/probe.svg"), location.origin).href}?source=1 1x, ${new URL(routeUrl("/probe.svg"), location.origin).href}?source=2 2x`}>',
+      '        <img id="asset-probe" alt="" src=${new URL(routeUrl("/probe.svg"), location.origin).href}',
+      '          srcset=${`${new URL(routeUrl("/probe.svg"), location.origin).href}?density=1 1x, ${new URL(routeUrl("/probe.svg"), location.origin).href}?density=2 2x`}>',
+      '      </picture>',
       "    </main>",
       "  `,",
       "});",
@@ -410,6 +417,37 @@ test(
       assert.doesNotMatch(html, /data-mado-static-capture/);
       assert.doesNotMatch(html, /127\.0\.0\.1/);
       assert.doesNotMatch(html, /localhost/);
+      assert.match(html, /id="asset-probe"[^>]*src="\/probe\.svg"/);
+      assert.match(
+        html,
+        /srcset="\/probe\.svg\?density=1 1x, \/probe\.svg\?density=2 2x"/,
+      );
+      assert.match(
+        html,
+        /<source[^>]*srcset="\/probe\.svg\?source=1 1x, \/probe\.svg\?source=2 2x"/,
+      );
+      assert.match(
+        html,
+        /background-image: url\(["']?\/probe\.svg["']?\)/,
+        "capture-origin Shadow CSS becomes root-relative",
+      );
+
+      const modulePreloads =
+        html.match(/<link[^>]+rel="modulepreload"[^>]*>/g) ?? [];
+      assert.ok(modulePreloads.length > 0, "lazy route emits modulepreload hints");
+      for (const preload of modulePreloads) {
+        assert.match(
+          preload,
+          /href="\/assets\/[^"]+\.js"/,
+          "root snapshot keeps same-origin modulepreloads root-relative",
+        );
+        assert.doesNotMatch(preload, /https:\/\/example\.test/);
+      }
+      assert.match(
+        html,
+        /<link[^>]*rel="alternate"[^>]*href="https:\/\/external\.example\/feed\.xml"/,
+        "external URLs are not rewritten",
+      );
 
       // Managed page metadata wins over generic shell defaults. Relative
       // canonical/og:url values are resolved against the public origin.

@@ -9,6 +9,7 @@ import { reportError } from "./diagnostics.js";
 
 export type FormValue = unknown;
 export type FormValues = Record<string, unknown>;
+/** Field errors plus the optional `$form` error for the whole value snapshot. */
 export type FormErrors<V extends FormValues = FormValues> = Partial<
   Record<string, string>
 >;
@@ -45,6 +46,11 @@ export interface FormApi<V extends FormValues> {
     handler: (values: Readonly<V>, event: SubmitEvent) => void | Promise<void>,
   ): (event: SubmitEvent) => void;
   setField<K extends Extract<keyof V, string>>(name: K, value: V[K]): void;
+  /**
+   * Replaces externally supplied errors, such as a normalized server response.
+   * Passing an empty object clears them without changing touched state.
+   */
+  setErrors(errors: FormErrors<V>): void;
   reset(nextInitial?: V): void;
   validate(form?: HTMLFormElement | null): Promise<boolean>;
 }
@@ -58,12 +64,14 @@ export function useForm<V extends FormValues>(
   const values = signal<V>(cloneValues(initial));
   const nativeErrors = signal<FormErrors<V>>({});
   const customErrors = signal<FormErrors<V>>({});
+  const externalErrors = signal<FormErrors<V>>({});
   const touched = signal<FormTouched<V>>({});
   const submitting = signal(false);
   const validating = signal(false);
   const errors = computed<FormErrors<V>>(() => ({
     ...nativeErrors(),
     ...customErrors(),
+    ...externalErrors(),
   }));
   const dirty = computed(() => !sameValues(values(), initial));
   const isValid = computed(() => Object.keys(errors()).length === 0);
@@ -85,6 +93,7 @@ export function useForm<V extends FormValues>(
   ): void => {
     values.update((current) => ({ ...current, [name]: value }));
     customErrors.update((current) => withoutKey(current, name));
+    externalErrors.update((current) => withoutKeys(current, name, "$form"));
   };
 
   const validate = async (
@@ -105,7 +114,7 @@ export function useForm<V extends FormValues>(
 
     if (!options.validate) {
       if (validationController === controller) validationController = null;
-      return Object.keys(nextNative).length === 0;
+      return !hasErrors(nextNative, externalErrors.peek());
     }
 
     validating.set(true);
@@ -116,7 +125,7 @@ export function useForm<V extends FormValues>(
       });
       if (controller.signal.aborted || run !== validationRun) return false;
       customErrors.set(result ?? {});
-      return Object.keys({ ...nextNative, ...(result ?? {}) }).length === 0;
+      return !hasErrors(nextNative, result ?? {}, externalErrors.peek());
     } catch (error) {
       if (controller.signal.aborted || run !== validationRun) return false;
       customErrors.set({ $form: "validation failed" });
@@ -187,6 +196,10 @@ export function useForm<V extends FormValues>(
 
     setField,
 
+    setErrors(nextErrors) {
+      externalErrors.set({ ...nextErrors });
+    },
+
     reset(nextInitial) {
       validationRun++;
       validationController?.abort();
@@ -196,6 +209,7 @@ export function useForm<V extends FormValues>(
       values.set(cloneValues(initial));
       nativeErrors.set({});
       customErrors.set({});
+      externalErrors.set({});
       touched.set({});
       lastForm?.reset?.();
     },
@@ -307,4 +321,17 @@ function withoutKey<T extends Record<string, unknown>>(value: T, key: string): T
   const next = { ...value };
   delete next[key];
   return next;
+}
+
+function withoutKeys<T extends Record<string, unknown>>(
+  value: T,
+  ...keys: string[]
+): T {
+  const next = { ...value };
+  for (const key of keys) delete next[key];
+  return next;
+}
+
+function hasErrors(...errors: FormErrors[]): boolean {
+  return errors.some((current) => Object.keys(current).length > 0);
 }

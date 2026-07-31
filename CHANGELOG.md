@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `useForm().setErrors()` accepts an application-normalized field and
+  form-wide error map from authoritative server validation while preserving
+  native constraints and edit-to-clear behavior.
+
+### Fixed
+
+- Reactive `queryParam()` values stay synchronized after router-owned and
+  `data-link` SPA navigation, including query-only URL changes.
+- Browser-rendered snapshots keep same-origin asset and module-preload URLs
+  base-relative instead of binding the portable `out/` artifact to its
+  configured production origin.
+
+### Documentation
+
+- Routing, forms, deployment and AI-facing guidance now encode the contracts
+  proven by the independent Trajet Voisin application.
+
 ## 0.15.3 - 2026-07-31
 
 ### Documentation

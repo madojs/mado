@@ -44,18 +44,53 @@ html`
 | Member | Meaning |
 | --- | --- |
 | `values()` | current typed values |
-| `errors()` | native and custom errors by field; `$form` is available for form-wide errors |
+| `errors()` | merged native, custom and external errors; `$form` is available for form-wide errors |
 | `touched()` | fields that have blurred or participated in submit |
 | `dirty()` | whether values differ from the current initial values |
 | `isValid()` | whether the merged error map is empty |
 | `submitting()` / `validating()` | current async activity |
 | `setField(name, value)` | update one field programmatically |
+| `setErrors(errors)` | replace normalized errors supplied by a server or another external authority |
 | `validate(form?)` | run native and custom validation; returns `Promise<boolean>` |
 | `reset(nextInitial?)` | abort validation, clear state and reset native controls |
 | `onInput`, `onBlur`, `onSubmit(handler)` | DOM event handlers |
 
 Custom validation receives `{ signal, form }`. Starting another validation or
 calling `reset()` aborts the previous run. Treat abort as normal cancellation.
+
+## Server errors
+
+Normalize an application's error response at its API boundary, then pass the
+field map to `setErrors()`. Mado deliberately does not infer a response shape:
+
+```ts
+const save = mutation((values: Profile) => api.saveProfile(values));
+const form = useForm({ initial: { email: "", displayName: "" } });
+
+const submit = form.onSubmit(async (values) => {
+  try {
+    await save.run(values);
+  } catch (error) {
+    if (error instanceof ProfileValidationError) {
+      form.setErrors(error.formErrors);
+      return;
+    }
+    throw error;
+  }
+});
+```
+
+The map may contain keys from the form values and `$form` for an error about
+the submitted value set as a whole. Each call replaces the previous external
+map; pass `{}` to clear it. External errors override native or custom errors
+with the same key while they are present, and `validate()` returns `false`
+while any of them remain.
+
+Changing a field through `setField()` or `onInput` clears that field's
+external error. It also clears `$form`, because the form-wide error describes
+the previous value snapshot, while errors for other unchanged fields remain.
+`setErrors()` does not mark fields as touched, and `reset()` clears every error
+source.
 
 ## Native controls
 

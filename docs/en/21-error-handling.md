@@ -49,8 +49,10 @@ Use `HttpError` or your own API error type when the UI needs status codes.
 
 ## Form and mutation errors
 
-Validation errors belong in `useForm()`. Server errors from writes belong near
-the submit button.
+Client and cross-field validation errors belong in `useForm()`. A general
+write failure belongs near the submit button. When the server authoritatively
+rejects specific fields, normalize its response into `form.setErrors()` so the
+same field markup, `isValid()` state and edit-to-clear behavior remain in use.
 
 ```ts
 const form = useForm({
@@ -64,7 +66,13 @@ const save = mutation((values) => api.post("/users", values), {
 
 html`
   <form @submit=${form.onSubmit(async values => {
-    await save.run(values);
+    try {
+      await save.run(values);
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 422) {
+        form.setErrors(toFormErrors(error.body));
+      }
+    }
   })}>
     <input name="email" type="email" required @input=${form.onInput} />
     <button ?disabled=${() => form.validating() || form.submitting()}>
@@ -74,6 +82,12 @@ html`
   </form>
 `;
 ```
+
+`toFormErrors()` is application code because backend error envelopes are not a
+framework concern. Calling `setErrors()` replaces the previous external error
+map; editing a field clears its external field error and the now-stale `$form`
+error, while `reset()` clears the map. Mutation state still owns network,
+authorization and non-field failures.
 
 ## Component cleanup
 

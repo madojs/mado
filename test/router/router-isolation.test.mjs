@@ -115,7 +115,9 @@ w.document.removeEventListener = (evt, fn, opts) => {
 };
 
 const { routes } = await import("../../dist/src/router/manifest.js");
-const { navigate, router } = await import("../../dist/src/router/navigation.js");
+const { navigate, queryParam, router } = await import(
+  "../../dist/src/router/navigation.js"
+);
 const { html } = await import("../../dist/src/html/template.js");
 const { page } = await import("../../dist/src/page.js");
 
@@ -251,6 +253,90 @@ test("router(): intercepts data-link through shadow/composedPath", () => {
   assert.equal(r.path(), "/shadow");
   assert.equal(fakeLocation.pathname, "/shadow");
   r.dispose();
+});
+
+test("router(): navigate synchronizes queryParam across history transitions", () => {
+  setUrl("/search?type=need");
+  const type = queryParam("type", "all");
+  const r = router(
+    {
+      "/search": () => html`<x-search/>`,
+      "/result": () => html`<x-result/>`,
+    },
+    {
+      viewTransitions: false,
+      scrollRestoration: false,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    assert.equal(type(), "need");
+
+    r.navigate("/search?type=offer");
+    assert.equal(r.path(), "/search", "a query-only transition keeps the path");
+    assert.equal(type(), "offer", "queryParam follows a query-only transition");
+
+    r.navigate("/result?type=need");
+    assert.equal(r.path(), "/result");
+    assert.equal(type(), "need", "queryParam follows a path + query transition");
+
+    setUrl("/search?type=offer");
+    fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+    assert.equal(r.path(), "/search");
+    assert.equal(type(), "offer", "queryParam follows back navigation");
+
+    setUrl("/result?type=need");
+    fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+    assert.equal(r.path(), "/result");
+    assert.equal(type(), "need", "queryParam follows forward navigation");
+  } finally {
+    r.dispose();
+  }
+});
+
+test("router(): data-link query navigation runs effects once with multiple routers", async () => {
+  setUrl("/search?type=need");
+  scrollCalls.length = 0;
+  const type = queryParam("type", "all");
+  const main = w.document.createElement("main");
+  let focusCalls = 0;
+  main.focus = () => {
+    focusCalls++;
+  };
+  w.document.body.appendChild(main);
+
+  const routeTable = {
+    "/search": () => html`<x-search/>`,
+    "/result": () => html`<x-result/>`,
+  };
+  const r1 = router(routeTable, { viewTransitions: false });
+  const r2 = router(routeTable, { viewTransitions: false });
+
+  const a = w.document.createElement("a");
+  a.href = "http://localhost/result?type=offer";
+  a.setAttribute("data-link", "");
+  const event = new w.Event("click", { bubbles: true, cancelable: true });
+  const host = w.document.createElement("x-host");
+  Object.defineProperty(event, "target", { value: host });
+  Object.defineProperty(event, "button", { value: 0 });
+  Object.defineProperty(event, "composedPath", {
+    value: () => [a, host, w.document.body, w.document],
+  });
+
+  try {
+    w.document.dispatchEvent(event);
+    await Promise.resolve();
+
+    assert.equal(fakeLocation.pathname, "/result");
+    assert.equal(type(), "offer", "data-link synchronizes the shared query bus");
+    assert.deepEqual(scrollCalls, [{ top: 0, left: 0 }]);
+    assert.equal(focusCalls, 1, "one intercepted click schedules one focus reset");
+  } finally {
+    r1.dispose();
+    r2.dispose();
+    main.remove();
+  }
 });
 
 test("router(): hover-prefetch uses shadow/composedPath", async () => {

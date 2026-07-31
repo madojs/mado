@@ -11,8 +11,8 @@
   and live SPAs. One Web Component model, one page model, one release
   command.
 - Current phase: **pre-1.0 application validation** through
-  [madojs.dev](https://madojs.dev) and Mado UI; independent external
-  application validation is still pending.
+  [madojs.dev](https://madojs.dev), Mado UI and the separate public Trajet
+  Voisin application; sustained third-party validation is still pending.
   Read `package.json` for
   the current package version; do not infer stability from a roadmap date.
 - Built on Web Components + signals + tagged-template `html`.
@@ -267,6 +267,19 @@ export default page<{ id: string }>({
 - Import pages with dynamic `import()` — this enables Vite code-splitting.
   Extensionless local specifiers are valid in generated Mado apps.
 - Programmatic navigation: `import { navigate } from "@madojs/mado"; navigate("/users/42")`.
+- URL-backed filters and pagination use `queryParam()`, not a one-off
+  `URLSearchParams` read. The returned getter is reactive and stays in sync
+  with `navigate()`, `RouterApi.navigate()`, `data-link` navigation and browser
+  back/forward:
+
+```ts
+const status = queryParam("status", "all");
+status();                         // reactive read
+status.set("open");              // replace the current history entry
+status.set("closed", { push: true });
+status.set(null);                 // remove ?status
+```
+
 - Layouts are declared in the route manifest via `layout()`. Treat
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared
   chrome. Put per-page state in pages/components/resources, not in layout view
@@ -317,8 +330,9 @@ const save = mutation<User, User>(
 await save.run(newUser);
 ```
 
-- A resource key is the cache identity. Same key means shared cache and deduped
-  in-flight request; use distinct keys for distinct data or auth scope.
+- Resource cache identity is the key **plus the fetcher function identity**.
+  Reuse a stable fetcher when two resources should share cache/in-flight work,
+  and use distinct keys for distinct query parameters, users or auth scopes.
 - `mutation().run()` is concurrent by default. `loading()` stays true while any
   run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
   "latest request wins" flows.
@@ -358,7 +372,9 @@ html`
 ```
 
 HTML owns native constraints. Custom validation receives an `AbortSignal`.
-Use `setField`, not a schema/field-array abstraction.
+Use `setField`, not a schema/field-array abstraction. Normalize authoritative
+server validation into `setErrors({ field: "message", $form: "message" })`;
+Mado does not infer an API response schema.
 
 ### 11. Styles — ``` css`` ``` + Shadow DOM by default
 

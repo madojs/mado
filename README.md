@@ -167,7 +167,9 @@ html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
 
 Lazy loading, layout groups, query params, guards, hover prefetch,
 scroll restoration, error boundary, View Transitions, base-path
-awareness (Vite `base` → runtime `import.meta.env.BASE_URL`).
+awareness (Vite `base` → runtime `import.meta.env.BASE_URL`). Reactive
+`queryParam()` values follow programmatic navigation, `data-link` and browser
+history changes.
 
 ### Data — resource + mutation
 
@@ -205,7 +207,9 @@ html`<form @submit=${form.onSubmit(save)}>
 ```
 
 HTML owns constraints and keyboard/form semantics; Mado supplies typed values,
-errors, touched/dirty state and abortable async validation.
+errors, touched/dirty state and abortable async validation. Applications can
+normalize authoritative server validation into `form.setErrors()` without
+coupling Mado to a backend response format.
 
 ### Static snapshots — SEO without SSR
 
@@ -221,6 +225,7 @@ reconciliation, no per-attribute diffing.
 
 - Real search engines see a fully rendered document.
 - Social preview bots see the canonical / og tags inside the raw HTML.
+- Same-origin assets and module preloads remain base-relative and portable.
 - JS-disabled browsers see meaningful content.
 - The live app boots from the same snapshot without re-fetching seeded
   data.

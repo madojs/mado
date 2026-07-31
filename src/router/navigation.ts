@@ -6,7 +6,7 @@
  * so match.ts remains clean and testable without jsdom.
  */
 
-import { signal, untracked, type Signal } from "./../signal.js";
+import { batch, signal, untracked, type Signal } from "./../signal.js";
 import { html } from "../html/template.js";
 import {
   compile,
@@ -236,7 +236,14 @@ function createRouter(
         if (opts?.replace) history.replaceState(null, "", url);
         else history.pushState(null, "", url);
         currentScrollKey = locationKey();
-        path.set(stripBase(location.pathname));
+        // pushState/replaceState do not emit popstate. Apply both pieces of
+        // reactive location state together so query-only navigations are not
+        // swallowed by path signal deduplication and path + query consumers
+        // never observe a half-updated location.
+        batch(() => {
+          syncQueryBusFromLocation();
+          path.set(stripBase(location.pathname));
+        });
         // An in-page #hash must scroll to its target even when the pathname is
         // unchanged (signal dedup would otherwise swallow the navigation and
         // leave anchor links dead). (FABLE_REPORT.md finding #9)
@@ -462,10 +469,14 @@ function scheduleFocusReset(): void {
 
 let queryBus: Signal<string> | null = null;
 
+function syncQueryBusFromLocation(): void {
+  queryBus?.set(location.search);
+}
+
 function ensureQueryBus(): Signal<string> {
   if (queryBus) return queryBus;
   queryBus = signal(location.search);
-  window.addEventListener("popstate", () => queryBus!.set(location.search));
+  window.addEventListener("popstate", syncQueryBusFromLocation);
   return queryBus;
 }
 

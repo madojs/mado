@@ -127,9 +127,11 @@ an on-demand snapshot service.
 
 ## Recipe 3: Static-only hosts (S3, Netlify, GitHub Pages)
 
-The `out/` files are portable, but SPA and hybrid request routing remains
-host-specific. Choose a host whose rewrite/404 policy can represent the route
-mix described above:
+The `out/` files are portable: same-origin scripts, styles and module preloads
+remain base-relative, while canonical and `og:url` keep the configured absolute
+public origin. SPA and hybrid request routing remains host-specific.
+Choose a host whose rewrite/404 policy can represent the route mix described
+above:
 
 **Netlify**
 ```bash

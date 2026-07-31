@@ -738,6 +738,7 @@ from another explicit root.
 | `<input value={v} onChange={...}>`    | `<input .value=${v} @input=${...}>`          |
 | `{items.map(x => ...)}`               | `${() => each(items, x => x.id, x => ...)}`  |
 | `useForm({ resolver: zodResolver })`  | `useForm({ initial, validate })` + native constraints |
+| authoritative server field errors    | `form.setErrors({ field: message })`          |
 | `class extends HTMLElement`           | `component('x-name', setup)`                 |
 | `@customElement('x')`                 | `component('x-name', setup)`                 |
 | `host.getAttribute('x')` in render    | `ctx.attr('x', default)` (reactive)          |

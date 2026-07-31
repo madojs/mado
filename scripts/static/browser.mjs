@@ -200,7 +200,6 @@ async function captureRoute(browser, record, options) {
     const html = await serializeDocument(page, {
       appId: options.appId ?? "app",
       serverOrigin: options.serverOrigin,
-      baseUrl: options.baseUrl,
       site: options.site ?? "",
       base: options.base ?? "/",
       pathname: record.pathname,
@@ -308,7 +307,7 @@ async function collectUndefinedCustomElements(page) {
 
 async function serializeDocument(page, options) {
   return page.evaluate((opts) => {
-    const { appId, serverOrigin, baseUrl, site, base, pathname, notFound } = opts;
+    const { appId, serverOrigin, site, base, pathname, notFound } = opts;
     const added = [];
     // Strip both the modern attribute marker and the legacy inline script
     // (older snapshots may still contain it). The seed <script> is
@@ -355,6 +354,9 @@ async function serializeDocument(page, options) {
       normalizeDomStateIn(root);
     }
     materializeShadowStyles(openShadowRoots, added);
+    for (const root of [document, ...openShadowRoots]) {
+      normalizeCaptureUrlsIn(root);
+    }
 
     // Verification: count live open shadow roots before serialization and
     // assert the same count of <template shadowrootmode> in the output.
@@ -394,7 +396,7 @@ async function serializeDocument(page, options) {
       );
     }
 
-    return html.split(serverOrigin).join(baseUrl.replace(/\/$/, ""));
+    return html;
 
     function buildAbsoluteUrl(origin, baseValue, route) {
       const left = origin.replace(/\/+$/, "");
@@ -582,10 +584,155 @@ async function serializeDocument(page, options) {
       return out;
     }
 
+    function normalizeCaptureUrlsIn(root) {
+      for (const element of root.querySelectorAll(
+        "script[src], img[src], source[src], audio[src], video[src], " +
+          "track[src], input[type='image'][src], iframe[src], embed[src]",
+      )) {
+        normalizeCaptureUrlAttribute(element, "src");
+      }
+
+      for (const element of root.querySelectorAll("video[poster]")) {
+        normalizeCaptureUrlAttribute(element, "poster");
+      }
+      for (const element of root.querySelectorAll("img[srcset], source[srcset]")) {
+        normalizeCaptureSrcsetAttribute(element, "srcset");
+      }
+      for (const element of root.querySelectorAll("object[data]")) {
+        normalizeCaptureUrlAttribute(element, "data");
+      }
+      for (const element of root.querySelectorAll(
+        "a[href], area[href], svg image[href], svg use[href]",
+      )) {
+        normalizeCaptureUrlAttribute(element, "href");
+      }
+      for (const element of root.querySelectorAll("svg image[xlink\\:href], svg use[xlink\\:href]")) {
+        normalizeCaptureUrlAttribute(element, "xlink:href");
+      }
+      for (const element of root.querySelectorAll("form[action]")) {
+        normalizeCaptureUrlAttribute(element, "action");
+      }
+      for (const element of root.querySelectorAll("button[formaction], input[formaction]")) {
+        normalizeCaptureUrlAttribute(element, "formaction");
+      }
+      for (const element of root.querySelectorAll(
+        "blockquote[cite], q[cite], del[cite], ins[cite]",
+      )) {
+        normalizeCaptureUrlAttribute(element, "cite");
+      }
+      for (const link of root.querySelectorAll("link[href]")) {
+        // Public canonical URLs were finalized above and therefore have the
+        // configured site origin. This only changes links that still point at
+        // the ephemeral capture server, including current and future resource
+        // hint relations without maintaining a fragile rel allow-list.
+        normalizeCaptureUrlAttribute(link, "href");
+      }
+      for (const link of root.querySelectorAll("link[imagesrcset]")) {
+        normalizeCaptureSrcsetAttribute(link, "imagesrcset");
+      }
+
+      for (const element of root.querySelectorAll("[style]")) {
+        const value = element.getAttribute("style") || "";
+        const normalized = normalizeCaptureCssUrls(value);
+        if (normalized !== value) element.setAttribute("style", normalized);
+      }
+      for (const style of root.querySelectorAll("style")) {
+        const value = style.textContent || "";
+        const normalized = normalizeCaptureCssUrls(value);
+        if (normalized !== value) style.textContent = normalized;
+      }
+
+      // querySelectorAll() does not enter inert template contents. Those nodes
+      // are serialized too, so normalize them explicitly and recursively.
+      for (const template of root.querySelectorAll("template")) {
+        normalizeCaptureUrlsIn(template.content);
+      }
+    }
+
+    function normalizeCaptureUrlAttribute(element, attribute) {
+      const value = element.getAttribute(attribute);
+      if (!value) return;
+      const normalized = normalizeCaptureUrl(value);
+      if (normalized !== value) element.setAttribute(attribute, normalized);
+    }
+
+    function normalizeCaptureSrcsetAttribute(element, attribute) {
+      const value = element.getAttribute(attribute);
+      if (!value) return;
+
+      let cursor = 0;
+      let normalized = "";
+      while (cursor < value.length) {
+        const separatorStart = cursor;
+        while (cursor < value.length && /[\s,]/.test(value[cursor])) cursor++;
+        normalized += value.slice(separatorStart, cursor);
+        if (cursor >= value.length) break;
+
+        const urlStart = cursor;
+        while (cursor < value.length && !/\s/.test(value[cursor])) cursor++;
+        const rawUrl = value.slice(urlStart, cursor);
+        const trailingCommas = rawUrl.match(/,+$/)?.[0] ?? "";
+        const candidate = trailingCommas
+          ? rawUrl.slice(0, -trailingCommas.length)
+          : rawUrl;
+        normalized += normalizeCaptureUrl(candidate) + trailingCommas;
+        if (trailingCommas) continue;
+
+        // Copy density/width descriptors verbatim. Commas inside a descriptor
+        // function do not delimit another candidate, so track parentheses.
+        const descriptorStart = cursor;
+        let depth = 0;
+        while (cursor < value.length) {
+          const char = value[cursor++];
+          if (char === "(") depth++;
+          else if (char === ")" && depth > 0) depth--;
+          else if (char === "," && depth === 0) break;
+        }
+        normalized += value.slice(descriptorStart, cursor);
+      }
+
+      if (normalized !== value) element.setAttribute(attribute, normalized);
+    }
+
+    function normalizeCaptureUrl(value) {
+      if (!value || value.startsWith("#")) return value;
+
+      let parsed;
+      try {
+        parsed = new URL(value, document.baseURI);
+      } catch {
+        return value;
+      }
+      if (parsed.origin !== serverOrigin) return value;
+
+      // The capture server already receives requests through the resolved Vite
+      // base (`/assets/...` or `/mado/assets/...`). Keeping that pathname makes
+      // the release artifact portable across preview and production origins,
+      // while canonical and og:url remain explicit absolute public metadata.
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    function normalizeCaptureCssUrls(value) {
+      // CSSOM serializes URL tokens with quotes in current Chromium, while
+      // authored inline styles may omit them. Restrict rewriting to url(...)
+      // tokens so application text or serialized JSON containing the capture
+      // origin is never modified.
+      return value.replace(
+        /url\(\s*(?:(["'])(.*?)\1|([^)]*?))\s*\)/gi,
+        (match, quote, quotedValue, unquotedValue) => {
+          const raw = String(quote ? quotedValue : unquotedValue).trim();
+          const normalized = normalizeCaptureUrl(raw);
+          if (normalized === raw) return match;
+          const wrapper = quote || "";
+          return `url(${wrapper}${normalized}${wrapper})`;
+        },
+      );
+    }
+
     function materializeShadowStyles(roots, out) {
       for (const shadow of roots) {
         for (const sheet of shadow.adoptedStyleSheets ?? []) {
-          const text = stylesheetText(sheet);
+          const text = normalizeCaptureCssUrls(stylesheetText(sheet));
           if (!text) continue;
           const style = document.createElement("style");
           style.setAttribute("data-mado-static-style", stableHash(text));

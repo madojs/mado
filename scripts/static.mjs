@@ -110,7 +110,6 @@ try {
       const captured = await captureStaticRoutes({
         records: captureRecords,
         serverOrigin: server.origin,
-        baseUrl,
         base,
         site: publicOrigin,
         timeout,

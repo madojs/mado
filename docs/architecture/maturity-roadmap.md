@@ -16,11 +16,15 @@ The invariant is product-shaped, not version-shaped:
 
 ## Current phase: application validation
 
-The 0.15.2 package and its versioned documentation have now been exercised by
-the initial production `madojs.dev` documentation and release pipeline. That
-is meaningful first-party dogfood, but it is neither sustained use nor
-independent external validation. Further evidence must keep coming from
-applications rather than another speculative API cycle:
+The 0.15.x package and its versioned documentation have been exercised by the
+production `madojs.dev` documentation, Mado UI catalog and release pipelines.
+The separate, public Trajet Voisin application is now the first independent
+repository consuming the published framework and UI registry together. It
+proved the hybrid static/SPA/404 deployment shape and exposed focused gaps in
+query navigation, portable preloads and authoritative form errors. This is
+meaningful application evidence, but not yet sustained third-party use.
+Further evidence must keep coming from applications rather than another
+speculative API cycle:
 
 1. Keep the page, component, template and lifecycle contracts steady while
    routine `madojs.dev` and Mado UI work continues to exercise them.

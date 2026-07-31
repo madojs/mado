@@ -84,6 +84,7 @@ function mkBaseProject(base) {
       '<html lang="en">',
       "  <head>",
       '    <meta charset="UTF-8" />',
+      '    <link rel="alternate" href="https://external.example/feed.xml" />',
       "    <title>App</title>",
       "  </head>",
       "  <body>",
@@ -104,6 +105,8 @@ function mkBaseProject(base) {
       "});",
       "",
     ].join("\n"),
+    "public/probe.svg":
+      '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><path fill="red" d="M0 0h2v2H0z"/></svg>',
     "tsconfig.json": JSON.stringify(
       {
         compilerOptions: {
@@ -123,38 +126,63 @@ function mkBaseProject(base) {
     ),
     "src/main.ts": [
       'import { html, render, routeUrl } from "@madojs/mado";',
+      'import "./asset-card";',
       'import appRoutes from "./routes";',
+      'const assetPrefetch = document.createElement("link");',
+      'assetPrefetch.rel = "prefetch";',
+      'assetPrefetch.href = new URL(routeUrl("/probe.svg"), location.origin).href;',
+      'document.head.append(assetPrefetch);',
       "(window as any).__MADO_ROUTE_URL_DOCS__ = routeUrl(\"/docs\");",
       "(window as any).__MADO_ROUTE_URL_ROOT__ = routeUrl(\"/\");",
       "(window as any).__MADO_PREFETCHED__ = [] as string[];",
       'render(html`${appRoutes.view}`, document.getElementById("app")!);',
       "",
     ].join("\n"),
+    "src/asset-card.ts": [
+      'import { component, css, html, routeUrl } from "@madojs/mado";',
+      'component("asset-card", () => html`<span>asset</span>`, {',
+      "  styles: css`",
+      '    :host { display: block; background-image: url("${new URL(routeUrl("/probe.svg"), location.origin).href}"); }',
+      "  `,",
+      "});",
+      "",
+    ].join("\n"),
+    "src/lazy-copy.ts": 'export const lazyCopy = "lazy-ready";\n',
     "src/routes.ts": [
       'import { routes } from "@madojs/mado";',
-      'import homePage from "./home.page";',
-      'import docsPage from "./docs.page";',
       "// Wrap the docs loader so the test can observe every prefetch",
       "// invocation. The loader runs in two environments: the Node-side",
       "// discovery (no window) and the browser SPA boot, so the tracker",
       "// only fires when `window` is present.",
-      'export const manifest = { "/": homePage, "/docs": () => {',
+      'export const manifest = { "/": () => import("./home.page"), "/docs": () => {',
       '  if (typeof window !== "undefined") {',
       '    ((window as any).__MADO_PREFETCHED__ ??= []).push("/docs");',
       "  }",
-      "  return Promise.resolve({ default: docsPage });",
+      '  return import("./docs.page");',
       "} };",
       "export default routes(manifest);",
       "",
     ].join("\n"),
     "src/home.page.ts": [
       'import { html, page, routeUrl } from "@madojs/mado";',
+      'import { lazyCopy } from "./lazy-copy";',
       "export default page({",
       "  static: true,",
       '  title: "Home",',
       "  view: () => html`",
       "    <main>",
       "      <h1>Home</h1>",
+      '      <asset-card>${lazyCopy}</asset-card>',
+      '      <picture>',
+      '        <source srcset=${`${new URL(routeUrl("/probe.svg"), location.origin).href}?source=1 1x, ${new URL(routeUrl("/probe.svg"), location.origin).href}?source=2 2x`}>',
+      '        <img id="asset-probe" alt="" src=${new URL(routeUrl("/probe.svg"), location.origin).href}',
+      '          srcset=${`${new URL(routeUrl("/probe.svg"), location.origin).href}?density=1 1x, ${new URL(routeUrl("/probe.svg"), location.origin).href}?density=2 2x`}>',
+      '      </picture>',
+      '      <div id="inline-style-probe" style=${`background-image: url("${new URL(routeUrl("/probe.svg"), location.origin).href}")`}></div>',
+      '      <a id="absolute-docs-link" href=${new URL(routeUrl("/docs"), location.origin).href}>Absolute docs</a>',
+      '      <form id="absolute-form" action=${new URL(routeUrl("/submit"), location.origin).href}>',
+      '        <button formaction=${new URL(routeUrl("/draft"), location.origin).href}>Save draft</button>',
+      '      </form>',
       "      <a id=\"docs-link\" data-link href=${routeUrl(\"/docs\")}>Docs</a>",
       "    </main>",
       "  `,",
@@ -163,6 +191,7 @@ function mkBaseProject(base) {
     ].join("\n"),
     "src/docs.page.ts": [
       'import { html, page } from "@madojs/mado";',
+      'import { lazyCopy } from "./lazy-copy";',
       "export default page({",
       "  static: true,",
       '  title: "Docs",',
@@ -170,6 +199,7 @@ function mkBaseProject(base) {
       "  view: (ctx) => html`",
       "    <main>",
       "      <h1>Docs</h1>",
+      '      <p>${lazyCopy}</p>',
       "      <p id=\"path-probe\">${() => ctx.path()}</p>",
       "    </main>",
       "  `,",
@@ -329,6 +359,49 @@ test(
       // Index HTML loads base-prefixed assets.
       const indexHtml = readFileSync(join(out, "index.html"), "utf8");
       assert.match(indexHtml, /src="\/mado\/assets\/[^"]+\.js"/);
+      assert.match(indexHtml, /id="asset-probe"[^>]*src="\/mado\/probe\.svg"/);
+      assert.match(
+        indexHtml,
+        /srcset="\/mado\/probe\.svg\?density=1 1x, \/mado\/probe\.svg\?density=2 2x"/,
+      );
+      assert.match(
+        indexHtml,
+        /<source[^>]*srcset="\/mado\/probe\.svg\?source=1 1x, \/mado\/probe\.svg\?source=2 2x"/,
+      );
+      assert.match(
+        indexHtml,
+        /background-image: url\(["']?\/mado\/probe\.svg["']?\)/,
+        "capture-origin Shadow CSS becomes base-prefixed",
+      );
+      assert.match(
+        indexHtml,
+        /id="inline-style-probe"[^>]*style="[^"]*url\(&quot;\/mado\/probe\.svg&quot;\)/,
+        "capture-origin inline CSS becomes base-prefixed",
+      );
+      assert.match(indexHtml, /id="absolute-docs-link"[^>]*href="\/mado\/docs"/);
+      assert.match(indexHtml, /id="absolute-form"[^>]*action="\/mado\/submit"/);
+      assert.match(indexHtml, /formaction="\/mado\/draft"/);
+      assert.match(
+        indexHtml,
+        /<link[^>]+rel="prefetch"[^>]+href="\/mado\/probe\.svg"/,
+      );
+      assert.doesNotMatch(indexHtml, /127\.0\.0\.1|localhost/);
+      const rootModulePreloads =
+        indexHtml.match(/<link[^>]+rel="modulepreload"[^>]*>/g) ?? [];
+      assert.ok(rootModulePreloads.length > 0, "lazy route emits modulepreload hints");
+      for (const preload of rootModulePreloads) {
+        assert.match(
+          preload,
+          /href="\/mado\/assets\/[^"]+\.js"/,
+          "base snapshot keeps same-origin modulepreloads base-prefixed",
+        );
+        assert.doesNotMatch(preload, /https:\/\/example\.test/);
+      }
+      assert.match(
+        indexHtml,
+        /<link[^>]*rel="alternate"[^>]*href="https:\/\/external\.example\/feed\.xml"/,
+        "external URLs are not rewritten",
+      );
 
       // Canonical / og:url are absolute and include the base.
       assert.match(
@@ -341,6 +414,13 @@ test(
       );
 
       const docsHtml = readFileSync(join(out, "docs/index.html"), "utf8");
+      const docsModulePreloads =
+        docsHtml.match(/<link[^>]+rel="modulepreload"[^>]*>/g) ?? [];
+      assert.ok(docsModulePreloads.length > 0);
+      for (const preload of docsModulePreloads) {
+        assert.match(preload, /href="\/mado\/assets\/[^"]+\.js"/);
+        assert.doesNotMatch(preload, /https:\/\/example\.test/);
+      }
       assert.match(
         docsHtml,
         /<link[^>]*rel="canonical"[^>]*href="https:\/\/example\.test\/mado\/declared"/,

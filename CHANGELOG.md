@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-07-31
 
 ### Added
 
@@ -20,6 +20,12 @@
 
 - Routing, forms, deployment and AI-facing guidance now encode the contracts
   proven by the independent Trajet Voisin application.
+
+### Tooling
+
+- `api:check` now snapshots the complete reachable declaration graph for the
+  root, devtools and Vite entrypoints, so changes inside re-exported public
+  interfaces require explicit review and are gated in CI.
 
 ## 0.15.3 - 2026-07-31
 

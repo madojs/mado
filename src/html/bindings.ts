@@ -119,6 +119,46 @@ export function isHtmlDirective(v: unknown): v is HtmlDirective {
   );
 }
 
+interface ControlledSelectValueBinding {
+  reapply(): void;
+}
+
+/**
+ * Adding or reordering <option> nodes can change a select's value without the
+ * bound value signal changing. Keep the desired property value beside the
+ * select so a Mado-owned child reconciliation can restore it synchronously.
+ */
+const controlledSelectValues = new WeakMap<
+  Element,
+  ControlledSelectValueBinding
+>();
+
+function reapplyNearestControlledSelectValue(node: Node): void {
+  let current: Node | null = node;
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const binding = controlledSelectValues.get(current as Element);
+      if (binding) {
+        binding.reapply();
+        return;
+      }
+    }
+    current = current.parentNode;
+  }
+}
+
+function reapplySelectValueAfterOptionBinding(
+  el: Element,
+  name: string,
+): void {
+  if (
+    el.localName === "option" &&
+    (name === "value" || name === "selected")
+  ) {
+    reapplyNearestControlledSelectValue(el);
+  }
+}
+
 // ---------- Child binding ----------
 
 /**
@@ -288,6 +328,7 @@ function renderChild(
   // each result: apply keyed reconciliation
   if (isEachResult(value)) {
     applyEach(st, value, instantiateFn, queueCommit);
+    reapplyNearestControlledSelectValue(st.anchor);
     return;
   }
 
@@ -310,6 +351,7 @@ function renderChild(
     st.currentInsts[0]!._strings === value.strings
   ) {
     st.currentInsts[0]!.update(value);
+    reapplyNearestControlledSelectValue(st.anchor);
     return;
   }
 
@@ -356,6 +398,7 @@ function renderChild(
   };
 
   handle(value);
+  reapplyNearestControlledSelectValue(st.anchor);
 }
 
 function appendUnsafeHTML(st: ChildState, value: string): void {
@@ -672,7 +715,7 @@ export function bindAttr(
     const v = values[spec.slots[0]!];
     const target = el as unknown as Record<string, unknown>;
     let hasApplied = false;
-    applyReactive(v, disposers, (vv) => {
+    const applyProperty = (vv: unknown): void => {
       if (hasApplied) {
         try {
           if (Object.is(target[prop], vv)) return;
@@ -682,7 +725,37 @@ export function bindAttr(
       }
       target[prop] = vv;
       hasApplied = true;
-    }, bindingComplete);
+      reapplySelectValueAfterOptionBinding(el, prop);
+    };
+
+    if (prop === "value" && el.localName === "select") {
+      let desired: unknown;
+      let hasDesired = false;
+      const binding: ControlledSelectValueBinding = {
+        reapply() {
+          if (hasDesired) applyProperty(desired);
+        },
+      };
+      controlledSelectValues.set(el, binding);
+      disposers.push(() => {
+        if (controlledSelectValues.get(el) === binding) {
+          controlledSelectValues.delete(el);
+        }
+      });
+      applyReactive(
+        v,
+        disposers,
+        (vv) => {
+          applyProperty(vv);
+          desired = vv;
+          hasDesired = true;
+        },
+        bindingComplete,
+      );
+      return;
+    }
+
+    applyReactive(v, disposers, applyProperty, bindingComplete);
     return;
   }
 
@@ -698,6 +771,7 @@ export function bindAttr(
     applyReactive(v, disposers, (vv) => {
       if (vv) el.setAttribute(attrName, "");
       else el.removeAttribute(attrName);
+      reapplySelectValueAfterOptionBinding(el, attrName);
     }, bindingComplete);
     return;
   }
@@ -745,6 +819,7 @@ export function bindAttr(
       const hadPrevious = hasResolved;
       try {
         el.setAttribute(name, next);
+        reapplySelectValueAfterOptionBinding(el, name);
         resolved = next;
         hasResolved = true;
         bindingComplete();
@@ -752,6 +827,7 @@ export function bindAttr(
         if (hadPrevious) {
           try {
             el.setAttribute(name, previous);
+            reapplySelectValueAfterOptionBinding(el, name);
             resolved = previous;
             hasResolved = true;
             bindingComplete();
@@ -768,6 +844,7 @@ export function bindAttr(
     disposers.push(d);
   } else {
     el.setAttribute(name, compute());
+    reapplySelectValueAfterOptionBinding(el, name);
   }
 }
 
@@ -829,6 +906,7 @@ function bindSingleAttr(
         );
         current = previous;
         hasCurrent = true;
+        reapplySelectValueAfterOptionBinding(el, name);
         bindingComplete();
       } catch (rollbackError) {
         throw new AggregateError(
@@ -846,6 +924,7 @@ function bindSingleAttr(
       cleanup = applySingleAttrValue(el, name, vv, queueCommit);
       current = vv;
       hasCurrent = true;
+      reapplySelectValueAfterOptionBinding(el, name);
       bindingComplete();
     } catch (error) {
       const rollbackErrors: unknown[] = [];
@@ -864,6 +943,7 @@ function bindSingleAttr(
           );
           current = previous;
           hasCurrent = true;
+          reapplySelectValueAfterOptionBinding(el, name);
           bindingComplete();
         } catch (rollbackError) {
           rollbackErrors.push(rollbackError);
@@ -906,6 +986,7 @@ function clearPlainAttr(el: Element, name: string): void {
     return;
   }
   el.removeAttribute(name);
+  reapplySelectValueAfterOptionBinding(el, name);
 }
 
 function applySingleAttrValue(

@@ -10,7 +10,8 @@ into a cache + lifecycle:
 - `resource()` — keyed cache, loading / error / data signals, glob
   invalidation, automatic cleanup.
 - `mutation()` — async action runner with the same loading / error /
-  data signals, plus declarative invalidation of related resources.
+  data signals, declarative invalidation of related resources and automatic
+  page/component cleanup.
 
 A third helper, `jsonFetcher()`, is the default body parser: parses
 JSON, throws `HttpError` on `!ok`.
@@ -58,10 +59,11 @@ Rules:
 import { mutation } from "@madojs/mado";
 
 const save = mutation<User, User>(
-  (u) =>
+  (u, signal) =>
     fetch("/api/users", {
       method: "POST",
       body: JSON.stringify(u),
+      signal,
     }).then((r) => r.json()),
   { invalidates: ["/api/users*"] },
 );
@@ -80,6 +82,23 @@ save.data();               // last success
   itself into a failure.
 - `invalidates` may also be a function of `(result, args)` for
   dynamic keys.
+- A mutation created during `page()` or `component()` setup belongs to that
+  lifecycle. Teardown synchronously aborts every supplied signal, clears the
+  mutation state and blocks late state or invalidation. A fetcher that honors
+  its signal rejects promptly; one that ignores it is fenced off when it
+  eventually settles.
+- `reset()` performs the same abort-and-clear operation but remains reusable.
+  `dispose()` is idempotent and terminal; a later `run()` rejects.
+- A mutation that intentionally outlives navigation must be created outside
+  the active lifecycle, normally at module or application-service scope, and
+  its explicit owner must eventually call `dispose()`.
+
+Lifecycle cancellation makes a pending `run()` reject with `AbortError` as
+soon as its fetcher observes the signal, or when an uncooperative fetcher later
+settles. That error means Mado discarded the stale outcome, not that the
+transport stopped or the server rolled the write back: the request may already
+have committed. Refresh authoritative state or retry the exact idempotent
+command. Never manufacture a new automatic write from an ambiguous result.
 
 ## `jsonFetcher()` and `HttpError`
 
@@ -222,6 +241,8 @@ your real backend is wired.
 ## Further reading
 
 - [12-routing.md](./12-routing.md) — guards, layouts, `routeUrl`.
+- [35-migration-0.16-0.17.md](./35-migration-0.16-0.17.md) — mutation
+  ownership and migration guidance.
 - [14-forms.md](./14-forms.md) — `useForm()`, then `mutation().run()`.
 - [21-error-handling.md](./21-error-handling.md) — route / data /
   action error boundaries.

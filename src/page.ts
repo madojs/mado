@@ -63,7 +63,7 @@ export interface PageContext<P extends RouteParams, D> {
   /**
    * Register cleanup that runs when the page navigates away.
    * Use for timers, manual subscriptions, or anything not automatically
-   * managed by resource()/effect().
+   * managed by resource()/mutation()/effect().
    *
    *   view: ({ onDispose }) => {
    *     const id = setInterval(tick, 3000);

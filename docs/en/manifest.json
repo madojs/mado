@@ -103,6 +103,10 @@
         {
           "slug": "migration-0.13-0.14",
           "file": "34-migration-0.13-0.14.md"
+        },
+        {
+          "slug": "migration-0.16-0.17",
+          "file": "35-migration-0.16-0.17.md"
         }
       ]
     },

@@ -10,8 +10,9 @@
  *   3. resource returns three signals: data/error/loading, plus
  *      refresh()/mutate()/invalidate().
  *
- * mutation(fetcher) — a wrapper for POST/PUT/DELETE. After a successful run
- * it can invalidate specified resource keys (exact match or prefix-glob 'users/*').
+ * mutation(fetcher) — a lifecycle-owned wrapper for POST/PUT/DELETE. After a
+ * successful run it can invalidate specified resource keys (exact match or
+ * prefix-glob 'users/*'). Module-scoped mutations remain explicitly shared.
  *
  * No runtime dependencies: only fetch + AbortController + signals.
  */
@@ -369,8 +370,9 @@ export interface MutationOptions<TArgs = unknown, TResult = unknown> {
    *   - a function of result and args:
    *     `(result, args) => [${'`'}posts/${result.id}${'`'}, 'feed/*']`
    *
-   * The function is called AFTER a successful request. If it throws — the error
-   * is logged to console, but the mutation success is preserved (invalidation is best-effort).
+   * Invalidation runs AFTER a successful request. Any error while resolving or
+   * applying its patterns is logged, but the mutation success is preserved
+   * (invalidation is best-effort).
    *
    * Only `*` at the END of a pattern is supported (see invalidate()).
    */
@@ -399,8 +401,10 @@ export interface Mutation<TArgs, TResult> {
   data: Signal<TResult | undefined>;
   /** Execute. Returns a Promise. */
   run(args: TArgs): Promise<TResult>;
-  /** Reset error/data state. */
+  /** Abort active runs, clear state and keep this mutation reusable. */
   reset(): void;
+  /** Abort active runs, clear state and permanently release this mutation. */
+  dispose(): void;
 }
 
 export function mutation<TArgs, TResult>(
@@ -415,21 +419,52 @@ export function mutation<TArgs, TResult>(
   const controllers = new Set<AbortController>();
   let inFlight = 0;
   let generation = 0;
+  let disposed = false;
   const debugTarget = {};
   if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:create", debugTarget);
 
+  const abortError = (): DOMException =>
+    new DOMException("The operation was aborted.", "AbortError");
+
+  const clear = (): void => {
+    generation++;
+    for (const controller of controllers) controller.abort();
+    controllers.clear();
+    inFlight = 0;
+    loading.set(false);
+    error.set(null);
+    data.set(undefined);
+  };
+
+  const isCurrent = (
+    controller: AbortController,
+    runGeneration: number,
+  ): boolean =>
+    !disposed &&
+    !controller.signal.aborted &&
+    runGeneration === generation;
+
   const settle = (ac: AbortController, runGeneration: number): void => {
-    controllers.delete(ac);
-    if (runGeneration !== generation) return;
+    // A run can enter catch after its success path settled (for example when
+    // a hostile invalidation iterator throws). Settlement must stay exactly
+    // once or the shared counter can go negative and poison later runs.
+    if (!controllers.delete(ac)) return;
+    // `abortPrevious` cancels an older controller without advancing the
+    // generation, so that run must still leave the shared in-flight count.
+    // reset()/dispose() advance the generation and already reset the count.
+    if (disposed || runGeneration !== generation) return;
     inFlight--;
     if (inFlight === 0) loading.set(false);
   };
 
-  return {
+  const instance: Mutation<TArgs, TResult> = {
     loading,
     error,
     data,
     async run(args) {
+      if (disposed) {
+        throw new Error("[mado:mutation] mutation is disposed");
+      }
       // Mutations are concurrent by default — only abort the previous run when
       // explicitly opted in (search-as-you-type). (FABLE_REPORT.md finding #6)
       if (options.abortPrevious) {
@@ -444,44 +479,74 @@ export function mutation<TArgs, TResult>(
       error.set(null);
       try {
         const result = await fetcher(args, ac.signal);
-        if (ac.signal.aborted) {
-          throw new DOMException("aborted", "AbortError");
-        }
+        if (!isCurrent(ac, runGeneration)) throw abortError();
         data.set(result);
+        if (!isCurrent(ac, runGeneration)) throw abortError();
         if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:success", debugTarget, { args, result, generation });
         settle(ac, runGeneration);
+        if (!isCurrent(ac, runGeneration)) throw abortError();
         const inv = options.invalidates;
         if (inv) {
-          let patterns: readonly string[] = [];
           try {
-            patterns = typeof inv === "function" ? inv(result, args) : inv;
+            const patterns = typeof inv === "function" ? inv(result, args) : inv;
+            if (!isCurrent(ac, runGeneration)) throw abortError();
+            for (const p of patterns) {
+              invalidate(p);
+              if (!isCurrent(ac, runGeneration)) throw abortError();
+            }
           } catch (err) {
-            // Invalidation is best-effort. Don't fail the mutation because of it.
-            reportError("resource", "mutation-invalidates", "mutation invalidation threw", err);
+            // Disposal/reset wins over best-effort invalidation: callers must
+            // observe that this owner no longer accepts the result.
+            if (!isCurrent(ac, runGeneration)) throw abortError();
+            try {
+              reportError(
+                "resource",
+                "mutation-invalidates",
+                "mutation invalidation threw",
+                err,
+              );
+            } catch {
+              // Diagnostics are best-effort too; never convert an already
+              // committed write into a failure because a devtools hook threw.
+            }
+            // Diagnostics are synchronous extension points. A listener may
+            // dispose/reset the mutation while observing this failure.
+            if (!isCurrent(ac, runGeneration)) throw abortError();
           }
-          for (const p of patterns) invalidate(p);
         }
         return result;
       } catch (err) {
-        if (!ac.signal.aborted) {
-          error.set(err instanceof Error ? err : new Error(String(err)));
+        const failure = isCurrent(ac, runGeneration) ? err : abortError();
+        if (isCurrent(ac, runGeneration)) {
+          error.set(
+            failure instanceof Error ? failure : new Error(String(failure)),
+          );
         }
-        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:error", debugTarget, { args, error: err, generation });
+        if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:error", debugTarget, { args, error: failure, generation });
         settle(ac, runGeneration);
-        throw err;
+        throw failure;
       }
     },
     reset() {
+      if (disposed) return;
       if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("mutation:reset", debugTarget, { generation });
-      generation++;
-      for (const c of controllers) c.abort();
-      controllers.clear();
-      inFlight = 0;
-      loading.set(false);
-      error.set(null);
-      data.set(undefined);
+      clear();
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      clear();
+      if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) {
+        emitDevtools("mutation:dispose", debugTarget, { generation });
+      }
     },
   };
+
+  // Page/component mutations are owned by that lifecycle. Mutations created
+  // at module scope have no active lifecycle and remain explicitly shared.
+  getCurrentLifecycle()?.onDispose(instance.dispose);
+
+  return instance;
 }
 
 

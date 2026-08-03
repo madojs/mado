@@ -110,7 +110,8 @@ will not discover it.
 ## Mutations
 
 ```ts
-const save = mutation((values: Profile) => api.save(values), {
+const save = mutation((values: Profile, signal) =>
+  api.save(values, { signal }), {
   invalidates: ["/api/profile"],
 });
 const form = useForm({ initial: { displayName: "" } });

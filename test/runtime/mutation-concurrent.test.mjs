@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 
 const { mutation, resource } = await import("../../dist/src/resource.js");
 const { createLifecycle, runInLifecycle } = await import("../../dist/src/lifecycle.js");
+const { installDevtoolsHook } = await import("../../dist/src/devtools-hook.js");
 
 function deferred() {
   let resolve;
@@ -155,4 +156,229 @@ test("reset isolates later runs from promises started before reset", async () =>
   assert.equal(await newRun, "new");
   assert.equal(save.loading(), false);
   assert.equal(save.data(), "new");
+});
+
+test("the complete invalidation phase is best-effort after success", async () => {
+  let throwWhileIterating = true;
+  const reports = [];
+  const originalError = console.error;
+  const invalidates = new Proxy([], {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator && throwWhileIterating) {
+        return () => {
+          throw new Error("broken invalidation iterator");
+        };
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const save = mutation(async (value) => value, { invalidates });
+
+  try {
+    console.error = (...args) => reports.push(args);
+    assert.equal(await save.run("first"), "first");
+    assert.equal(save.data(), "first");
+    assert.equal(save.error(), null);
+    assert.equal(save.loading(), false);
+
+    throwWhileIterating = false;
+    assert.equal(await save.run("second"), "second");
+    assert.equal(save.loading(), false, "the second run must settle back to idle");
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.equal(reports.length, 1);
+  assert.match(String(reports[0]?.[0]), /mutation-invalidates/);
+});
+
+test("disposal from an invalidation diagnostic still wins over success", async () => {
+  const originalError = console.error;
+  const brokenPatterns = new Proxy([], {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) {
+        return () => {
+          throw new Error("broken invalidation iterator");
+        };
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const save = mutation(async () => "committed", {
+    invalidates: brokenPatterns,
+  });
+  const uninstall = installDevtoolsHook({
+    version: 1,
+    emit(event) {
+      if (
+        event.kind === "diagnostic:error" &&
+        event.data?.code === "mutation-invalidates"
+      ) {
+        save.dispose();
+      }
+    },
+  });
+
+  try {
+    console.error = () => {};
+    await assert.rejects(save.run(undefined), (error) =>
+      error?.name === "AbortError"
+    );
+  } finally {
+    console.error = originalError;
+    uninstall();
+  }
+
+  assert.equal(save.loading(), false);
+  assert.equal(save.error(), null);
+  assert.equal(save.data(), undefined);
+});
+
+test("lifecycle disposal aborts a mutation and suppresses late state and invalidation", async () => {
+  const gate = deferred();
+  const lifecycle = createLifecycle();
+  let invalidations = 0;
+  let capturedSignal;
+
+  const targetLifecycle = createLifecycle();
+  const target = runInLifecycle(targetLifecycle, () =>
+    resource(
+      () => "lifecycle/target",
+      async (key) => {
+        invalidations++;
+        return key;
+      },
+      { staleTime: 60_000 },
+    ),
+  );
+  await wait(0);
+  assert.equal(invalidations, 1);
+
+  const save = runInLifecycle(lifecycle, () =>
+    mutation(
+      async (_value, signal) => {
+        capturedSignal = signal;
+        await gate.promise;
+        return "late result";
+      },
+      { invalidates: ["lifecycle/*"] },
+    ),
+  );
+
+  const pending = save.run("value");
+  assert.equal(save.loading(), true);
+  assert.equal(capturedSignal?.aborted, false);
+
+  lifecycle.dispose();
+  lifecycle.dispose();
+  assert.equal(capturedSignal?.aborted, true);
+  assert.equal(save.loading(), false);
+  assert.equal(save.error(), null);
+  assert.equal(save.data(), undefined);
+
+  gate.resolve();
+  await assert.rejects(pending, (error) => error?.name === "AbortError");
+  await wait(0);
+  assert.equal(invalidations, 1, "a disposed mutation must not invalidate");
+  assert.equal(target.data(), "lifecycle/target");
+  await assert.rejects(save.run("again"), {
+    message: "[mado:mutation] mutation is disposed",
+  });
+
+  targetLifecycle.dispose();
+});
+
+test("module-scoped mutations stay detached when run inside another lifecycle", async () => {
+  const gate = deferred();
+  const targetLifecycle = createLifecycle();
+  let invalidations = 0;
+  const target = runInLifecycle(targetLifecycle, () =>
+    resource(
+      () => "detached/target",
+      async (key) => {
+        invalidations++;
+        return key;
+      },
+      { staleTime: 60_000 },
+    ),
+  );
+  await wait(0);
+
+  let capturedSignal;
+  const shared = mutation(
+    async (value, signal) => {
+      capturedSignal = signal;
+      await gate.promise;
+      return value * 2;
+    },
+    { invalidates: ["detached/*"] },
+  );
+  const unrelatedLifecycle = createLifecycle();
+  const pending = runInLifecycle(unrelatedLifecycle, () => shared.run(4));
+
+  unrelatedLifecycle.dispose();
+  assert.equal(capturedSignal?.aborted, false);
+  gate.resolve();
+  assert.equal(await pending, 8);
+  await wait(0);
+  assert.equal(invalidations, 2, "the detached run still invalidates normally");
+  assert.equal(target.data(), "detached/target");
+
+  shared.reset();
+  assert.equal(await shared.run(5), 10);
+  shared.dispose();
+  shared.dispose();
+  assert.equal(shared.loading(), false);
+  assert.equal(shared.error(), null);
+  assert.equal(shared.data(), undefined);
+  targetLifecycle.dispose();
+});
+
+test("dispose aborts every concurrent run and is terminal", async () => {
+  const gates = [deferred(), deferred()];
+  const signals = [];
+  const save = mutation(async (index, signal) => {
+    signals[index] = signal;
+    await gates[index].promise;
+    return index;
+  });
+
+  const first = save.run(0);
+  const second = save.run(1);
+  assert.equal(save.loading(), true);
+
+  save.dispose();
+  save.dispose();
+  assert.deepEqual(signals.map((signal) => signal.aborted), [true, true]);
+  assert.equal(save.loading(), false);
+  assert.equal(save.error(), null);
+  assert.equal(save.data(), undefined);
+
+  gates[0].resolve();
+  gates[1].resolve();
+  await assert.rejects(first, (error) => error?.name === "AbortError");
+  await assert.rejects(second, (error) => error?.name === "AbortError");
+  save.reset();
+  await assert.rejects(save.run(2), {
+    message: "[mado:mutation] mutation is disposed",
+  });
+});
+
+test("a mutation created inside an already disposed lifecycle is terminal", async () => {
+  const lifecycle = createLifecycle();
+  lifecycle.dispose();
+  let calls = 0;
+
+  const save = runInLifecycle(lifecycle, () =>
+    mutation(async () => {
+      calls++;
+      return "unexpected";
+    }),
+  );
+
+  await assert.rejects(save.run(undefined), {
+    message: "[mado:mutation] mutation is disposed",
+  });
+  assert.equal(calls, 0);
+  assert.equal(save.loading(), false);
 });

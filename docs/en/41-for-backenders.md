@@ -146,10 +146,12 @@ user.loading(); // boolean
 
 // mutation (like POST/PUT)
 const save = mutation<User, User>(
-  (u) =>
-    fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then((r) =>
-      r.json(),
-    ),
+  (u, signal) =>
+    fetch("/api/users", {
+      method: "POST",
+      body: JSON.stringify(u),
+      signal,
+    }).then((r) => r.json()),
   { invalidates: ["/api/users*"] }, // glob invalidation — like `cache.Drop("users:*")`
 );
 
@@ -334,10 +336,12 @@ export default page({
 import { useForm, mutation } from "@madojs/mado";
 
 const createUser = mutation<NewUser, User>(
-  (u) =>
-    fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then((r) =>
-      r.json(),
-    ),
+  (u, signal) =>
+    fetch("/api/users", {
+      method: "POST",
+      body: JSON.stringify(u),
+      signal,
+    }).then((r) => r.json()),
   { invalidates: ["/api/users*"] },
 );
 

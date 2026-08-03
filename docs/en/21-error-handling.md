@@ -60,9 +60,10 @@ const form = useForm({
   validate: (values, { signal }) => api.validateUser(values, { signal }),
 });
 
-const save = mutation((values) => api.post("/users", values), {
-  invalidates: ["/api/users*"],
-});
+const save = mutation(
+  (values, signal) => api.post("/users", values, { signal }),
+  { invalidates: ["/api/users*"] },
+);
 
 html`
   <form @submit=${form.onSubmit(async values => {
@@ -89,10 +90,33 @@ map; editing a field clears its external field error and the now-stale `$form`
 error, while `reset()` clears the map. Mutation state still owns network,
 authorization and non-field failures.
 
+If a page or component is disposed while `mutation().run()` is pending, Mado
+synchronously aborts the signal and clears the mutation's local state. A
+fetcher that passes the signal to `fetch()` rejects promptly with a DOM
+`AbortError`; a fetcher that ignores it cannot reject until it eventually
+settles, but its stale result and invalidation remain suppressed. Do not
+present `AbortError` as a confirmed transport stop or server rejection:
+aborting locally does not roll back a write that already reached the server.
+Recover through an authoritative read or repeat the same idempotent command
+key.
+
+```ts
+try {
+  await save.run(command);
+} catch (error) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    // The owning view left. A later owner must read authoritative state.
+    return;
+  }
+  throw error;
+}
+```
+
 ## Component cleanup
 
 If you subscribe to external browser APIs, clean them with `ctx.onDispose()`.
-Signals, effects and resources created inside setup are lifecycle-aware.
+Signals, effects, resources and mutations created inside setup are
+lifecycle-aware.
 
 ```ts
 component("x-online", (ctx) => {

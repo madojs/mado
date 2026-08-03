@@ -81,9 +81,10 @@ const user = resource(() => `/api/users/${id()}`, jsonFetcher());
 const save = mutation(api.save, { invalidates: ["/api/users*"] });
 ```
 
-Resources and effects created in a page view or component setup are disposed
-with that owner. An intentionally standalone resource must have an integration
-owner that eventually calls its idempotent `dispose()`.
+Resources, mutations and effects created in a page view or component setup are
+disposed with that owner. An intentionally standalone resource or mutation
+must have an integration owner that eventually calls its idempotent
+`dispose()`.
 
 ### One way to describe a page
 

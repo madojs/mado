@@ -3,9 +3,8 @@
  *
  * Core idea: when a component-setup runs, we push the current
  * "lifecycle" — an object with onDispose() — onto a module-local stack.
- * Any function like resource() that creates long-lived subscriptions
- * (timers, listeners, network subscriptions) can call getCurrentLifecycle()
- * and register its own cleanup.
+ * Any lifecycle-aware helper such as resource(), mutation(), or effect()
+ * can call getCurrentLifecycle() and register its own cleanup.
  *
  * This avoids leaks on component unmount — without explicitly threading
  * ComponentContext into every helper.
@@ -15,7 +14,7 @@
  *   // in component.ts
  *   runInLifecycle(myLifecycle, () => setup(ctx));
  *
- *   // in resource.ts
+ *   // in a lifecycle-aware helper
  *   const lc = getCurrentLifecycle();
  *   if (lc) lc.onDispose(() => abort.abort());
  *   else console.warn('[mado] resource() outside component — cleanup must be manual');

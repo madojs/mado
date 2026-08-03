@@ -65,6 +65,7 @@ output also needs the exact owning package identity or version.
 | v1 stability contract  | [32-v1-stability.md](./32-v1-stability.md)                 |
 | Migration 0.12 → 0.13  | [33-migration-0.12-0.13.md](./33-migration-0.12-0.13.md)   |
 | Migration 0.13 → 0.14  | [34-migration-0.13-0.14.md](./34-migration-0.13-0.14.md)   |
+| Migration 0.16 → 0.17  | [35-migration-0.16-0.17.md](./35-migration-0.16-0.17.md)   |
 
 ### Meta
 

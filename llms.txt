@@ -254,7 +254,7 @@ component(
 - `ctx.attr("name", "default")` returns a `Signal<string>` that
   auto-updates on attribute changes.
 - `ctx.onDispose(fn)` registers cleanup for raw APIs (`setInterval`,
-  `WebSocket`); `resource()` / `effect()` clean themselves up.
+  `WebSocket`); `resource()` / `mutation()` / `effect()` clean themselves up.
 - `{ shadow: false }` exists only for an autonomous custom element that MUST
   live in the light DOM, for example so its native controls participate in an
   ancestor form or so the document can address the custom-element host by tag
@@ -270,7 +270,7 @@ const users = resource(
   { staleTime: 30_000 },
 );
 
-const create = mutation((u) => api.create(u), {
+const create = mutation((u, signal) => api.create(u, { signal }), {
   invalidates: ["/api/users*"],
 });
 ```
@@ -279,8 +279,12 @@ Cache identity is the key plus fetcher. `staleTime: 0` only de-dupes an
 in-flight request; positive values expire automatically. `mutation().run()` is concurrent by default;
 `{ abortPrevious: true }` keeps only the latest in flight.
 `invalidates` runs after a successful mutation and is best-effort.
-Page/component resources clean themselves up; an intentionally standalone
-resource must be released with its idempotent `dispose()`.
+Page/component resources and mutations clean themselves up. Intentionally
+standalone instances live outside an active lifecycle and must be released
+with idempotent `dispose()`. Mutation fetchers must forward their second
+`AbortSignal`; ignored signals delay promise rejection but never allow stale
+state or invalidation. A lifecycle-aborted write may have committed on the
+server; recover through a fresh read or the same idempotency key.
 
 ## Forms
 

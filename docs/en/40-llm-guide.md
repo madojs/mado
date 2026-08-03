@@ -670,9 +670,10 @@ export default page({
 });
 ```
 
-`resource()` and `effect()` created inside `view()` are cleaned up
-automatically on navigation. Only raw browser APIs need explicit
-`onDispose`:
+`resource()`, `mutation()` and `effect()` created inside `view()` are cleaned
+up automatically on navigation. A mutation abort is not a server rollback;
+use a fresh read or the same idempotency key when its outcome is unknown. Only
+raw browser APIs need explicit `onDispose`:
 
 - `setInterval` / `setTimeout`
 - `addEventListener` on `window` / `document`

@@ -182,13 +182,14 @@ const user = resource(
   { staleTime: 60_000 },
 );
 
-const save = mutation(api.saveUser, {
+const save = mutation((user, signal) => api.saveUser(user, { signal }), {
   invalidates: ["/api/users*"],
 });
 ```
 
 Cache, loading/error state, abort, refresh, optimistic `mutate()`,
-glob-based invalidation. Lifecycle-aware inside components.
+glob-based invalidation. Resources and mutations created by pages/components
+are lifecycle-owned; standalone instances expose idempotent `dispose()`.
 
 ### Forms — browser constraint validation
 

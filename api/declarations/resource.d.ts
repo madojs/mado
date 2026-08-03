@@ -10,8 +10,9 @@
  *   3. resource returns three signals: data/error/loading, plus
  *      refresh()/mutate()/invalidate().
  *
- * mutation(fetcher) — a wrapper for POST/PUT/DELETE. After a successful run
- * it can invalidate specified resource keys (exact match or prefix-glob 'users/*').
+ * mutation(fetcher) — a lifecycle-owned wrapper for POST/PUT/DELETE. After a
+ * successful run it can invalidate specified resource keys (exact match or
+ * prefix-glob 'users/*'). Module-scoped mutations remain explicitly shared.
  *
  * No runtime dependencies: only fetch + AbortController + signals.
  */
@@ -66,8 +67,9 @@ export interface MutationOptions<TArgs = unknown, TResult = unknown> {
      *   - a function of result and args:
      *     `(result, args) => [${'`'}posts/${result.id}${'`'}, 'feed/*']`
      *
-     * The function is called AFTER a successful request. If it throws — the error
-     * is logged to console, but the mutation success is preserved (invalidation is best-effort).
+     * Invalidation runs AFTER a successful request. Any error while resolving or
+     * applying its patterns is logged, but the mutation success is preserved
+     * (invalidation is best-effort).
      *
      * Only `*` at the END of a pattern is supported (see invalidate()).
      */
@@ -92,8 +94,10 @@ export interface Mutation<TArgs, TResult> {
     data: Signal<TResult | undefined>;
     /** Execute. Returns a Promise. */
     run(args: TArgs): Promise<TResult>;
-    /** Reset error/data state. */
+    /** Abort active runs, clear state and keep this mutation reusable. */
     reset(): void;
+    /** Abort active runs, clear state and permanently release this mutation. */
+    dispose(): void;
 }
 export declare function mutation<TArgs, TResult>(fetcher: (args: TArgs, signal: AbortSignal) => Promise<TResult>, options?: MutationOptions<TArgs, TResult>): Mutation<TArgs, TResult>;
 /**

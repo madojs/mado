@@ -46,7 +46,7 @@ Rules of thumb:
 `effect()` cleanups run before the next run and on disposal. Inside a
 component or a page they happen automatically when the host leaves
 the DOM. Outside, keep and call the disposer returned by `effect()`;
-standalone resources similarly expose `resource.dispose()`.
+standalone resources and mutations similarly expose idempotent `dispose()`.
 
 ## Templates
 
@@ -206,9 +206,13 @@ export default page({
 });
 ```
 
-`resource()` and `effect()` subscribe to the active lifecycle automatically.
-`mutation()` represents an explicit write that may legitimately finish after
-navigation; call `reset()` when the owner intentionally wants to abort it.
+`resource()`, `effect()` and `mutation()` bind to the active lifecycle
+automatically. Leaving a page or removing a component disposes its mutations,
+aborts their pending signals and suppresses late state or invalidation. An
+aborted write may still have committed on the server, so recover with a fresh
+read or the same idempotency key rather than assuming rollback. Create a
+mutation outside an active lifecycle only when it intentionally has a longer,
+explicit owner.
 
 ## Further reading
 

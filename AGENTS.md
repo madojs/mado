@@ -125,7 +125,7 @@ component("x-timer", (ctx) => {
 });
 ```
 
-**`resource()`, `effect()`, and subscriptions inside `setup()` hook into the lifecycle automatically** — no need to write onDispose for them.
+**`resource()`, `mutation()`, `effect()`, and subscriptions inside `setup()` hook into the lifecycle automatically** — no need to write onDispose for them.
 
 ### 4b. Reactive attributes — `ctx.attr()`
 
@@ -284,7 +284,7 @@ status.set(null);                 // remove ?status
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared
   chrome. Put per-page state in pages/components/resources, not in layout view
   locals that depend on route identity.
-- **`onDispose`** — cleanup hook for page views. Use for `setInterval`, `WebSocket`, `EventSource`. `resource()` and `effect()` are auto-cleaned.
+- **`onDispose`** — cleanup hook for page views. Use for `setInterval`, `WebSocket`, `EventSource`. `resource()`, `mutation()` and `effect()` are auto-cleaned.
 - **`untracked()`** — an advanced escape hatch for excluding a read from your
   own `effect()`. Page/component setup is already isolated from parent
   tracking; never add `untracked()` merely because code runs in `view()`.
@@ -324,7 +324,11 @@ const user = resource(
 // user.data() / user.error() / user.loading() / user.refresh() / user.mutate()
 
 const save = mutation<User, User>(
-  (u) => fetch("/api/users", { method: "POST", body: JSON.stringify(u) }).then(r => r.json()),
+  (u, signal) => fetch("/api/users", {
+    method: "POST",
+    body: JSON.stringify(u),
+    signal,
+  }).then(r => r.json()),
   { invalidates: ["/api/users*"] },  // glob invalidation
 );
 await save.run(newUser);
@@ -336,6 +340,15 @@ await save.run(newUser);
 - `mutation().run()` is concurrent by default. `loading()` stays true while any
   run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
   "latest request wins" flows.
+- A mutation created in page/component setup is disposed automatically. Move
+  it to module/application-service scope only when it intentionally outlives
+  navigation, and call its idempotent `dispose()` from that longer-lived owner.
+- Mutation fetchers must pass their second `AbortSignal` argument to `fetch()`
+  or to an API client that honors it. If they ignore it, Mado still suppresses
+  stale state and invalidation, but `run()` cannot reject until the fetcher
+  eventually settles.
+- Lifecycle abort does not prove that a server write failed. Recover with a
+  fresh read or the same idempotency key; never generate an automatic retry.
 - Invalidation is best-effort after a successful mutation; invalidation errors
   are logged but do not turn the mutation itself into a failure.
 

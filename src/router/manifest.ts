@@ -106,8 +106,8 @@ interface RoutesContext {
   guardRedirects: number;
   /**
    * Lifecycle of the page currently visible on screen. Disposed and
-   * replaced on every navigation so that resource() / effect() / persisted()
-   * subscriptions created inside page.view() are cleaned up exactly when
+   * replaced on every navigation so that resource() / mutation() / effect() /
+   * persisted() work created inside page.view() is cleaned up exactly when
    * the page leaves — no leak, no "resource-outside-lifecycle" warning.
    */
   activeLifecycle: LifecycleHandle | null;
@@ -208,8 +208,8 @@ export function routes(
   const origDispose = api.dispose;
   api.dispose = () => {
     activeRoutes.delete(ctx);
-    // Tear down the last page's lifecycle so its resource()/effect()
-    // subscriptions are released when the whole router is disposed
+    // Tear down the last page's lifecycle so its resource()/mutation()/effect()
+    // work is released when the whole router is disposed
     // (test isolation, hot reload, etc.).
     ctx.activeLifecycle?.dispose();
     ctx.activeLifecycle = null;
@@ -221,7 +221,7 @@ export function routes(
 /**
  * Open a fresh page lifecycle for the current render, disposing the
  * previous page's lifecycle. Called right before any page.view() or
- * layout.view() runs so that resource()/effect() created inside view
+ * layout.view() runs so that resource()/mutation()/effect() created inside view
  * find a `getCurrentLifecycle()` and register their cleanup with it.
  *
  * This is the single canonical place where page-level lifecycle is
@@ -706,7 +706,8 @@ function renderWithLayouts(
   assertSynchronousLoad(data, "page.load");
 
   // Expose onDispose to page views so they can clean up timers, manual
-  // subscriptions, etc. that aren't auto-managed by resource()/effect().
+  // subscriptions, etc. that aren't auto-managed by
+  // resource()/mutation()/effect().
   const lc = getCurrentLifecycle();
   if (!lc) {
     throw new Error(

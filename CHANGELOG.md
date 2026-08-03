@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.17.0 - 2026-08-03
+
+### Breaking
+
+- `mutation()` instances created inside a page or component now belong to that
+  lifecycle. Teardown aborts their supplied signals, clears local state and
+  suppresses late state updates and cache invalidation. Mutations that must
+  outlive navigation belong at module or application-service scope.
+
+### Added
+
+- `Mutation.dispose()` provides idempotent, terminal cleanup for intentionally
+  standalone mutations. `reset()` remains the reusable abort-and-clear API.
+
+### Fixed
+
+- The complete post-success invalidation phase is best-effort: callback,
+  iteration, invalidator and diagnostic failures can no longer turn an already
+  committed write into a rejected mutation. Lifecycle or reset cancellation
+  still wins through a canonical `AbortError` and generation fence.
+
+### Documentation
+
+- Data, error-handling and AI-facing guidance now define mutation ownership,
+  `AbortSignal` forwarding and the ambiguous server outcome of a cancelled
+  write. A dedicated 0.16 → 0.17 migration guide covers manual cleanup and
+  detached ownership.
+
 ## 0.16.1 - 2026-07-31
 
 ### Fixed

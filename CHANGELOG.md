@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.18.0 - 2026-08-06
+
+### Added
+
+- Route guards receive a public `GuardContext` with decoded `params`, the
+  pathname-and-query `path`, and a router-owned `AbortSignal`. Superseding
+  pathname or query navigation and router disposal abort stale guard work.
+- `ResourceOptions.retainPreviousData` defaults to `true` and can be disabled
+  for identity-, permission- and filter-scoped resources that must clear data
+  immediately when their reactive key changes.
+- An empty resource key is a first-class disabled sentinel. It cancels pending
+  work, performs no fetch or invalidation, and keeps refresh semantics explicit.
+
+### Fixed
+
+- Shared resources now isolate fetcher identities, forced generations and
+  reader-specific freshness while preserving correct in-flight deduplication,
+  cache retention, abort ownership and newest-result authority under reentrant
+  refresh, invalidation and late-settlement races.
+- Router navigation now coordinates every live router as one document-level
+  pathname-and-query transaction, including delayed View Transitions,
+  reentrant abort handlers, query-only guard restarts and same-URL history
+  traversal.
+- Scroll restoration is reference-counted across multiple routers and keyed by
+  History entries instead of URLs, so distinct entries with the same URL retain
+  independent positions without discarding application-owned history state.
+- Route targets normalize dot segments before applying a deployment base and
+  reject cross-origin paths before writing browser history. Self-redirecting
+  guards halt with the same deterministic loop boundary as multi-route loops.
+
+### Documentation
+
+- Routing, data, lifecycle, deployment, cookbook, starter and AI-facing guides
+  now describe cancellable guard work, disabled resources, previous-data
+  retention and the framework-owned navigation contracts proven by the
+  Trajet Voisin application.
+
 ## 0.17.0 - 2026-08-03
 
 ### Breaking

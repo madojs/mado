@@ -83,6 +83,46 @@ test("resource inside component cleans up on disconnect", async () => {
   );
 });
 
+test("component disposal aborts a pending resource and fences a late result", async () => {
+  let resolveFetch;
+  let requestSignal;
+  let resourceRef;
+  const fetcher = (_key, signal) => {
+    requestSignal = signal;
+    return new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+  };
+
+  const tag = "x-test-pending-" + Math.random().toString(36).slice(2, 8);
+  component(tag, () => {
+    resourceRef = resource(() => "/api/pending", fetcher, {
+      staleTime: 60_000,
+    });
+    return html`<div>pending</div>`;
+  });
+
+  const el = document.createElement(tag);
+  document.body.appendChild(el);
+  if (typeof el.connectedCallback === "function") el.connectedCallback();
+  flushSync();
+  assert.equal(resourceRef.loading(), true);
+  assert.equal(requestSignal.aborted, false);
+
+  document.body.removeChild(el);
+  if (typeof el.disconnectedCallback === "function") el.disconnectedCallback();
+  await microtasks();
+  flushSync();
+
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(resourceRef.loading(), false);
+  resolveFetch("late");
+  await microtasks();
+  assert.equal(resourceRef.data(), undefined);
+  assert.equal(resourceRef.error(), null);
+  assert.equal(resourceRef.loading(), false);
+});
+
 test("standalone resource exposes idempotent explicit disposal", async () => {
   const fetcher = (_k, _s) => Promise.resolve(1);
 

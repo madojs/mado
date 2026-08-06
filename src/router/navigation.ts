@@ -25,9 +25,9 @@ export interface RouterApi {
   view: () => TemplateResult;
   /** Current path as a signal. */
   path: () => string;
-  /** Programmatic navigation. */
+  /** Programmatic navigation. No-op after dispose(). */
   navigate(to: string, opts?: { replace?: boolean }): void;
-  /** Remove all listeners and release resources. */
+  /** Remove listeners, cancel delayed navigation writes and release resources. */
   dispose(): void;
 }
 
@@ -54,6 +54,198 @@ export interface RouterOptions {
    * Default true.
    */
   focusManagement?: boolean;
+}
+
+interface RouterLocation {
+  /** Route pathname with the configured application base removed. */
+  pathname: string;
+  search: string;
+  hash: string;
+}
+
+type LocationChangeHook = (
+  previous: RouterLocation,
+  next: RouterLocation,
+) => void;
+
+interface LocationHooks {
+  /** Fence work before a possibly-delayed ViewTransition applies history. */
+  beforeChange?: LocationChangeHook;
+  /** Reconcile work after the browser location has actually changed. */
+  change?: LocationChangeHook;
+}
+
+interface ActiveLocationSync {
+  sync(): void;
+  beforeChange?: LocationChangeHook;
+  saveScroll(): void;
+  commitLocationKey(): void;
+  restoreScroll?: () => void;
+  resetFocus?: () => void;
+}
+
+/**
+ * History belongs to the document, not to an individual router instance.
+ * Keep every live router's location signal aligned when one RouterApi writes
+ * through pushState()/replaceState(), which do not emit popstate themselves.
+ */
+const activeLocationSyncs = new Set<ActiveLocationSync>();
+let locationWriteGeneration = 0;
+const handledPopEvents = new WeakSet<object>();
+const programmaticPopEvents = new WeakSet<object>();
+let scrollRestorationOwners = 0;
+let scrollRestorationHistory:
+  | (History & { scrollRestoration?: "auto" | "manual" })
+  | null = null;
+let originalScrollRestoration: "auto" | "manual" | undefined;
+const HISTORY_ENTRY_STATE_KEY = "__madoRouterEntry";
+const historyEntrySession = Math.random().toString(36).slice(2);
+let historyEntrySequence = 0;
+
+function currentRouterLocation(): RouterLocation {
+  return {
+    pathname: stripBase(location.pathname),
+    search: location.search,
+    hash: location.hash,
+  };
+}
+
+function syncActiveRoutersFromLocation(): void {
+  for (const active of activeLocationSyncs) active.sync();
+}
+
+function preflightActiveRouters(
+  previous: RouterLocation,
+  next: RouterLocation,
+): void {
+  for (const active of activeLocationSyncs) {
+    active.beforeChange?.(previous, next);
+  }
+}
+
+function recoverActiveRoutersAtCurrentLocation(): void {
+  const current = currentRouterLocation();
+  preflightActiveRouters(current, current);
+}
+
+function saveActiveRouterScrollPositions(): void {
+  for (const active of activeLocationSyncs) active.saveScroll();
+}
+
+function commitActiveRouterLocationKeys(): void {
+  for (const active of activeLocationSyncs) active.commitLocationKey();
+}
+
+function restoreActiveRouterScrollPosition(): void {
+  for (const active of activeLocationSyncs) {
+    if (!active.restoreScroll) continue;
+    active.restoreScroll();
+    return;
+  }
+}
+
+function resetActiveRouterFocus(): void {
+  for (const active of activeLocationSyncs) {
+    if (!active.resetFocus) continue;
+    active.resetFocus();
+    return;
+  }
+}
+
+/**
+ * A popstate event is document-wide. Every live router must save its previous
+ * position before any router restores the destination, then publish pathname
+ * and query as one reactive transaction. Manifest change hooks synchronously
+ * dispose the previous page lifecycle before either signal can flush.
+ */
+function coordinatePopState(event: Event): void {
+  const eventObject = event as object;
+  if (handledPopEvents.has(eventObject)) return;
+  handledPopEvents.add(eventObject);
+  queueMicrotask(() => {
+    handledPopEvents.delete(eventObject);
+    programmaticPopEvents.delete(eventObject);
+  });
+
+  const programmatic = programmaticPopEvents.has(eventObject);
+  if (!programmatic) {
+    // A browser traversal supersedes every delayed History API write.
+    locationWriteGeneration++;
+    // History can contain adjacent entries with the exact same URL. In that
+    // case syncLocation() legitimately deduplicates, but a delayed write may
+    // already have invalidated the current guard authority during preflight.
+    recoverActiveRoutersAtCurrentLocation();
+    saveActiveRouterScrollPositions();
+  }
+  batch(() => {
+    syncActiveRoutersFromLocation();
+    syncQueryBusFromLocation();
+  });
+  commitActiveRouterLocationKeys();
+
+  if (programmatic) {
+    if (location.hash) scrollToHash(location.hash);
+    else scrollToTop();
+    scheduleFocusReset();
+    return;
+  }
+  restoreActiveRouterScrollPosition();
+  resetActiveRouterFocus();
+}
+
+function acquireScrollRestoration(): () => void {
+  const hist = history as History & {
+    scrollRestoration?: "auto" | "manual";
+  };
+  if (!("scrollRestoration" in hist)) return () => {};
+
+  if (scrollRestorationOwners === 0) {
+    try {
+      originalScrollRestoration = hist.scrollRestoration;
+      hist.scrollRestoration = "manual";
+      scrollRestorationHistory = hist;
+    } catch {
+      scrollRestorationHistory = null;
+      originalScrollRestoration = undefined;
+      return () => {};
+    }
+  } else if (scrollRestorationHistory !== hist) {
+    // A browser document has one History object. Keep an unexpected foreign
+    // implementation from corrupting the owner count in tests or adapters.
+    return () => {};
+  }
+
+  scrollRestorationOwners++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    scrollRestorationOwners--;
+    if (scrollRestorationOwners !== 0) return;
+    try {
+      if (scrollRestorationHistory && originalScrollRestoration !== undefined) {
+        scrollRestorationHistory.scrollRestoration = originalScrollRestoration;
+      }
+    } catch {
+      /* noop */
+    }
+    scrollRestorationHistory = null;
+    originalScrollRestoration = undefined;
+  };
+}
+
+function routerLocationFromUrl(url: string): RouterLocation {
+  const resolved = new URL(url, location.href);
+  if (resolved.origin !== location.origin) {
+    throw new TypeError(
+      "[mado:router] navigate() accepts same-origin route paths only",
+    );
+  }
+  return {
+    pathname: stripBase(resolved.pathname),
+    search: resolved.search,
+    hash: resolved.hash,
+  };
 }
 
 /**
@@ -89,14 +281,16 @@ export function _routerWithInitialFallback(
   routes: Routes,
   options: RouterOptions,
   initialFallbackPath: string | null,
+  locationHooks?: LocationHooks,
 ): RouterApi {
-  return createRouter(routes, options, initialFallbackPath);
+  return createRouter(routes, options, initialFallbackPath, locationHooks);
 }
 
 function createRouter(
   routes: Routes,
   options: RouterOptions,
   initialFallbackPath: string | null,
+  locationHooks?: LocationHooks,
 ): RouterApi {
   const useViewTransitions = options.viewTransitions !== false;
   const useScrollRestoration = options.scrollRestoration !== false;
@@ -112,29 +306,50 @@ function createRouter(
   const cleanups: Array<() => void> = [];
   const scrollPositions = new Map<string, { top: number; left: number }>();
   let currentScrollKey = locationKey();
+  let observedLocation = currentRouterLocation();
+  let pendingLocationWrite: number | null = null;
   let disposed = false;
 
-  const hist = history as History & { scrollRestoration?: "auto" | "manual" };
-  const previousScrollRestoration = hist.scrollRestoration;
-  if (useScrollRestoration && "scrollRestoration" in hist) {
-    try {
-      hist.scrollRestoration = "manual";
-      cleanups.push(() => {
-        hist.scrollRestoration = previousScrollRestoration;
-      });
-    } catch {
-      /* noop */
+  const syncLocation = () => {
+    if (disposed) return;
+    const next = currentRouterLocation();
+    const previous = observedLocation;
+    if (
+      previous.pathname === next.pathname &&
+      previous.search === next.search &&
+      previous.hash === next.hash
+    ) {
+      return;
     }
-  }
+    observedLocation = next;
+    locationHooks?.change?.(previous, next);
+    path.set(next.pathname);
+  };
+  const activeLocationSync: ActiveLocationSync = {
+    sync: syncLocation,
+    beforeChange: locationHooks?.beforeChange,
+    saveScroll: () => {
+      if (useScrollRestoration) {
+        saveScroll(scrollPositions, currentScrollKey);
+      }
+    },
+    commitLocationKey: () => {
+      currentScrollKey = locationKey();
+    },
+    restoreScroll: useScrollRestoration
+      ? () => restoreScroll(scrollPositions, currentScrollKey)
+      : undefined,
+    resetFocus: useFocusManagement ? scheduleFocusReset : undefined,
+  };
+  activeLocationSyncs.add(activeLocationSync);
+  cleanups.push(() => activeLocationSyncs.delete(activeLocationSync));
+
+  if (useScrollRestoration) cleanups.push(acquireScrollRestoration());
 
   // -- popstate
-  const onPop = () => {
+  const onPop = (event: Event) => {
     if (disposed) return;
-    if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
-    currentScrollKey = locationKey();
-    path.set(stripBase(location.pathname));
-    if (useScrollRestoration) restoreScroll(scrollPositions, currentScrollKey);
-    if (useFocusManagement) scheduleFocusReset();
+    coordinatePopState(event);
   };
   window.addEventListener("popstate", onPop);
   cleanups.push(() => window.removeEventListener("popstate", onPop));
@@ -212,6 +427,7 @@ function createRouter(
 
   const api: RouterApi = {
     view: () => {
+      if (disposed) return html``;
       // Keep the route path as this binding's sole dependency. Route handlers
       // may create/read local signals while building their TemplateResult;
       // those values are reactive only when explicitly placed in a template
@@ -228,22 +444,56 @@ function createRouter(
     },
     path,
     navigate(to, opts) {
+      if (disposed) return;
       // `to` is a ROUTE path (no base). Re-add the active base before we
       // touch history so the browser URL has the correct prefix.
       const url = toBrowserUrl(to);
+      const previous = currentRouterLocation();
+      const next = routerLocationFromUrl(url);
+      const writeGeneration = ++locationWriteGeneration;
+      // Claim this document write before preflight: abort listeners are user
+      // code and may dispose this router while guards are being cancelled.
+      // dispose() can then restore the still-current manifest authority.
+      pendingLocationWrite = writeGeneration;
+      preflightActiveRouters(previous, next);
+      // Guard abort listeners are user code and may synchronously navigate
+      // through this or another RouterApi. The outer write loses document
+      // ownership before it is allowed to register a delayed transition.
+      if (disposed || writeGeneration !== locationWriteGeneration) {
+        if (pendingLocationWrite === writeGeneration) {
+          pendingLocationWrite = null;
+        }
+        return;
+      }
+      let applied = false;
       const apply = () => {
-        if (useScrollRestoration) saveScroll(scrollPositions, currentScrollKey);
-        if (opts?.replace) history.replaceState(null, "", url);
-        else history.pushState(null, "", url);
-        currentScrollKey = locationKey();
+        if (applied) return;
+        applied = true;
+        if (pendingLocationWrite === writeGeneration) {
+          pendingLocationWrite = null;
+        }
+        if (disposed || writeGeneration !== locationWriteGeneration) return;
+        saveActiveRouterScrollPositions();
+        try {
+          if (opts?.replace) {
+            history.replaceState(historyStateForWrite(true), "", url);
+          } else {
+            history.pushState(historyStateForWrite(false), "", url);
+          }
+        } catch (err) {
+          // Preflight may already have invalidated the current guard. If the
+          // History write itself fails, restore authority for the unchanged URL.
+          recoverActiveRoutersAtCurrentLocation();
+          throw err;
+        }
         // pushState/replaceState do not emit popstate. Apply both pieces of
-        // reactive location state together so query-only navigations are not
-        // swallowed by path signal deduplication and path + query consumers
-        // never observe a half-updated location.
+        // reactive location state together across every live router so query
+        // consumers and route guards never observe a half-updated document.
         batch(() => {
+          syncActiveRoutersFromLocation();
           syncQueryBusFromLocation();
-          path.set(stripBase(location.pathname));
         });
+        commitActiveRouterLocationKeys();
         // An in-page #hash must scroll to its target even when the pathname is
         // unchanged (signal dedup would otherwise swallow the navigation and
         // leave anchor links dead). (FABLE_REPORT.md finding #9)
@@ -261,11 +511,17 @@ function createRouter(
         };
       };
       if (useViewTransitions && typeof doc.startViewTransition === "function") {
-        const transition = doc.startViewTransition(apply);
-        // A visual transition may be skipped after the navigation update
-        // succeeds. Its ready promise rejects in that case and must be handled
-        // so a progressive enhancement does not become a page error.
-        void transition.ready.catch(() => {});
+        try {
+          const transition = doc.startViewTransition(apply);
+          // A visual transition may be skipped after the navigation update
+          // succeeds. Its ready promise rejects in that case and must be handled
+          // so a progressive enhancement does not become a page error.
+          void transition.ready.catch(() => {});
+        } catch {
+          // View Transitions are progressive enhancement. A synchronous API
+          // failure falls back to the same guarded History transaction.
+          apply();
+        }
       } else {
         apply();
       }
@@ -273,6 +529,18 @@ function createRouter(
     dispose() {
       if (disposed) return;
       disposed = true;
+      // A delayed transition may already have invalidated another live
+      // manifest router. Cancelling the latest document write by disposing its
+      // owner must restore the still-current route's guard authority.
+      const recoverCurrentAuthority =
+        pendingLocationWrite !== null &&
+        pendingLocationWrite === locationWriteGeneration;
+      pendingLocationWrite = null;
+      activeLocationSyncs.delete(activeLocationSync);
+      if (recoverCurrentAuthority) {
+        locationWriteGeneration++;
+        recoverActiveRoutersAtCurrentLocation();
+      }
       for (const c of cleanups.splice(0)) {
         try {
           c();
@@ -328,18 +596,70 @@ function defaultFallback(): CompiledRoute {
 export function navigate(to: string, opts?: { replace?: boolean }): void {
   if (typeof history === "undefined" || typeof window === "undefined") return;
   const url = toBrowserUrl(to);
-  if (opts?.replace) history.replaceState(null, "", url);
-  else history.pushState(null, "", url);
+  const previous = currentRouterLocation();
+  const next = routerLocationFromUrl(url);
+  const writeGeneration = ++locationWriteGeneration;
+  preflightActiveRouters(previous, next);
+  // Guard abort listeners are user code and may synchronously start a newer
+  // navigation. The outer write loses document ownership in that case.
+  if (writeGeneration !== locationWriteGeneration) return;
+  saveActiveRouterScrollPositions();
+  try {
+    if (opts?.replace) {
+      history.replaceState(historyStateForWrite(true), "", url);
+    } else {
+      history.pushState(historyStateForWrite(false), "", url);
+    }
+  } catch (err) {
+    recoverActiveRoutersAtCurrentLocation();
+    throw err;
+  }
   // popstate is NOT dispatched automatically on pushState/replaceState,
   // so we dispatch it manually — all active routers will hear and update.
-  window.dispatchEvent(new PopStateEvent("popstate"));
-  if (location.hash) scrollToHash(location.hash);
-  else scrollToTop();
-  scheduleFocusReset();
+  const event = new PopStateEvent("popstate");
+  programmaticPopEvents.add(event);
+  window.dispatchEvent(event);
+  // navigate() is also valid without a mounted router/queryParam listener.
+  // In that case there was nobody to coordinate the synthetic event.
+  if (!handledPopEvents.has(event)) coordinatePopState(event);
 }
 
 function locationKey(): string {
-  return `${location.pathname}${location.search}${location.hash}`;
+  const entry = historyEntryKey(historyState());
+  if (entry) return `entry:${entry}`;
+  return `url:${location.pathname}${location.search}${location.hash}`;
+}
+
+function historyState(): unknown {
+  try {
+    return history.state;
+  } catch {
+    return undefined;
+  }
+}
+
+function historyEntryKey(state: unknown): string | null {
+  if (state === null || typeof state !== "object") return null;
+  try {
+    const value = (state as Record<string, unknown>)[HISTORY_ENTRY_STATE_KEY];
+    return typeof value === "string" && value ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function historyStateForWrite(replace: boolean): Record<string, unknown> {
+  const current = historyState();
+  const next =
+    current !== null && typeof current === "object" && !Array.isArray(current)
+      ? { ...(current as Record<string, unknown>) }
+      : {};
+  const existing = historyEntryKey(current);
+  next[HISTORY_ENTRY_STATE_KEY] =
+    replace && existing
+      ? existing
+      : `${historyEntrySession}:${++historyEntrySequence}`;
+  return next;
 }
 
 /**
@@ -476,8 +796,14 @@ function syncQueryBusFromLocation(): void {
 function ensureQueryBus(): Signal<string> {
   if (queryBus) return queryBus;
   queryBus = signal(location.search);
-  window.addEventListener("popstate", syncQueryBusFromLocation);
+  window.addEventListener("popstate", syncQueryLocationFromPopState);
   return queryBus;
+}
+
+function syncQueryLocationFromPopState(event: Event): void {
+  // This listener may have been registered before or after router listeners;
+  // every listener delegates to the same event-scoped transaction.
+  coordinatePopState(event);
 }
 
 function syncQuery(next: URLSearchParams, push: boolean): void {
@@ -485,9 +811,24 @@ function syncQuery(next: URLSearchParams, push: boolean): void {
     /\?$/,
     "",
   );
-  if (push) history.pushState(null, "", url);
-  else history.replaceState(null, "", url);
-  ensureQueryBus().set(location.search);
+  const previous = currentRouterLocation();
+  const nextLocation = routerLocationFromUrl(url);
+  const writeGeneration = ++locationWriteGeneration;
+  preflightActiveRouters(previous, nextLocation);
+  if (writeGeneration !== locationWriteGeneration) return;
+  saveActiveRouterScrollPositions();
+  try {
+    if (push) history.pushState(historyStateForWrite(false), "", url);
+    else history.replaceState(historyStateForWrite(true), "", url);
+  } catch (err) {
+    recoverActiveRoutersAtCurrentLocation();
+    throw err;
+  }
+  batch(() => {
+    syncActiveRoutersFromLocation();
+    ensureQueryBus().set(location.search);
+  });
+  commitActiveRouterLocationKeys();
 }
 
 export interface QueryParam {

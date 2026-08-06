@@ -264,8 +264,8 @@ export default defineConfig({
 });
 ```
 
-Then make every internal anchor go through `routeUrl()` + `data-link`
-so the URL is correct under any base:
+Then make every internal anchor go through `routeUrl()` so its URL is correct
+under any base. Add `data-link` for normal SPA navigation:
 
 ```ts
 import { html, routeUrl } from "@madojs/mado";
@@ -273,6 +273,10 @@ import { html, routeUrl } from "@madojs/mado";
 html`<a data-link href=${routeUrl("/")}>Home</a>`;     // → "/docs/"
 html`<a data-link href=${routeUrl("/guides/intro")}>Intro</a>`;
 ```
+
+If a destination must load a fresh document to change CSP, COOP/COEP or an
+authentication security realm, keep `routeUrl()` and omit `data-link`. A
+History API transition cannot change response headers.
 
 `mado release` honours `base` end-to-end:
 

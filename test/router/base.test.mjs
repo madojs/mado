@@ -41,6 +41,9 @@ test("withBase prefixes route paths", () => {
   assert.equal(withBase("/docs", BASE), "/mado/docs");
   assert.equal(withBase("docs", BASE), "/mado/docs");
   assert.equal(withBase("/docs/", BASE), "/mado/docs/");
+  assert.equal(withBase("/docs?q=1#intro", BASE), "/mado/docs?q=1#intro");
+  assert.equal(withBase("/nested/../outside", BASE), "/mado/outside");
+  assert.throws(() => withBase("//attacker.example/path", BASE), /same-origin/);
 });
 
 test("withBase is idempotent on already-prefixed paths", () => {
@@ -59,6 +62,10 @@ test("routeUrl preserves query and hash", () => {
   assert.equal(routeUrl("/docs?q=1", BASE), "/mado/docs?q=1");
   assert.equal(routeUrl("/docs#h", BASE), "/mado/docs#h");
   assert.equal(routeUrl("/docs?q=1#h", BASE), "/mado/docs?q=1#h");
+  assert.equal(
+    routeUrl("/nested/../docs?q=1#h", BASE),
+    "/mado/docs?q=1#h",
+  );
 });
 
 test("stripBase removes the active prefix", () => {

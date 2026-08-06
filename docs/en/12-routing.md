@@ -145,19 +145,40 @@ throws a clear error at load time.
 A guard is a function returning `true | false | string | { redirect, replace? } | { halt }`:
 
 ```ts
-export function requireAuth(): boolean | string {
-  return isAuthed() ? true : "/login";
-}
+import type { Guard } from "@madojs/mado";
+
+export const requireAuth: Guard = async ({ path, signal }) => {
+  const response = await fetch("/api/session", { signal });
+  if (response.ok) return true;
+  return `/login?return=${encodeURIComponent(path)}`;
+};
 ```
 
 Guards apply outer → inner: layout-group guards run before page
 guards. Static routes refuse all guards (they are public by
 definition).
 
-## Internal links — `routeUrl()` + `data-link`
+The context is `{ params, path, signal }`. `path` includes pathname and query;
+the hash is intentionally excluded from guard identity. Changing either the
+pathname or query aborts the old transaction and runs the matched route's
+guards again. A hash-only navigation keeps the current transaction.
+
+The router owns `signal` and aborts it as soon as a newer navigation
+supersedes the transaction or the router is disposed. Pass it to `fetch()` and
+other abort-aware work. An abort is cancellation, not an authorization
+verdict. Mado still discards the stale verdict and never starts a later guard
+after cancellation if a guard ignores its signal and eventually settles.
+History is document-global, so navigation through any active `RouterApi`,
+`navigate()`, `data-link`, or `queryParam.set()` synchronizes every active
+router before a stale guard can commit.
+Calling `RouterApi.dispose()` also fences a View Transition callback that has
+not applied yet; that disposed handle's later `navigate()` calls are no-ops.
+
+## Internal links — mandatory `routeUrl()`, intentional `data-link`
 
 Vite's `base` flows into `appBase` and `routeUrl()` automatically.
-Internal links MUST use both:
+Every internal anchor MUST generate its `href` with `routeUrl()`. Add
+`data-link` for normal same-document SPA navigation:
 
 ```ts
 import { html, routeUrl } from "@madojs/mado";
@@ -168,12 +189,28 @@ html`<a data-link href=${routeUrl("/")}>Home</a>`;     // → "/mado/" under bas
 
 - `routeUrl(path)` returns a base-prefixed URL (preserves query and
   hash).
-- `data-link` opts the anchor into SPA navigation. A bare
-  `<a href>` performs a full document load — intentional for
-  foreign URLs and downloads.
+- `data-link` opts the anchor into SPA navigation and hover-prefetch.
+- An internal anchor without `data-link` performs a full document load while
+  remaining base-correct because it still uses `routeUrl()`.
 
 The router intercepts links inside open Shadow DOM (it uses
 `event.composedPath()`).
+
+A full same-origin document navigation is required when the destination must
+receive different response security policy—for example CSP, COOP/COEP or a
+separate authentication security realm. Deliberately omit `data-link` in that
+case:
+
+```ts
+html`<a href=${routeUrl("/account/secure")}>Secure account</a>`;
+```
+
+For the programmatic equivalent use
+`location.assign(routeUrl("/account/secure"))`, or `location.replace(...)`
+when the current entry must not stay in history. `navigate()` and
+`RouterApi.navigate()` are History API transitions; they cannot install new
+HTTP response headers. Foreign URLs and downloads also keep native document
+navigation.
 
 ## Programmatic navigation
 

@@ -197,6 +197,11 @@ static tree with the live tree, no hydration protocol or node
 reconciliation. The seed JSON is consumed once so `page.load()` returns
 the same data the server already rendered.
 
+Async route guards receive `{ params, path, signal }`. Forward the
+router-owned `signal` to `fetch()` and abort-aware work. It aborts on a newer
+navigation or router disposal. Cancellation is not an auth verdict; Mado also
+discards any stale result from a guard that ignores the signal.
+
 ## Internal links and base path
 
 Vite's `base` flows automatically into `appBase` and `routeUrl()`. App
@@ -210,9 +215,13 @@ html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
 html`<a data-link href=${routeUrl("/")}>Home</a>`;       // → "/mado/"
 ```
 
-The router only intercepts anchors that opt in with `data-link`. Bare
-`<a href>` performs a full document load (intentional, for foreign URLs
-and downloads).
+The router only intercepts anchors that opt in with `data-link`. Use it for
+normal same-document SPA navigation. Deliberately omit it—but still generate
+the internal `href` with `routeUrl()`—when navigation must load a new document
+to change CSP, COOP/COEP or an authentication security realm. Programmatic
+full navigation is `location.assign(routeUrl(path))` or
+`location.replace(routeUrl(path))`; `navigate()` cannot apply response
+headers. Foreign URLs and downloads also keep native navigation.
 
 URL-backed filters and pagination use the reactive `queryParam()` contract:
 
@@ -275,8 +284,20 @@ const create = mutation((u, signal) => api.create(u, { signal }), {
 });
 ```
 
-Cache identity is the key plus fetcher. `staleTime: 0` only de-dupes an
-in-flight request; positive values expire automatically. `mutation().run()` is concurrent by default;
+Cache identity is the key plus fetcher. `staleTime` is per reader:
+`staleTime: 0` only de-dupes an in-flight request and never erases a completed
+value retained for a positive reader. The empty string disables a resource:
+it does not fetch, react to invalidation or write shared cache through
+`mutate()`, and `refresh()` rejects until the key becomes non-empty.
+Previous-key data is retained while a new key loads by default. Use
+`{ retainPreviousData: false }` for identity-, permission- or filter-scoped
+data that must clear on a reactive key change; initial data, same-key refresh
+and same-key invalidation remain visible. `jsonFetcher<T>()` parses JSON and
+only compile-time casts it to `T`; it performs no runtime Content-Type,
+envelope or DTO validation. Strict APIs own a small native-fetch parser in the
+application, not a generic framework HTTP client.
+
+`mutation().run()` is concurrent by default;
 `{ abortPrevious: true }` keeps only the latest in flight.
 `invalidates` runs after a successful mutation and is best-effort.
 Page/component resources and mutations clean themselves up. Intentionally

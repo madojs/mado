@@ -165,6 +165,10 @@ export default routes({
 html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
 ```
 
+Use `data-link` for normal SPA navigation. A destination that requires a new
+CSP/COOP/auth document realm still uses `routeUrl()` but omits `data-link` so
+the browser performs a full document request.
+
 Lazy loading, layout groups, query params, guards, hover prefetch,
 scroll restoration, error boundary, View Transitions, base-path
 awareness (Vite `base` → runtime `import.meta.env.BASE_URL`). Reactive

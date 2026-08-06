@@ -161,10 +161,29 @@ export type GuardResult =
   | { redirect: string; replace?: boolean };
 
 /**
+ * One router-owned guard transaction.
+ *
+ * `signal` aborts when a newer pathname or query supersedes this transaction,
+ * or when the owning router is disposed. Hash-only navigation does not restart
+ * guards. Guards must pass the signal to `fetch()` and other abort-aware work.
+ * An abort is cancellation, not an authorization verdict; the router continues
+ * to discard every result produced by a stale guard.
+ */
+export interface GuardContext {
+  /** Parameters decoded from the matched route. */
+  params: RouteParams;
+  /** Current browser pathname and query string. */
+  path: string;
+  /** Lifetime of this guard transaction. */
+  signal: AbortSignal;
+}
+
+/**
  * Guard function. Runs before a page (or any page in a layout group) is rendered.
  *
- *   const requireAuth: Guard = ({ path }) => {
- *     if (isLoggedIn()) return;
+ *   const requireAuth: Guard = async ({ path, signal }) => {
+ *     const session = await fetch("/api/session", { signal });
+ *     if (session.ok) return;
  *     return { redirect: `/login?return=${encodeURIComponent(path)}` };
  *   };
  *
@@ -172,10 +191,9 @@ export type GuardResult =
  * first (outer → inner), then the page's own guards. The first non-pass verdict
  * wins.
  */
-export type Guard = (ctx: {
-  params: RouteParams;
-  path: string;
-}) => GuardResult | Promise<GuardResult>;
+export type Guard = (
+  ctx: GuardContext,
+) => GuardResult | Promise<GuardResult>;
 
 export interface Page<
   P extends RouteParams = RouteParams,

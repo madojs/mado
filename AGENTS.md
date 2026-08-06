@@ -280,6 +280,11 @@ status.set("closed", { push: true });
 status.set(null);                 // remove ?status
 ```
 
+- Async guards receive a router-owned `signal`. Pass it to `fetch()` and every
+  abort-aware dependency. It aborts when a newer navigation wins or the router
+  is disposed; cancellation is not an authorization verdict, and stale guard
+  results are discarded even when the guard ignores the signal.
+
 - Layouts are declared in the route manifest via `layout()`. Treat
   `layout.view({ child })` as a stateless wrapper around `${child}` and shared
   chrome. Put per-page state in pages/components/resources, not in layout view
@@ -337,6 +342,19 @@ await save.run(newUser);
 - Resource cache identity is the key **plus the fetcher function identity**.
   Reuse a stable fetcher when two resources should share cache/in-flight work,
   and use distinct keys for distinct query parameters, users or auth scopes.
+- The empty string is the disabled resource key: it does not fetch, react to
+  invalidation or write shared cache through `mutate()`. `refresh()` rejects
+  until the key becomes non-empty. Do not substitute a fake endpoint.
+- `staleTime` is per reader. A zero-stale reader never reuses completed data,
+  but it must not erase a positive shared cache owned by the same key+fetcher.
+- `resource()` retains the previous key's data while the next key loads by
+  default. Set `{ retainPreviousData: false }` for identity-, permission- or
+  filter-scoped projections that must clear immediately on a reactive key
+  change. Same-key refresh/invalidation and the initial load keep their data.
+- `jsonFetcher<T>()` parses JSON and only casts to `T` at compile time. It does
+  not validate Content-Type, envelopes or DTO shapes. Strict transports own a
+  small application fetcher/parser using native `fetch()`; do not invent a
+  generic framework HTTP client.
 - `mutation().run()` is concurrent by default. `loading()` stays true while any
   run is in flight. Use `{ abortPrevious: true }` only for search-as-you-type or
   "latest request wins" flows.
@@ -579,12 +597,12 @@ The modular starter ships a dev-only mock API in `vite.config.ts`
 (`/api/auth/*`, `/api/billing/*`). Disable with `MADO_MOCK_API=0`
 or remove the `devApiMock()` plugin before pointing at a real backend.
 
-## Internal links — always `routeUrl()`
+## Internal links — `routeUrl()` is mandatory
 
 Vite's `base` flows automatically into `appBase` and `routeUrl()`. App
 code MUST use `routeUrl()` for every internal anchor so the URL stays
-correct under `/`, `/mado/` or any sub-path deployment, and MUST opt
-in with `data-link` for SPA navigation:
+correct under `/`, `/mado/` or any sub-path deployment. Add `data-link`
+for normal same-document SPA navigation:
 
 ```ts
 import { routeUrl } from "@madojs/mado";
@@ -592,6 +610,12 @@ import { routeUrl } from "@madojs/mado";
 html`<a data-link href=${routeUrl("/users/42")}>User</a>`;
 html`<a data-link href=${routeUrl("/")}>Home</a>`;        // → "/mado/" under base
 ```
+
+Deliberately omit `data-link` when a same-origin destination requires a full
+document response to change CSP, COOP/COEP or an authentication security
+realm. Keep `routeUrl()` on that anchor. Programmatic equivalents are
+`location.assign(routeUrl(path))` and `location.replace(routeUrl(path))`;
+`navigate()` cannot install new response headers.
 
 `navigate("/users/42")` for programmatic navigation. Both accept route
 paths (no base) and apply the active base internally.

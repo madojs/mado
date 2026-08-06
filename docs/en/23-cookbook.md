@@ -355,7 +355,9 @@ instead of skipping on a machine without an explicit browser override.
 - [ ] Every static page declares `static: true | { paths, initialData }`.
 - [ ] No `paths()` / `initialData()` reads secrets.
 - [ ] No static page is behind a guard.
-- [ ] Internal links go through `routeUrl()` + `data-link`.
+- [ ] Internal anchors go through `routeUrl()`; normal SPA links add
+      `data-link`, while a new CSP/COOP/auth document realm deliberately does
+      not.
 - [ ] `mado release` succeeds locally with Playwright Chromium
       installed.
 - [ ] `mado preview` serves the artefact correctly.

@@ -13,11 +13,11 @@ export interface RouterApi {
     view: () => TemplateResult;
     /** Current path as a signal. */
     path: () => string;
-    /** Programmatic navigation. */
+    /** Programmatic navigation. No-op after dispose(). */
     navigate(to: string, opts?: {
         replace?: boolean;
     }): void;
-    /** Remove all listeners and release resources. */
+    /** Remove listeners, cancel delayed navigation writes and release resources. */
     dispose(): void;
 }
 export interface RouterOptions {

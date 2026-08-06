@@ -15,9 +15,9 @@ import { isAuthed, logout, user } from "../modules/auth/auth.public";
 
 export default page({
   title: "Mado App",
-  // Every internal anchor uses `data-link` + `routeUrl()` so SPA
-  // navigation intercepts the click and the href stays correct under
-  // any Vite `base` (e.g. deploying the app under `/admin/`).
+  // These are normal same-document SPA links: `data-link` opts into router
+  // interception and `routeUrl()` keeps href correct under any Vite `base`
+  // (e.g. deploying the app under `/admin/`).
   view: ({ child }) => html`
     <div class="layout layout--app">
       <header class="app-header">

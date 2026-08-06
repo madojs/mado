@@ -33,20 +33,23 @@ const fakeLocation = {
 let scrollX = 0;
 let scrollY = 0;
 
-function setUrl(url) {
+function setUrl(url, state = null) {
   const u = new URL(url, "http://localhost");
   fakeLocation.pathname = u.pathname;
   fakeLocation.search = u.search;
   fakeLocation.hash = u.hash;
   fakeLocation.href = u.href;
+  fakeHistory.state = state;
 }
 
 const fakeHistory = {
-  pushState(_s, _t, url) {
-    setUrl(url);
+  state: null,
+  scrollRestoration: "auto",
+  pushState(state, _t, url) {
+    setUrl(url, state);
   },
-  replaceState(_s, _t, url) {
-    setUrl(url);
+  replaceState(state, _t, url) {
+    setUrl(url, state);
   },
 };
 
@@ -166,6 +169,81 @@ test("router(): removes window popstate listener after dispose", () => {
   assert.equal(popAfter, popBefore, "after dispose(), popstate is removed");
 });
 
+test("router(): owns history.scrollRestoration until the last router disposes", () => {
+  fakeHistory.scrollRestoration = "auto";
+  const r1 = router({ "/": () => html`<x-one/>` });
+  const r2 = router({ "/": () => html`<x-two/>` });
+
+  assert.equal(fakeHistory.scrollRestoration, "manual");
+  r1.dispose();
+  assert.equal(
+    fakeHistory.scrollRestoration,
+    "manual",
+    "disposing an earlier owner must not re-enable browser restoration",
+  );
+  r2.dispose();
+  assert.equal(fakeHistory.scrollRestoration, "auto");
+});
+
+test("router(): a disposed handle cannot write document history", () => {
+  setUrl("/");
+  const r = router({
+    "/": () => html`<x-home/>`,
+    "/after": () => html`<x-after/>`,
+  });
+
+  r.dispose();
+  r.navigate("/after");
+  assert.equal(fakeLocation.pathname, "/");
+  assert.equal(r.path(), "/");
+});
+
+test("router(): view is inert after dispose", () => {
+  setUrl("/");
+  let viewCalls = 0;
+  const r = router({
+    "/": () => {
+      viewCalls++;
+      return html`<x-home/>`;
+    },
+  });
+
+  void r.view();
+  assert.equal(viewCalls, 1);
+  r.dispose();
+  void r.view();
+  assert.equal(viewCalls, 1);
+});
+
+test("router(): dispose fences a delayed ViewTransition history write", () => {
+  setUrl("/");
+  const previousStartViewTransition = document.startViewTransition;
+  let applyTransition;
+  document.startViewTransition = (apply) => {
+    applyTransition = apply;
+    return { ready: Promise.resolve() };
+  };
+  try {
+    const r = router({
+      "/": () => html`<x-home/>`,
+      "/after": () => html`<x-after/>`,
+    });
+    r.navigate("/after");
+    assert.equal(fakeLocation.pathname, "/");
+
+    r.dispose();
+    applyTransition();
+    assert.equal(fakeLocation.pathname, "/");
+    assert.equal(r.path(), "/");
+  } finally {
+    if (previousStartViewTransition === undefined) {
+      delete document.startViewTransition;
+    } else {
+      document.startViewTransition = previousStartViewTransition;
+    }
+  }
+});
+
 test("two independent router() instances do not interfere during navigation", () => {
   setUrl("/");
   const r1 = router({
@@ -181,14 +259,27 @@ test("two independent router() instances do not interfere during navigation", ()
   r1.navigate("/x");
   assert.equal(r1.path(), "/x", "r1 should react to its own navigate");
 
-  // r2 listens to popstate separately, and its path also reflects location
-  // because pushState changed location. That is expected: both routers observe
-  // location. The important part is that each can render its own view.
+  // History is document-global, so a RouterApi write synchronizes every live
+  // router even though pushState itself does not emit popstate.
+  assert.equal(r2.path(), "/x", "r2 observes r1's document navigation");
   assert.ok(r1.view(), "r1.view() does not throw");
   assert.ok(r2.view(), "r2.view() does not throw");
 
   r1.dispose();
   r2.dispose();
+});
+
+test("router(): rejects cross-origin programmatic targets before writing history", () => {
+  setUrl("/safe");
+  const r = router({ "/safe": () => html`<x-safe/>` });
+
+  assert.throws(
+    () => r.navigate("//attacker.example/path"),
+    /same-origin route path/,
+  );
+  assert.equal(fakeLocation.href, "http://localhost/safe");
+  assert.equal(r.path(), "/safe");
+  r.dispose();
 });
 
 test("router(): handles a skipped View Transition as visual-only failure", () => {
@@ -406,6 +497,72 @@ test("router(): popstate restores saved scroll position", () => {
   fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
 
   assert.deepEqual(scrollCalls.at(-1), { top: 300, left: 0 });
+  r.dispose();
+});
+
+test("router(): multiple routers coordinate back/forward scroll exactly once", () => {
+  setUrl("/");
+  scrollCalls.length = 0;
+  scrollX = 0;
+  scrollY = 300;
+
+  const table = {
+    "/": () => html`<x-home/>`,
+    "/next": () => html`<x-next/>`,
+  };
+  const r1 = router(table);
+  const r2 = router(table);
+
+  r1.navigate("/next");
+  const nextState = fakeHistory.state;
+  scrollX = 0;
+  scrollY = 900;
+
+  const beforeBack = scrollCalls.length;
+  setUrl("/");
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+  assert.equal(scrollCalls.length, beforeBack + 1);
+  assert.deepEqual(scrollCalls.at(-1), { top: 300, left: 0 });
+
+  const beforeForward = scrollCalls.length;
+  setUrl("/next", nextState);
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+  assert.equal(scrollCalls.length, beforeForward + 1);
+  assert.deepEqual(
+    scrollCalls.at(-1),
+    { top: 900, left: 0 },
+    "one router's restore must not corrupt another router's saved map",
+  );
+
+  r1.dispose();
+  r2.dispose();
+});
+
+test("router(): identical-URL history entries keep independent scroll positions", () => {
+  const initialState = { foreign: "preserved" };
+  setUrl("/same-entry", initialState);
+  scrollCalls.length = 0;
+  scrollX = 0;
+  scrollY = 100;
+
+  const r = router({
+    "/same-entry": () => html`<x-same-entry/>`,
+  });
+
+  r.navigate("/same-entry");
+  const secondState = fakeHistory.state;
+  assert.equal(secondState.foreign, "preserved");
+  assert.equal(typeof secondState.__madoRouterEntry, "string");
+  scrollY = 500;
+
+  setUrl("/same-entry", initialState);
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+  assert.deepEqual(scrollCalls.at(-1), { top: 100, left: 0 });
+
+  setUrl("/same-entry", secondState);
+  fakeWindow.dispatchEvent(new PopStateEvent("popstate"));
+  assert.deepEqual(scrollCalls.at(-1), { top: 500, left: 0 });
+
   r.dispose();
 });
 

@@ -29,6 +29,7 @@ import { emitDevtools } from "./devtools-hook.js";
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+  retentionTime: number;
   expires: ReturnType<typeof setTimeout> | null;
 }
 
@@ -38,15 +39,28 @@ interface InFlightEntry<T> {
   controller: AbortController;
   promise: Promise<T>;
   consumers: number;
+  generation: number;
+  invalidationId: number | null;
+  cacheRetention: number;
+  settled: boolean;
+  retired: boolean;
 }
 
 interface FetcherState {
   cache: Map<string, CacheEntry<unknown>>;
   inFlight: Map<string, InFlightEntry<unknown>>;
+  pending: Set<InFlightEntry<unknown>>;
+  generations: Map<string, number>;
 }
 
 const fetcherStates = new Map<ResourceFetcher<unknown>, FetcherState>();
-const invalidators = new Set<(pattern: string) => void>();
+const invalidators = new Set<(pattern: string, invalidationId: number) => void>();
+let nextInvalidationId = 0;
+
+type RequestCause =
+  | { kind: "normal" }
+  | { kind: "refresh" }
+  | { kind: "invalidation"; id: number };
 
 /**
  * Remove from cache all keys matching the pattern, and force
@@ -72,7 +86,24 @@ export function invalidate(pattern: string): void {
     }
     releaseFetcherState(fetcher, state);
   }
-  for (const fn of invalidators) fn(pattern);
+  const invalidationId = ++nextInvalidationId;
+  for (const fn of invalidators) {
+    try {
+      fn(pattern, invalidationId);
+    } catch (err) {
+      try {
+        reportError(
+          "resource",
+          "invalidate-listener",
+          `resource invalidation listener threw for pattern ${JSON.stringify(pattern)}`,
+          err,
+        );
+      } catch {
+        // Invalidation is fan-out. Diagnostics must not prevent later live
+        // resources from observing the same event.
+      }
+    }
+  }
 }
 
 // ---------- resource ----------
@@ -83,6 +114,13 @@ export interface ResourceOptions {
   staleTime?: number;
   /** Initial value shown immediately. */
   initialData?: unknown;
+  /**
+   * Keep the previous key's data visible while a new reactive key loads.
+   * Defaults to true. Set false for identity-, permission-, or filter-scoped
+   * projections where data from the previous key must disappear immediately.
+   * Cached data for the new key is still applied synchronously.
+   */
+  retainPreviousData?: boolean;
 }
 
 export interface Resource<T> {
@@ -94,11 +132,12 @@ export interface Resource<T> {
   loading: () => boolean;
   /** Signal: current key (useful for debugging and DI) */
   key: () => string;
-  /** Force re-run the request. */
+  /** Force a request. Rejects while the empty key keeps the resource disabled. */
   refresh(): Promise<T>;
   /**
    * Locally replace the data (optimistic update).
-   * The cache is also updated.
+   * The cache is also updated for the current non-empty key. While the empty
+   * key keeps the resource disabled, the replacement remains local only.
    */
   mutate(next: T | ((prev: T | undefined) => T)): void;
   /** Stop key tracking, invalidation and the current request. Idempotent. */
@@ -120,7 +159,7 @@ export function resource<T>(
   let releaseInFlight: (() => void) | null = null;
   let requestSeq = 0;
   let lastKey = "";
-  let force = false;
+  let hasKey = false;
   let disposed = false;
 
   // if inside component-setup — auto-cleanup on unmount.
@@ -137,20 +176,30 @@ export function resource<T>(
     );
   }
 
-  const run = (key: string): Promise<T> => {
+  const run = (key: string, cause: RequestCause): Promise<T> => {
     releaseInFlight?.();
     releaseInFlight = null;
     const seq = ++requestSeq;
-    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:request", debugTarget, { key, seq, force });
+    if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:request", debugTarget, { key, seq, cause: cause.kind });
 
-    // if there is a fresh cache and not forced — use it
-    const cached = getFetcherState(fetcher).cache.get(key) as CacheEntry<T> | undefined;
+    // A caller's staleTime is a read policy. It never deletes or weakens a
+    // shared cache entry that another resource may still consider fresh.
+    const state = getFetcherState(fetcher);
+    const cached = state.cache.get(key) as CacheEntry<T> | undefined;
+    const readerRetention = normalizeStaleTime(options.staleTime ?? 0);
     if (
       cached &&
-      !force &&
-      (options.staleTime === Infinity ||
-        Date.now() - cached.timestamp < (options.staleTime ?? 0))
+      cause.kind === "normal" &&
+      (readerRetention === Infinity ||
+        Date.now() - cached.timestamp < readerRetention)
     ) {
+      promoteCacheRetention(
+        fetcher,
+        state,
+        key,
+        cached,
+        readerRetention,
+      );
       data.set(cached.data);
       error.set(null);
       loading.set(false);
@@ -161,9 +210,20 @@ export function resource<T>(
     loading.set(true);
     error.set(null);
 
-    const retained = retainInFlight(key, fetcher, force);
-    releaseInFlight = retained.release;
-    force = false;
+    const retained = retainInFlight(
+      key,
+      fetcher,
+      cause,
+      options.staleTime ?? 0,
+    );
+    // A fetcher is allowed to synchronously call back into refresh(). The
+    // nested run owns the current release token; the displaced outer run must
+    // release itself instead of overwriting that newer token on unwind.
+    if (!disposed && seq === requestSeq && key === lastKey) {
+      releaseInFlight = retained.release;
+    } else {
+      retained.release();
+    }
 
     retained.promise.then(
       (result) => {
@@ -176,7 +236,6 @@ export function resource<T>(
         retained.release();
         if (seq !== requestSeq) return;
         if (key !== lastKey) return;
-        writeCache(fetcher, key, result, options.staleTime ?? 0);
         data.set(result);
         loading.set(false);
         if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("resource:success", debugTarget, { key, seq, result });
@@ -193,23 +252,55 @@ export function resource<T>(
     return retained.promise;
   };
 
+  const enterDisabledState = (keyChanged: boolean): void => {
+    releaseInFlight?.();
+    releaseInFlight = null;
+    requestSeq++;
+    if (keyChanged && options.retainPreviousData === false) {
+      data.set(undefined);
+    }
+    lastKey = "";
+    hasKey = true;
+    error.set(null);
+    loading.set(false);
+  };
+
   // subscribe to key changes
   const stopKeyEffect = effect(() => {
     const key = keyFn();
     keySig.set(key);
-    if (key !== lastKey || force) {
+    const keyChanged = hasKey && key !== lastKey;
+    if (key === "") {
+      if (!hasKey || keyChanged) enterDisabledState(keyChanged);
+      return;
+    }
+    if (!hasKey || keyChanged) {
+      if (keyChanged && options.retainPreviousData === false) {
+        data.set(undefined);
+      }
       lastKey = key;
-      void run(key);
+      hasKey = true;
+      void run(key, { kind: "normal" });
     }
   });
 
   // subscribe to global invalidation
-  const onInv = (pattern: string) => {
+  const onInv = (pattern: string, invalidationId: number) => {
     if (disposed) return;
-    if (matchesPattern(lastKey, pattern)) {
-      force = true;
-      void run(lastKey);
+    const key = untracked(keyFn);
+    const keyChanged = hasKey && key !== lastKey;
+    keySig.set(key);
+    if (key === "") {
+      if (!hasKey || keyChanged) enterDisabledState(keyChanged);
+      return;
     }
+    if (!matchesPattern(key, pattern)) return;
+    if (keyChanged && options.retainPreviousData === false) {
+      data.set(undefined);
+    }
+    lastKey = key;
+    hasKey = true;
+    void run(key, { kind: "invalidation", id: invalidationId });
   };
   invalidators.add(onInv);
 
@@ -240,12 +331,24 @@ export function resource<T>(
       if (disposed) {
         return Promise.reject(new Error("[mado:resource] resource is disposed"));
       }
-      force = true;
       // read key without tracking — otherwise we'd end up inside someone else's effect
       const key = untracked(keyFn);
-      lastKey = key;
+      const keyChanged = hasKey && key !== lastKey;
       keySig.set(key);
-      return run(key);
+      if (key === "") {
+        enterDisabledState(keyChanged);
+        return Promise.reject(
+          new Error(
+            "[mado:resource] cannot refresh while the key is empty; an empty string disables the resource",
+          ),
+        );
+      }
+      if (keyChanged && options.retainPreviousData === false) {
+        data.set(undefined);
+      }
+      lastKey = key;
+      hasKey = true;
+      return run(key, { kind: "refresh" });
     },
     mutate(next) {
       if (disposed) {
@@ -257,7 +360,17 @@ export function resource<T>(
           ? (next as (p: T | undefined) => T)(prev)
           : next;
       data.set(value);
-      if (lastKey) writeCache(fetcher, lastKey, value, options.staleTime ?? 0);
+      const key = untracked(keyFn);
+      if (hasKey && key !== "" && key === lastKey) {
+        const state = getFetcherState(fetcher);
+        writeCache(
+          fetcher,
+          state,
+          key,
+          value,
+          options.staleTime ?? 0,
+        );
+      }
     },
     dispose,
   };
@@ -266,31 +379,83 @@ export function resource<T>(
 function retainInFlight<T>(
   key: string,
   fetcher: ResourceFetcher<T>,
-  force: boolean,
+  cause: RequestCause,
+  staleTime: number,
 ): { promise: Promise<T>; release: () => void } {
   const state = getFetcherState(fetcher);
-  let entry = (!force ? state.inFlight.get(key) : undefined) as
-    | InFlightEntry<T>
-    | undefined;
+  const current = state.inFlight.get(key) as InFlightEntry<T> | undefined;
+  let entry =
+    cause.kind === "normal" ||
+    (cause.kind === "invalidation" &&
+      current?.invalidationId === cause.id)
+      ? current
+      : undefined;
 
   if (!entry) {
     const controller = new AbortController();
-    entry = {
+    const generation = (state.generations.get(key) ?? 0) + 1;
+    state.generations.set(key, generation);
+    let resolveFetch!: (value: T | PromiseLike<T>) => void;
+    let rejectFetch!: (reason?: unknown) => void;
+    const fetchPromise = new Promise<T>((resolve, reject) => {
+      resolveFetch = resolve;
+      rejectFetch = reject;
+    });
+    const createdEntry: InFlightEntry<T> = {
       controller,
       consumers: 0,
-      promise: trackStatic(fetcher(key, controller.signal), `resource ${key}`),
+      generation,
+      invalidationId: cause.kind === "invalidation" ? cause.id : null,
+      cacheRetention: normalizeStaleTime(staleTime),
+      settled: false,
+      retired: false,
+      promise: trackStatic(fetchPromise, `resource ${key}`),
     };
-    entry.promise.then(
-      () => {
-        if (state.inFlight.get(key) === entry) state.inFlight.delete(key);
+    entry = createdEntry;
+    // Publish the complete placeholder before calling user code. A
+    // synchronous reentrant refresh can now displace this entry, and the outer
+    // call cannot overwrite the newer in-flight owner when it unwinds.
+    state.pending.add(createdEntry as InFlightEntry<unknown>);
+    state.inFlight.set(key, createdEntry as InFlightEntry<unknown>);
+    try {
+      resolveFetch(fetcher(key, controller.signal));
+    } catch (err) {
+      rejectFetch(err);
+    }
+    createdEntry.promise.then(
+      (result) => {
+        if (createdEntry.settled) return;
+        createdEntry.settled = true;
+        const authoritative =
+          !createdEntry.retired &&
+          state.inFlight.get(key) === createdEntry &&
+          state.generations.get(key) === createdEntry.generation;
+        removeCurrentInFlight(state, key, createdEntry);
+        if (authoritative) {
+          writeCache(
+            fetcher,
+            state,
+            key,
+            result,
+            createdEntry.cacheRetention,
+          );
+        }
+        state.pending.delete(createdEntry as InFlightEntry<unknown>);
         releaseFetcherState(fetcher, state);
       },
       () => {
-        if (state.inFlight.get(key) === entry) state.inFlight.delete(key);
+        if (createdEntry.settled) return;
+        createdEntry.settled = true;
+        removeCurrentInFlight(state, key, createdEntry);
+        state.pending.delete(createdEntry as InFlightEntry<unknown>);
         releaseFetcherState(fetcher, state);
       },
     );
-    state.inFlight.set(key, entry as InFlightEntry<unknown>);
+  } else {
+    entry.cacheRetention = maxStaleTime(
+      entry.cacheRetention,
+      normalizeStaleTime(staleTime),
+    );
   }
 
   entry.consumers++;
@@ -299,10 +464,15 @@ function retainInFlight<T>(
     if (released) return;
     released = true;
     entry.consumers--;
-    if (entry.consumers === 0 && state.inFlight.get(key) === entry) {
-      entry.controller.abort();
-      state.inFlight.delete(key);
+    if (entry.consumers === 0 && !entry.settled) {
+      // Do not retain an ownerless request forever when a user fetcher ignores
+      // AbortSignal or never settles. Retire and unlink it synchronously;
+      // eventual settlement remains fenced by identity + `retired`.
+      entry.retired = true;
+      removeCurrentInFlight(state, key, entry);
+      state.pending.delete(entry as InFlightEntry<unknown>);
       releaseFetcherState(fetcher, state);
+      entry.controller.abort();
     }
   };
 
@@ -312,7 +482,12 @@ function retainInFlight<T>(
 function getFetcherState<T>(fetcher: ResourceFetcher<T>): FetcherState {
   let state = fetcherStates.get(fetcher as ResourceFetcher<unknown>);
   if (!state) {
-    state = { cache: new Map(), inFlight: new Map() };
+    state = {
+      cache: new Map(),
+      inFlight: new Map(),
+      pending: new Set(),
+      generations: new Map(),
+    };
     fetcherStates.set(fetcher as ResourceFetcher<unknown>, state);
   }
   return state;
@@ -322,34 +497,99 @@ function releaseFetcherState(
   fetcher: ResourceFetcher<unknown>,
   state: FetcherState,
 ): void {
-  if (state.cache.size === 0 && state.inFlight.size === 0) {
+  if (
+    fetcherStates.get(fetcher) === state &&
+    state.cache.size === 0 &&
+    state.pending.size === 0
+  ) {
     fetcherStates.delete(fetcher);
   }
 }
 
+function removeCurrentInFlight<T>(
+  state: FetcherState,
+  key: string,
+  entry: InFlightEntry<T>,
+): boolean {
+  if (state.inFlight.get(key) !== entry) return false;
+  state.inFlight.delete(key);
+  if (state.generations.get(key) === entry.generation) {
+    state.generations.delete(key);
+  }
+  return true;
+}
+
 function writeCache<T>(
   fetcher: ResourceFetcher<T>,
+  state: FetcherState,
   key: string,
   data: T,
   staleTime: number,
 ): void {
-  const state = getFetcherState(fetcher);
-  const previous = state.cache.get(key);
-  if (previous?.expires) clearTimeout(previous.expires);
-  if (staleTime <= 0) {
-    state.cache.delete(key);
+  const previous = state.cache.get(key) as CacheEntry<T> | undefined;
+  const retentionTime = maxStaleTime(
+    previous?.retentionTime ?? 0,
+    normalizeStaleTime(staleTime),
+  );
+  if (retentionTime <= 0) {
     releaseFetcherState(fetcher as ResourceFetcher<unknown>, state);
     return;
   }
-  const entry: CacheEntry<T> = { data, timestamp: Date.now(), expires: null };
-  if (staleTime !== Infinity) {
-    entry.expires = setTimeout(() => {
-      if (state.cache.get(key) === entry) state.cache.delete(key);
-      releaseFetcherState(fetcher as ResourceFetcher<unknown>, state);
-    }, staleTime);
-    (entry.expires as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
-  }
+  if (previous?.expires) clearTimeout(previous.expires);
+  const entry: CacheEntry<T> = {
+    data,
+    timestamp: Date.now(),
+    retentionTime,
+    expires: null,
+  };
   state.cache.set(key, entry as CacheEntry<unknown>);
+  scheduleCacheExpiry(fetcher, state, key, entry);
+}
+
+function promoteCacheRetention<T>(
+  fetcher: ResourceFetcher<T>,
+  state: FetcherState,
+  key: string,
+  entry: CacheEntry<T>,
+  staleTime: number,
+): void {
+  const retentionTime = maxStaleTime(entry.retentionTime, staleTime);
+  if (retentionTime === entry.retentionTime) return;
+  entry.retentionTime = retentionTime;
+  // Promotion extends the original data lifetime. It deliberately does not
+  // rewrite `timestamp`: reading cached data is not a new server result.
+  scheduleCacheExpiry(fetcher, state, key, entry);
+}
+
+function scheduleCacheExpiry<T>(
+  fetcher: ResourceFetcher<T>,
+  state: FetcherState,
+  key: string,
+  entry: CacheEntry<T>,
+): void {
+  if (entry.expires) clearTimeout(entry.expires);
+  entry.expires = null;
+  if (entry.retentionTime === Infinity) return;
+  const remaining = Math.max(
+    0,
+    entry.timestamp + entry.retentionTime - Date.now(),
+  );
+  entry.expires = setTimeout(() => {
+    if (state.cache.get(key) === entry) state.cache.delete(key);
+    releaseFetcherState(fetcher as ResourceFetcher<unknown>, state);
+  }, remaining);
+  (entry.expires as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+}
+
+function normalizeStaleTime(staleTime: number): number {
+  if (staleTime === Infinity) return Infinity;
+  return Math.max(0, staleTime);
+}
+
+function maxStaleTime(left: number, right: number): number {
+  return left === Infinity || right === Infinity
+    ? Infinity
+    : Math.max(left, right);
 }
 
 function matchesPattern(key: string, pattern: string): boolean {
@@ -594,6 +834,11 @@ export class HttpError extends Error {
  * Simple JSON fetcher for resource. Throws HttpError on `!response.ok`,
  * with a parsed body (JSON → text → null) for proper UI error handling.
  *
+ * `T` is a compile-time assertion only. This helper calls Response.json() but
+ * does not validate Content-Type, an API envelope, or the runtime DTO shape.
+ * APIs that require a strict transport contract must provide an
+ * application-owned fetcher/parser and validate their untrusted response.
+ *
  *   const user = resource(() => `/api/users/${id()}`, jsonFetcher());
  */
 export function jsonFetcher<T>(
@@ -634,12 +879,30 @@ export const _testHooks = {
     for (const state of fetcherStates.values()) size += state.cache.size;
     return size;
   },
+  hasFetcherState(fetcher: ResourceFetcher<unknown>): boolean {
+    return fetcherStates.has(fetcher);
+  },
+  pendingSize(fetcher: ResourceFetcher<unknown>): number {
+    return fetcherStates.get(fetcher)?.pending.size ?? 0;
+  },
+  generationSize(fetcher: ResourceFetcher<unknown>): number {
+    return fetcherStates.get(fetcher)?.generations.size ?? 0;
+  },
+  cacheInfo(
+    fetcher: ResourceFetcher<unknown>,
+    key: string,
+  ): { timestamp: number; retentionTime: number } | null {
+    const entry = fetcherStates.get(fetcher)?.cache.get(key);
+    return entry
+      ? { timestamp: entry.timestamp, retentionTime: entry.retentionTime }
+      : null;
+  },
   clearCache(): void {
     for (const state of fetcherStates.values()) {
       for (const entry of state.cache.values()) {
         if (entry.expires) clearTimeout(entry.expires);
       }
-      for (const entry of state.inFlight.values()) entry.controller.abort();
+      for (const entry of state.pending) entry.controller.abort();
     }
     fetcherStates.clear();
   },

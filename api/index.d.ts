@@ -29,7 +29,7 @@ export type { RouterApi, QueryParam, QuerySignal, } from "./router/navigation.js
 export type { RouteHandler, RouteParams, Routes, RoutesMap, } from "./router/match.js";
 export type { RoutesOptions } from "./router/manifest.js";
 export { page, layout } from "./page.js";
-export type { Page, PageContext, PageData, RouteEntry, LayoutRoutes, HeadMeta, StaticPageConfig, Guard, GuardResult, JsonPrimitive, JsonValue, } from "./page.js";
+export type { Page, PageContext, PageData, RouteEntry, LayoutRoutes, HeadMeta, StaticPageConfig, Guard, GuardContext, GuardResult, JsonPrimitive, JsonValue, } from "./page.js";
 export { applyHead } from "./head.js";
 export { resource, mutation, invalidate, jsonFetcher, HttpError, } from "./resource.js";
 export type { Resource, ResourceOptions, Mutation, MutationOptions, } from "./resource.js";

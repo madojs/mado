@@ -95,6 +95,7 @@ export type {
   HeadMeta,
   StaticPageConfig,
   Guard,
+  GuardContext,
   GuardResult,
   JsonPrimitive,
   JsonValue,

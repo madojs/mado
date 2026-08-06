@@ -86,7 +86,16 @@ become SemVer-protected:
 - Advanced lifecycle helpers: `createLifecycle`, `runInLifecycle`,
   `getCurrentLifecycle`.
 - Public TypeScript types exported from `@madojs/mado`, including `FormApi`,
-  `Resource`, `ComponentContext`, `StaticPageConfig` and `HeadMeta`.
+  `Resource`, `ResourceOptions`, `GuardContext`, `ComponentContext`,
+  `StaticPageConfig` and `HeadMeta`.
+
+`GuardContext.signal` is owned by the router and aborts on a superseding
+navigation or router disposal. `ResourceOptions.retainPreviousData` defaults
+to `true`; `false` clears previous-key data only when the reactive key changes.
+An empty resource key is the documented disabled sentinel; it never fetches or
+writes shared cache, and `refresh()` rejects until the key becomes non-empty.
+`jsonFetcher<T>()` parses JSON but its `T` is a compile-time cast, not runtime
+Content-Type, envelope or DTO validation.
 
 ## Internal or unstable
 

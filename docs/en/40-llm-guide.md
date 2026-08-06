@@ -383,7 +383,7 @@ Mado is **zero runtime deps** by design. If AI proposes:
 - **lodash** → use native JS (`Object.entries`, `structuredClone`, etc.);
 - **date-fns** → `Intl.DateTimeFormat`, `Intl.RelativeTimeFormat`;
 - **uuid** → `crypto.randomUUID()`;
-- **axios** → native `fetch` + `jsonFetcher()` from Mado;
+- **axios** → native `fetch`; use `jsonFetcher()` only for the simple JSON case;
 - **classnames** → template literal or an object map.
 
 Runtime deps in user projects are fine. Runtime deps in `@madojs/mado`
@@ -416,13 +416,13 @@ elements.
 
 ---
 
-### Pitfall #16: Shadow DOM links without `data-link`
+### Pitfall #16: accidental document navigation from an SPA link
 
 **Symptom:** clicking a link inside a Web Component causes a full reload,
 or hover-prefetch never fires.
 
 ```ts
-// ❌ Browser will perform a full reload
+// ❌ Raw path bypasses the active base and performs a full reload
 html`<a href="/tickets/42">Open</a>`;
 
 // ✅ Router intercepts the click, even across Shadow DOM
@@ -435,6 +435,24 @@ inside Shadow DOM. Hover-prefetch uses the same path. Use
 
 `routeUrl()` resolves against `import.meta.env.BASE_URL`, so the same
 code works at `/` or under a base path (`/docs/`).
+
+`routeUrl()` is mandatory for every internal anchor; `data-link` is
+intentional. Omit `data-link` when a same-origin target requires a fresh
+document response to change CSP, COOP/COEP or an authentication security
+realm. Keep the base-aware URL:
+
+```ts
+html`<a href=${routeUrl("/account/secure")}>Secure account</a>`;
+```
+
+For programmatic full navigation use `location.assign(routeUrl(path))` or
+`location.replace(routeUrl(path))`. `navigate()` is an SPA History API
+transition and cannot apply new response headers.
+
+Async guards receive a router-owned `signal`; forward it to `fetch()` and
+other abort-aware work. A newer navigation or router disposal aborts it.
+Abort is cancellation, not an authorization decision, and Mado discards stale
+verdicts even when a guard ignores the signal.
 
 ---
 
@@ -472,6 +490,17 @@ This way invalidation subscriptions, abort controllers and effects are
 disposed when the component disconnects. A resource intentionally owned by an
 application integration may stay standalone, but that integration must call
 its idempotent `dispose()`.
+
+Resources retain the previous key's data while a new reactive key loads by
+default. Use `{ retainPreviousData: false }` for identity-, permission- or
+filter-scoped projections that must clear on key change. It does not clear
+`initialData` during the first request or current data during same-key refresh
+and invalidation.
+
+`jsonFetcher<T>()` calls `Response.json()` and compile-time casts the result.
+It does not validate Content-Type, an API envelope or a DTO at runtime. Strict
+APIs should own a small native-fetch parser beside their application contract;
+do not generate a generic Mado HTTP client.
 
 ---
 
@@ -746,7 +775,8 @@ from another explicit root.
 | `jsonFetcher()` with auth             | `apiFetcher()` (attaches Bearer token)       |
 | `setInterval` in page view            | `onDispose(() => clearInterval(id))`         |
 | reactive expression in a template    | `${() => expression}`                        |
-| Internal `<a href>` in components     | `<a data-link href=${routeUrl("/x")}>`       |
+| Normal SPA `<a href>` in components   | `<a data-link href=${routeUrl("/x")}>`       |
+| New CSP/COOP/auth document realm      | `<a href=${routeUrl("/secure")}>`            |
 | SSR / hydration                       | `mado static` (snapshot + atomic takeover)   |
 
 ---
@@ -810,7 +840,8 @@ After implementation, look for any of these and reject:
 - imports from internal Mado package paths instead of its public surfaces;
 - `resource()` created outside a page view/component setup without an explicit
   integration owner that calls `dispose()`;
-- internal links without `data-link` and `routeUrl()`;
+- internal anchors that bypass `routeUrl()`, normal SPA links without
+  `data-link`, or security-realm document links that incorrectly add it;
 - new runtime dependencies or new public framework APIs;
 - assumptions of SSR / hydration / `getServerSideProps`-style hooks.
 

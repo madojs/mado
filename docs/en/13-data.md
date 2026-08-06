@@ -1,7 +1,7 @@
 # Data
 
-> `resource()` reads, `mutation()` writes, `jsonFetcher()` shapes
-> the wire. Backends, auth and modules all sit on top of this layer.
+> `resource()` reads, `mutation()` writes, and `jsonFetcher()` parses the
+> simple JSON case. Backends, auth and modules sit on top of this layer.
 
 Mado does not ship a generic HTTP client because the browser already
 has one. Instead it ships two small primitives that wrap `fetch()`
@@ -13,8 +13,9 @@ into a cache + lifecycle:
   data signals, declarative invalidation of related resources and automatic
   page/component cleanup.
 
-A third helper, `jsonFetcher()`, is the default body parser: parses
-JSON, throws `HttpError` on `!ok`.
+A third helper, `jsonFetcher()`, parses JSON and throws `HttpError` on `!ok`.
+Its generic type parameter is compile-time only; strict wire contracts remain
+application-owned.
 
 ## `resource()`
 
@@ -43,11 +44,29 @@ Rules:
   completed data and an in-flight request across components.
 - Distinct data needs distinct keys. Encode query params, auth scope
   and tenant in the key string itself.
-- A positive `staleTime` is how long completed data is reused; expiry removes
-  it automatically. `0` means in-flight deduplication only, never completed
-  value reuse.
-- `refresh()` resolves to the fetched `T`; `invalidate()` notifies every live
-  matching resource, including resources without a completed cache entry.
+- `staleTime` is a freshness policy of each resource instance. A positive
+  value allows that reader to reuse a recent completed result; `0` means
+  in-flight deduplication only. A `staleTime: 0` reader can refresh shared data,
+  but it never removes a completed value that another reader still considers
+  fresh. When a reader with a longer `staleTime` reuses an entry, Mado extends
+  that entry's retention from the original response timestamp; a cache read
+  does not pretend that the server data is newer than it is.
+- The empty string is the disabled key. While `keyFn()` returns `""`, Mado
+  performs no request, ignores invalidation for that resource and keeps
+  `mutate()` local instead of writing an empty-key cache entry. `refresh()`
+  rejects with a diagnostic error until the key becomes non-empty. Use this
+  sentinel for conditional reads; `null` is not a resource key.
+- Previous-key data remains visible while a new reactive key loads by default.
+  Set `{ retainPreviousData: false }` for identity-, permission- or
+  filter-scoped projections where showing the old key is unsafe or misleading.
+  The option clears only on an actual reactive key change: `initialData` stays
+  visible for the initial request, same-key `refresh()` / `invalidate()` retain
+  the current value, and fresh cached data for the destination key is applied
+  synchronously.
+- `refresh()` resolves to the fetched `T` and always starts its own forced
+  generation. One `invalidate()` event creates one forced request per matching
+  key-and-fetcher pair, which every live matching resource joins, including
+  resources without a completed cache entry.
 - `resource()` inside a `component()` / `page()` cleans itself up
   when the host leaves the DOM.
 - A standalone resource has no implicit owner. Call its idempotent
@@ -119,6 +138,14 @@ try {
 `HttpError` carries `status`, `url` and the parsed body (JSON when
 possible, raw text otherwise). Use it for typed handling in pages
 and guards.
+
+`jsonFetcher<T>()` calls `Response.json()` and then compile-time casts the
+result to `T`. It does **not** prove the response Content-Type, validate an API
+envelope or check a DTO at runtime. Treat remote JSON as untrusted whenever
+that distinction matters. Write a small application-owned fetcher that uses
+native `fetch()`, verifies the required Content-Type/envelope/DTO and returns
+the normalized domain value. That policy belongs next to the API contract;
+Mado deliberately does not grow a generic HTTP client around it.
 
 ## Modular shape — connector → resource → page
 

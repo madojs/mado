@@ -106,7 +106,10 @@ html`<a data-link href=${routeUrl("/about")}>About</a>`;
 `data-link` lets the router intercept the click — including across
 Shadow DOM. `routeUrl()` resolves against `import.meta.env.BASE_URL`,
 so the same code works whether your app is hosted at `/` or at
-`/docs/`.
+`/docs/`. Use this pair for normal SPA links. A same-origin destination that
+must load a fresh CSP, COOP/COEP or authentication security realm keeps
+`routeUrl()` but deliberately omits `data-link`; see
+[Routing](./12-routing.md#internal-links--mandatory-routeurl-intentional-data-link).
 
 ---
 

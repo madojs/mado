@@ -117,7 +117,9 @@ html`<a data-link href=${routeUrl("/billing/invoices")}>Invoices</a>`
 ```
 
 The router only intercepts anchors that opt in with `data-link`; bare
-`<a href>` falls through to a full document load.
+`<a href>` falls through to a full document load. Use `data-link` for normal
+SPA navigation. Deliberately omit it—but keep `routeUrl()`—when a destination
+must load a fresh CSP, COOP/COEP or authentication security realm.
 
 ## Generate files
 

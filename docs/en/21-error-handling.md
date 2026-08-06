@@ -9,12 +9,14 @@ Use a global `errorPage` in `routes()` for lazy import, `load()` and `view()`
 failures.
 
 ```ts
+import { html, routeUrl, routes } from "@madojs/mado";
+
 export default routes(manifest, {
   errorPage: (err) => html`
     <main>
       <h1>Something went wrong</h1>
       <pre>${err.message}</pre>
-      <a data-link href="/">Go home</a>
+      <a data-link href=${routeUrl("/")}>Go home</a>
     </main>
   `,
 });

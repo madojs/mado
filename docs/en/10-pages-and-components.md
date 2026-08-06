@@ -289,8 +289,8 @@ starter README files.
 
 ## What about routing and links?
 
-Internal navigation is base-aware. Always use `routeUrl()` and
-`data-link`:
+Internal navigation is base-aware. Always use `routeUrl()` for an internal
+anchor and add `data-link` for normal same-document SPA navigation:
 
 ```ts
 import { html, routeUrl } from "@madojs/mado";
@@ -299,10 +299,12 @@ html`<a data-link href=${routeUrl("/billing/invoices")}>Invoices</a>`;
 html`<a data-link href=${routeUrl("/")}>Home</a>`;     // → "/mado/" under base
 ```
 
-`data-link` opts the anchor into SPA navigation. A bare `<a href>`
-performs a full document load — that is intentional for foreign
-links and downloads. The router intercepts links inside Shadow DOM
-too (it uses `event.composedPath()`).
+`data-link` opts the anchor into SPA navigation. Deliberately omit it while
+keeping `href=${routeUrl(...)}` when the destination needs a fresh response to
+change CSP, COOP/COEP or an authentication security realm. Foreign links and
+downloads also use native navigation. The router intercepts opted-in links
+inside Shadow DOM too (it uses `event.composedPath()`). See the full
+[document-navigation contract](./12-routing.md#internal-links--mandatory-routeurl-intentional-data-link).
 
 Full router contract: [12-routing.md](./12-routing.md).
 

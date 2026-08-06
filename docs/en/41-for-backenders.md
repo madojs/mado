@@ -159,10 +159,16 @@ await save.run(newUser);
 // automatically: user.data() will update if glob matches
 ```
 
-Resource keys are cache identities. Include the endpoint, query params and data
-shape in the key: two live `resource()` calls with the same key share cached
-data and any in-flight request. If two different fetchers use the same in-flight
-key, Mado warns because that usually means the cache key is too broad.
+Cache identity is the pair of the key string and the exact fetcher function.
+Include the endpoint, query params, auth scope and data shape in the key, and
+reuse one stable fetcher reference when resources should share completed data
+or an in-flight request. The same key used with two different fetcher functions
+is intentionally isolated; Mado does not merge it and does not emit a warning.
+
+An empty key (`""`) disables the resource. It performs no request and ignores
+invalidation until the key becomes non-empty; `refresh()` rejects while it is
+disabled. This is the explicit conditional-fetch contract—do not invent a
+placeholder URL.
 
 If such an abstraction existed in the Go world for server-side caches — we'd all be crying with joy.
 
@@ -305,7 +311,15 @@ More details: [`15-static-snapshots.md`](./15-static-snapshots.md).
 ### CRUD page with a list
 
 ```ts
-import { page, html, resource, each, signal } from "@madojs/mado";
+import {
+  page,
+  html,
+  resource,
+  each,
+  signal,
+  jsonFetcher,
+  routeUrl,
+} from "@madojs/mado";
 
 export default page({
   view: () => {
@@ -321,7 +335,9 @@ export default page({
             users.data() ?? [],
             (u) => u.id,
             (u) => html`
-              <li><a href="/users/${u.id}" data-link>${u.name}</a></li>
+              <li>
+                <a href=${routeUrl(`/users/${u.id}`)} data-link>${u.name}</a>
+              </li>
             `,
           )}
       </ul>

@@ -106,18 +106,27 @@ export function stripBase(pathname: string, base: string = appBase): string {
 export function withBase(pathname: string, base: string = appBase): string {
   const b = normalizeBase(base);
   const p = pathname || "/";
-  const abs = p.startsWith("/") ? p : "/" + p;
-  if (b === "/") return abs;
+  const candidate = p.startsWith("/") ? p : "/" + p;
+  const routeOrigin = "https://mado.invalid";
+  const resolved = new URL(candidate, routeOrigin);
+  if (resolved.origin !== routeOrigin) {
+    throw new TypeError("[mado:base] expected a same-origin route path");
+  }
+  // Normalize dot segments before prefixing. Letting the browser normalize
+  // `/mado/../outside` afterwards would escape a non-root application base.
+  const abs = resolved.pathname;
+  const suffix = resolved.search + resolved.hash;
+  if (b === "/") return abs + suffix;
   // Root route under a non-trivial base must keep the trailing slash so
   // that `<a href>` agrees with the canonical deployment URL shape.
   //   routeUrl("/") with base "/mado/" === "/mado/"   (not "/mado")
-  if (abs === "/") return b;
+  if (abs === "/") return b + suffix;
   // Strip leading slash from abs so we can concatenate with base ("/mado/").
   // If abs already starts with the base prefix, return it unchanged so we
   // do not double-prefix on accident.
-  if (abs === b || abs.startsWith(b)) return abs;
-  if (abs === b.slice(0, -1)) return abs;
-  return b + abs.slice(1);
+  if (abs === b || abs.startsWith(b)) return abs + suffix;
+  if (abs === b.slice(0, -1)) return abs + suffix;
+  return b + abs.slice(1) + suffix;
 }
 
 /**

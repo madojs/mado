@@ -37,6 +37,13 @@ export interface ResourceOptions {
     staleTime?: number;
     /** Initial value shown immediately. */
     initialData?: unknown;
+    /**
+     * Keep the previous key's data visible while a new reactive key loads.
+     * Defaults to true. Set false for identity-, permission-, or filter-scoped
+     * projections where data from the previous key must disappear immediately.
+     * Cached data for the new key is still applied synchronously.
+     */
+    retainPreviousData?: boolean;
 }
 export interface Resource<T> {
     /** Signal: data or undefined */
@@ -47,11 +54,12 @@ export interface Resource<T> {
     loading: () => boolean;
     /** Signal: current key (useful for debugging and DI) */
     key: () => string;
-    /** Force re-run the request. */
+    /** Force a request. Rejects while the empty key keeps the resource disabled. */
     refresh(): Promise<T>;
     /**
      * Locally replace the data (optimistic update).
-     * The cache is also updated.
+     * The cache is also updated for the current non-empty key. While the empty
+     * key keeps the resource disabled, the replacement remains local only.
      */
     mutate(next: T | ((prev: T | undefined) => T)): void;
     /** Stop key tracking, invalidation and the current request. Idempotent. */
@@ -126,6 +134,11 @@ export declare class HttpError extends Error {
 /**
  * Simple JSON fetcher for resource. Throws HttpError on `!response.ok`,
  * with a parsed body (JSON → text → null) for proper UI error handling.
+ *
+ * `T` is a compile-time assertion only. This helper calls Response.json() but
+ * does not validate Content-Type, an API envelope, or the runtime DTO shape.
+ * APIs that require a strict transport contract must provide an
+ * application-owned fetcher/parser and validate their untrusted response.
  *
  *   const user = resource(() => `/api/users/${id()}`, jsonFetcher());
  */

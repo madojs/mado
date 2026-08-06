@@ -37,7 +37,7 @@ import {
   type Routes,
   type RoutesMap,
 } from "./match.js";
-import { stripBase } from "./base.js";
+import { routeUrl, stripBase } from "./base.js";
 import {
   _routerWithInitialFallback,
   navigate,
@@ -104,6 +104,18 @@ interface RoutesContext {
   compiledForPrefetch: Array<{ regex: RegExp; entry: FlatEntry }>;
   renderSeq: number;
   guardRedirects: number;
+  /** Router-owned lifetime for the guard transaction currently in flight. */
+  activeGuardController: AbortController | null;
+  /** Base-free pathname + search owned by the active guard transaction. */
+  activeGuardPath: string | null;
+  /** Route identity whose current render transaction discovered guards. */
+  guardedRoutePath: string | null;
+  /** Route whose lazy modules have not revealed page-level guards yet. */
+  pendingGuardDiscoveryPath: string | null;
+  /** Sequence that owns pendingGuardDiscoveryPath. */
+  pendingGuardDiscoverySeq: number;
+  /** Current route transaction invalidated by a not-yet-committed write. */
+  invalidatedAuthorityPath: string | null;
   /**
    * Lifecycle of the page currently visible on screen. Disposed and
    * replaced on every navigation so that resource() / mutation() / effect() /
@@ -159,6 +171,12 @@ export function routes(
     compiledForPrefetch: [],
     renderSeq: 0,
     guardRedirects: 0,
+    activeGuardController: null,
+    activeGuardPath: null,
+    guardedRoutePath: null,
+    pendingGuardDiscoveryPath: null,
+    pendingGuardDiscoverySeq: 0,
+    invalidatedAuthorityPath: null,
     activeLifecycle: null,
     seedForPathname: null,
   };
@@ -194,6 +212,10 @@ export function routes(
     }
   }
 
+  // A pathname signal intentionally ignores query/hash. Guard authority does
+  // not: GuardContext.path includes search, so a query-only navigation must
+  // invalidate the old verdict and ask the manifest to run the route again.
+  const guardRevision = signal(0);
   const api = _routerWithInitialFallback(
     lowLevel,
     {
@@ -204,9 +226,68 @@ export function routes(
       prefetch: (pathname) => prefetchPathInContext(ctx, pathname),
     },
     captureStaticFallback ? stripBase(location.pathname) : null,
+    {
+      beforeChange: (previous, next) => {
+        const previousGuardPath = previous.pathname + previous.search;
+        const nextGuardPath = next.pathname + next.search;
+        if (previousGuardPath === nextGuardPath) {
+          // A newer write can cancel a delayed transition before it commits.
+          // If that transition already invalidated the still-current route,
+          // restore its authority even though syncLocation() will deduplicate
+          // the identical pathname/search (hash is intentionally excluded).
+          if (ctx.invalidatedAuthorityPath === previousGuardPath) {
+            ctx.invalidatedAuthorityPath = null;
+            // A guarded page may already have queued query-dependent effects.
+            // Dispose its lifecycle synchronously rather than waiting behind
+            // those effects for the revision-driven route render.
+            disposeActiveLifecycle(ctx);
+            guardRevision.update((revision) => revision + 1);
+          }
+          return;
+        }
+        // ViewTransition may delay its callback. Pathname *or query* authority
+        // cannot be allowed to commit an old verdict while it waits.
+        invalidateRouteAuthority(ctx, previousGuardPath);
+      },
+      change: (previous, next) => {
+        const previousGuardPath = previous.pathname + previous.search;
+        const nextGuardPath = next.pathname + next.search;
+        if (previousGuardPath === nextGuardPath) return;
+        const previousNeedsRestart = invalidateRouteAuthority(
+          ctx,
+          previousGuardPath,
+        );
+        if (ctx.invalidatedAuthorityPath === previousGuardPath) {
+          ctx.invalidatedAuthorityPath = null;
+        }
+        if (previous.pathname !== next.pathname) {
+          // Route change is already committed. Tear down the old lifecycle
+          // before navigation.ts publishes a new query value, even when an old
+          // page effect was queued earlier in the same scheduler turn.
+          disposeActiveLifecycle(ctx);
+          ctx.guardedRoutePath = null;
+          ctx.pendingGuardDiscoveryPath = null;
+        } else if (previousNeedsRestart) {
+          disposeActiveLifecycle(ctx);
+          guardRevision.update((revision) => revision + 1);
+        }
+      },
+    },
   );
+  const rawView = api.view;
+  api.view = () => {
+    guardRevision();
+    return rawView();
+  };
   const origDispose = api.dispose;
+  let disposed = false;
   api.dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    abortActiveGuard(ctx);
+    // A guard that ignores AbortSignal may still settle. Make every pending
+    // route transaction stale before it can apply a verdict after disposal.
+    ctx.renderSeq++;
     activeRoutes.delete(ctx);
     // Tear down the last page's lifecycle so its resource()/mutation()/effect()
     // work is released when the whole router is disposed
@@ -233,6 +314,41 @@ export function routes(
 function disposeActiveLifecycle(ctx: RoutesContext): void {
   ctx.activeLifecycle?.dispose();
   ctx.activeLifecycle = null;
+}
+
+function abortActiveGuard(ctx: RoutesContext): void {
+  const controller = ctx.activeGuardController;
+  if (!controller) return;
+  ctx.activeGuardController = null;
+  ctx.activeGuardPath = null;
+  controller.abort();
+}
+
+function invalidateRouteAuthority(
+  ctx: RoutesContext,
+  currentPath: string,
+): boolean {
+  const ownsCurrentPath =
+    ctx.invalidatedAuthorityPath === currentPath ||
+    ctx.guardedRoutePath === currentPath ||
+    ctx.activeGuardPath === currentPath ||
+    (ctx.pendingGuardDiscoveryPath === currentPath &&
+      ctx.pendingGuardDiscoverySeq === ctx.renderSeq);
+  if (!ownsCurrentPath) return false;
+  if (ctx.invalidatedAuthorityPath === currentPath) return true;
+
+  // A newer pathname or query supersedes the verdict immediately. Preserve
+  // the invalidated current identity until a write commits or a newer
+  // same-current navigation explicitly restarts it. Hash is not part of
+  // GuardContext.path and therefore does not invalidate authority by itself.
+  ctx.invalidatedAuthorityPath = currentPath;
+  ctx.renderSeq++;
+  abortActiveGuard(ctx);
+  return true;
+}
+
+function currentGuardPath(): string {
+  return stripBase(location.pathname) + location.search;
 }
 
 function renderInPageLifecycle(
@@ -431,11 +547,26 @@ function renderEntry(
   options: RoutesOptions,
   seq: number,
 ): TemplateResult {
+  const transactionPath = currentGuardPath();
+  if (ctx.invalidatedAuthorityPath === transactionPath) {
+    // A delayed document write already superseded this route transaction.
+    // Imperative/parent re-evaluation of view() must not clear that fence and
+    // start a fresh guard which could redirect over the newer navigation.
+    return html``;
+  }
   if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:navigation", ctx, {
     seq,
     path: typeof location !== "undefined" ? location.pathname + location.search : "/",
     params,
   });
+  // A renderEntry call is a new route transaction. Stop guard-owned network
+  // work from the superseded transaction before loaders or lifecycle work.
+  abortActiveGuard(ctx);
+  ctx.guardedRoutePath = null;
+  ctx.pendingGuardDiscoveryPath = transactionPath;
+  ctx.pendingGuardDiscoverySeq = seq;
+  ctx.invalidatedAuthorityPath = null;
+
   // Navigation owns the currently visible page lifecycle. Dispose it before
   // loaders/guards begin so halted, redirected and failed navigations cannot
   // leave the previous page's effects alive behind a loading shell.
@@ -451,6 +582,7 @@ function renderEntry(
     entry.guards.length > 0 || collectPageGuards(sync.page).length > 0
   );
   if (sync && !hasGuards) {
+    clearPendingGuardDiscovery(ctx, seq);
     setStaticRouterState("render:sync");
     const seed = ctx.seedForPathname?.value;
     try {
@@ -518,10 +650,23 @@ function renderEntry(
         | { kind: "halt" }
         | null = null;
       if (entry.guards.length > 0 || pageGuards.length > 0) {
+        clearPendingGuardDiscovery(ctx, seq);
+        const guardController = new AbortController();
+        ctx.activeGuardController = guardController;
+        const guardPath = currentGuardPath();
+        ctx.activeGuardPath = guardPath;
+        ctx.guardedRoutePath = guardPath;
         verdict = await trackStatic(
-          runGuards([...entry.guards, ...pageGuards], params),
+          runGuards(
+            [...entry.guards, ...pageGuards],
+            params,
+            location.pathname + location.search,
+            guardController.signal,
+          ),
           "route guards",
         );
+      } else {
+        clearPendingGuardDiscovery(ctx, seq);
       }
       resolved = true;
       if (timer) clearTimeout(timer);
@@ -530,8 +675,8 @@ function renderEntry(
         setStaticRouterState(`guard:${verdict.kind}`);
         state.set({ kind: "guard" });
         if (typeof __MADO_DEVTOOLS__ === "undefined" || __MADO_DEVTOOLS__) emitDevtools("router:guard", ctx, { seq, verdict });
-        applyGuardVerdict(ctx, verdict);
-        if (verdict.kind === "halt") {
+        const redirected = applyGuardVerdict(ctx, verdict);
+        if (!redirected) {
           ctx.guardRedirects = 0;
           markStaticRouteReady("halted");
         }
@@ -551,6 +696,7 @@ function renderEntry(
       resolved = true;
       if (timer) clearTimeout(timer);
       if (isStale(ctx, seq)) return;
+      clearPendingGuardDiscovery(ctx, seq);
       const e = err instanceof Error ? err : new Error(String(err));
       ctx.guardRedirects = 0;
       recordStaticError(e);
@@ -592,6 +738,14 @@ function renderEntry(
   }}`;
 }
 
+function clearPendingGuardDiscovery(
+  ctx: RoutesContext,
+  seq: number,
+): void {
+  if (ctx.pendingGuardDiscoverySeq !== seq) return;
+  ctx.pendingGuardDiscoveryPath = null;
+}
+
 function isStale(ctx: RoutesContext, seq: number): boolean {
   return seq !== ctx.renderSeq;
 }
@@ -621,19 +775,26 @@ function collectPageGuards(page: Page): Guard[] {
 async function runGuards(
   guards: Guard[],
   params: RouteParams,
+  path: string,
+  signal: AbortSignal,
 ): Promise<{ kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" } | null> {
-  const path =
-    typeof location !== "undefined" ? location.pathname + location.search : "/";
   for (const g of guards) {
+    if (signal.aborted) return { kind: "halt" };
     let v;
     try {
-      v = await g({ params, path });
+      v = await g({ params, path, signal });
     } catch (err) {
+      // Cancellation belongs to the superseding navigation/disposal and is
+      // not an application error or an authorization denial.
+      if (signal.aborted) return { kind: "halt" };
       // A guard that throws is treated like "halt" — surface the error to the
       // console but do not render the page.
       reportError("router", "guard", "guard threw", err);
       return { kind: "halt" };
     }
+    // A guard is allowed to ignore AbortSignal. Never start the next guard or
+    // normalize a stale verdict after cancellation nevertheless.
+    if (signal.aborted) return { kind: "halt" };
     const verdict = normalizeGuardResult(v);
     if (!verdict) continue;
     return verdict;
@@ -657,18 +818,35 @@ function normalizeGuardResult(
 function applyGuardVerdict(
   ctx: RoutesContext,
   v: { kind: "redirect"; to: string; replace?: boolean } | { kind: "halt" },
-): void {
+): boolean {
   if (v.kind === "redirect") {
-    navigateFromGuard(ctx, v.to, v.replace);
+    return navigateFromGuard(ctx, v.to, v.replace);
   }
   // "halt" — render nothing; caller already aborted.
+  return false;
 }
 
 function navigateFromGuard(
   ctx: RoutesContext,
   to: string,
   replace?: boolean,
-): void {
+): boolean {
+  try {
+    const target = new URL(routeUrl(to), location.href);
+    const targetPath = stripBase(target.pathname) + target.search;
+    if (target.origin === location.origin && targetPath === currentGuardPath()) {
+      reportError(
+        "router",
+        "guard-redirect-loop",
+        `guard redirect loop detected: redirect targets the current route identity; halted at ${to}`,
+        undefined,
+      );
+      return false;
+    }
+  } catch {
+    // Keep navigate() as the single source of truth for invalid target errors.
+  }
+
   ctx.guardRedirects++;
   if (ctx.guardRedirects > MAX_GUARD_REDIRECTS) {
     reportError(
@@ -677,10 +855,11 @@ function navigateFromGuard(
       `guard redirect loop detected: more than ${MAX_GUARD_REDIRECTS} consecutive redirects; halted at ${to}`,
       undefined,
     );
-    return;
+    return false;
   }
 
   navigate(to, { replace: replace ?? true });
+  return true;
 }
 
 /**

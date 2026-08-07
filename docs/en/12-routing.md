@@ -193,6 +193,24 @@ html`<a data-link href=${routeUrl("/")}>Home</a>`;     // → "/mado/" under bas
 - An internal anchor without `data-link` performs a full document load while
   remaining base-correct because it still uses `routeUrl()`.
 
+For a fragment destination, keep the target `id` in the page template that
+commits for that route:
+
+```ts
+html`<a data-link href=${routeUrl("/docs#install")}>Install</a>`;
+html`<section id="install">...</section>`;
+```
+
+A hash-only transition scrolls the already-mounted page without restarting its
+guards or lifecycle. When pathname or query changes, `routes()` waits for the
+destination page and its synchronous nested templates to commit before it
+resolves the target. This also reapplies an initial fragment after a static
+snapshot is replaced by the live page. A target introduced later by unrelated
+asynchronous application work is outside that commit boundary.
+
+Browser back/forward keeps a different contract: the saved scroll position of
+that concrete History entry takes precedence over replaying its fragment.
+
 The router intercepts links inside open Shadow DOM (it uses
 `event.composedPath()`).
 

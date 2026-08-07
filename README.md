@@ -170,8 +170,9 @@ CSP/COOP/auth document realm still uses `routeUrl()` but omits `data-link` so
 the browser performs a full document request.
 
 Lazy loading, layout groups, query params, guards, hover prefetch,
-scroll restoration, error boundary, View Transitions, base-path
-awareness (Vite `base` → runtime `import.meta.env.BASE_URL`). Reactive
+per-entry scroll restoration, commit-aware fragment links, error boundary,
+View Transitions, base-path awareness (Vite `base` → runtime
+`import.meta.env.BASE_URL`). Reactive
 `queryParam()` values follow programmatic navigation, `data-link` and browser
 history changes.
 

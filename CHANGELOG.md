@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.18.1 - 2026-08-07
+
+### Fixed
+
+- Manifest fragment navigation now waits for the destination page template to
+  commit before resolving its target. This preserves anchors across cold lazy
+  routes and the first live takeover of a browser-rendered static page.
+- Deferred fragment work is fenced by the current URL and navigation, isolated
+  between multiple routers, cancelled by replacement, rollback and native
+  history traversal, and supports percent-encoded element IDs.
+
+### Documentation
+
+- Routing guidance now defines fragment timing, the page-commit boundary and
+  the precedence of per-entry scroll restoration during back/forward travel.
+
 ## 0.18.0 - 2026-08-06
 
 ### Added

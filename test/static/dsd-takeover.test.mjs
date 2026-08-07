@@ -166,6 +166,7 @@ function mkProject({ base = "/" } = {}) {
       "  interface Window {",
       "    __MADO_TEST_SETUP_CALLS__?: number;",
       "    __MADO_TEST_RESOURCE_FETCHES__?: number;",
+      "    __MADO_TEST_FRAGMENT_SCROLLS__?: number;",
       "  }",
       "}",
       "",
@@ -242,6 +243,7 @@ function mkProject({ base = "/" } = {}) {
       '        <p>${() => data?.description ?? ""}</p>',
       "      </product-card>",
       '      <pre id="xss-probe">${() => data?.xss ?? ""}</pre>',
+      '      <section id="takeover:target">Fragment target</section>',
       '      <input id="takeover-input" name="draft" .value=${"snapshot"}>',
       '      <picture>',
       '        <source srcset=${`${new URL(routeUrl("/probe.svg"), location.origin).href}?source=1 1x, ${new URL(routeUrl("/probe.svg"), location.origin).href}?source=2 2x`}>',
@@ -629,6 +631,36 @@ test(
           seedRequests.length,
           0,
           "no extra network request for the seed JSON",
+        );
+
+        // A direct fragment can be resolved against the static snapshot before
+        // JavaScript starts. The live route must acknowledge its later atomic
+        // takeover and re-apply the decoded target after that concrete commit.
+        const fragmentPage = await context.newPage();
+        await fragmentPage.addInitScript(() => {
+          const original = Element.prototype.scrollIntoView;
+          Element.prototype.scrollIntoView = function (...args) {
+            if (this.id === "takeover:target") {
+              window.__MADO_TEST_FRAGMENT_SCROLLS__ =
+                (window.__MADO_TEST_FRAGMENT_SCROLLS__ ?? 0) + 1;
+            }
+            return original.apply(this, args);
+          };
+        });
+        await fragmentPage.goto(
+          `http://127.0.0.1:${port}/#takeover%3Atarget`,
+          { waitUntil: "networkidle" },
+        );
+        await fragmentPage.waitForFunction(() => {
+          const app = document.getElementById("app");
+          return app && !app.hasAttribute("data-mado-static");
+        });
+        assert.equal(
+          await fragmentPage.evaluate(
+            () => window.__MADO_TEST_FRAGMENT_SCROLLS__ ?? 0,
+          ),
+          1,
+          "initial encoded fragment is re-applied after live takeover",
         );
       } finally {
         await context.close();

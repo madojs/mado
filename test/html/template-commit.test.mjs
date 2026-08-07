@@ -28,7 +28,7 @@ const {
   flushSync,
   signal,
 } = await import("../../dist/src/signal.js");
-const { _setTemplateOwner } = await import(
+const { _setTemplateOwner, _setTemplatePostCommit } = await import(
   "../../dist/src/html/template-types.js"
 );
 
@@ -96,6 +96,61 @@ test("instantiate keeps refs pending until an explicit post-insertion commit", (
   instance.dispose();
   instance.dispose();
   assert.deepEqual(calls, [true, null], "dispose detaches exactly once");
+});
+
+test("internal post-commit work runs only after a successful live commit", async () => {
+  const calls = [];
+  const result = html`<p>ready</p>`;
+  _setTemplatePostCommit(result, () => calls.push("committed"));
+  const instance = instantiate(result);
+
+  document.body.append(instance.fragment);
+  instance.commit();
+  assert.deepEqual(calls, [], "post-commit work stays outside commit stack");
+  await Promise.resolve();
+  assert.deepEqual(calls, ["committed"]);
+  instance.dispose();
+});
+
+test("failed template commit cancels internal post-commit work", async () => {
+  const calls = [];
+  const result = html`<button
+    ref=${ref((element) => {
+      if (element) throw new Error("commit failed");
+    })}
+  ></button>`;
+  _setTemplatePostCommit(result, () => calls.push("committed"));
+  const instance = instantiate(result);
+  document.body.append(instance.fragment);
+
+  assert.throws(() => instance.commit(), /commit failed/);
+  await Promise.resolve();
+  assert.deepEqual(calls, [], "rolled-back candidates never acknowledge commit");
+});
+
+test("failed same-template update does not acknowledge either rollback candidate", async () => {
+  const root = connectedRoot();
+  const calls = [];
+  const view = (label, callback) => html`
+    <button data-label=${label} ref=${ref(callback)}>${label}</button>
+  `;
+  const current = view("current", () => undefined);
+  _setTemplatePostCommit(current, () => calls.push("current"));
+  render(current, root);
+
+  const failed = view("failed", (element) => {
+    if (element) throw new Error("candidate failed");
+  });
+  _setTemplatePostCommit(failed, () => calls.push("failed"));
+  assert.throws(() => render(failed, root), /candidate failed/);
+  await Promise.resolve();
+
+  assert.deepEqual(
+    calls,
+    ["current"],
+    "the last successful commit survives an immediate failed candidate",
+  );
+  removeRoot(root);
 });
 
 test("nested and keyed refs inherit the connected owner commit boundary", async () => {

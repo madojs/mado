@@ -29,6 +29,7 @@ import {
 } from "./bindings.js";
 import {
   _getTemplateOwner,
+  _getTemplatePostCommit,
   type InstantiatedTemplate,
   type TemplateResult,
 } from "./template-types.js";
@@ -96,9 +97,27 @@ export function instantiate(result: TemplateResult): InstantiatedTemplate {
   const nodes = [...fragment.childNodes];
   let currentValues: readonly unknown[] | undefined;
   let currentOwner: Disposer | undefined;
+  let currentPostCommit: (() => void) | undefined;
+  let postCommitGeneration = 0;
   let committed = false;
   let disposed = false;
   let bindingDepth = 0;
+
+  const schedulePostCommit = (): void => {
+    const callback = currentPostCommit;
+    if (!committed || disposed || !callback) return;
+    const generation = ++postCommitGeneration;
+    queueMicrotask(() => {
+      if (
+        disposed ||
+        generation !== postCommitGeneration ||
+        currentPostCommit !== callback
+      ) {
+        return;
+      }
+      callback();
+    });
+  };
 
   // Resolve all BindingSpec.path → concrete nodes of the cloned
   // fragment. This is done ONCE, in the instance creation phase.
@@ -307,6 +326,7 @@ export function instantiate(result: TemplateResult): InstantiatedTemplate {
 
   const update = (next: TemplateResult): void => {
     const nextOwner = _getTemplateOwner(next);
+    const nextPostCommit = _getTemplatePostCommit(next);
     try {
       updateValues(next.values);
     } catch (error) {
@@ -324,6 +344,12 @@ export function instantiate(result: TemplateResult): InstantiatedTemplate {
     const previousOwner = currentOwner;
     currentOwner = nextOwner;
     if (previousOwner !== nextOwner) previousOwner?.();
+    // Only a successfully adopted candidate supersedes post-commit work from
+    // the last committed result. A failed update rolls its DOM back and must
+    // leave that already-earned callback intact.
+    postCommitGeneration++;
+    currentPostCommit = nextPostCommit;
+    schedulePostCommit();
   };
 
   const disposeInstance = (): void => {
@@ -338,6 +364,8 @@ export function instantiate(result: TemplateResult): InstantiatedTemplate {
       }
     }
     pendingCommits.length = 0;
+    postCommitGeneration++;
+    currentPostCommit = undefined;
     for (const st of childStates.values()) {
       try {
         disposeChildState(st);
@@ -406,6 +434,7 @@ export function instantiate(result: TemplateResult): InstantiatedTemplate {
         }
         throw error;
       }
+      if (!wasCommitted) schedulePostCommit();
     },
     update,
     dispose: disposeInstance,

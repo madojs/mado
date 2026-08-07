@@ -82,6 +82,18 @@ interface ActiveLocationSync {
   commitLocationKey(): void;
   restoreScroll?: () => void;
   resetFocus?: () => void;
+  renderScroll: RouteRenderScrollState;
+}
+
+interface DeferredFragmentScroll {
+  readonly generation: number;
+  readonly location: string;
+  readonly hash: string;
+}
+
+interface RouteRenderScrollState {
+  commitAware: boolean;
+  pending: DeferredFragmentScroll | null;
 }
 
 /**
@@ -93,6 +105,8 @@ const activeLocationSyncs = new Set<ActiveLocationSync>();
 let locationWriteGeneration = 0;
 const handledPopEvents = new WeakSet<object>();
 const programmaticPopEvents = new WeakSet<object>();
+const deferredProgrammaticFragmentEvents = new WeakSet<object>();
+const routeRenderScrollStates = new WeakMap<RouterApi, RouteRenderScrollState>();
 let scrollRestorationOwners = 0;
 let scrollRestorationHistory:
   | (History & { scrollRestoration?: "auto" | "manual" })
@@ -101,6 +115,40 @@ let originalScrollRestoration: "auto" | "manual" | undefined;
 const HISTORY_ENTRY_STATE_KEY = "__madoRouterEntry";
 const historyEntrySession = Math.random().toString(36).slice(2);
 let historyEntrySequence = 0;
+
+function currentRouteLocationKey(): string {
+  return `${location.pathname}${location.search}${location.hash}`;
+}
+
+function sameRenderIdentity(
+  previous: RouterLocation,
+  next: RouterLocation,
+): boolean {
+  return (
+    previous.pathname === next.pathname && previous.search === next.search
+  );
+}
+
+function requestFragmentAfterRouteCommit(hash: string): boolean {
+  const request: DeferredFragmentScroll = {
+    generation: locationWriteGeneration,
+    location: currentRouteLocationKey(),
+    hash,
+  };
+  let requested = false;
+  for (const active of activeLocationSyncs) {
+    if (!active.renderScroll.commitAware) continue;
+    active.renderScroll.pending = request;
+    requested = true;
+  }
+  return requested;
+}
+
+function cancelDeferredFragmentScrolls(): void {
+  for (const active of activeLocationSyncs) {
+    active.renderScroll.pending = null;
+  }
+}
 
 function currentRouterLocation(): RouterLocation {
   return {
@@ -165,12 +213,14 @@ function coordinatePopState(event: Event): void {
   queueMicrotask(() => {
     handledPopEvents.delete(eventObject);
     programmaticPopEvents.delete(eventObject);
+    deferredProgrammaticFragmentEvents.delete(eventObject);
   });
 
   const programmatic = programmaticPopEvents.has(eventObject);
   if (!programmatic) {
     // A browser traversal supersedes every delayed History API write.
     locationWriteGeneration++;
+    cancelDeferredFragmentScrolls();
     // History can contain adjacent entries with the exact same URL. In that
     // case syncLocation() legitimately deduplicates, but a delayed write may
     // already have invalidated the current guard authority during preflight.
@@ -184,8 +234,13 @@ function coordinatePopState(event: Event): void {
   commitActiveRouterLocationKeys();
 
   if (programmatic) {
-    if (location.hash) scrollToHash(location.hash);
-    else scrollToTop();
+    if (location.hash) {
+      if (!deferredProgrammaticFragmentEvents.has(eventObject)) {
+        scrollToHash(location.hash);
+      }
+    } else {
+      scrollToTop();
+    }
     scheduleFocusReset();
     return;
   }
@@ -286,6 +341,53 @@ export function _routerWithInitialFallback(
   return createRouter(routes, options, initialFallbackPath, locationHooks);
 }
 
+/**
+ * Opt a high-level manifest router into fragment work fenced by its concrete
+ * page-template commit. Raw router() keeps its synchronous retry contract.
+ *
+ * @internal
+ */
+export function _enableRouteRenderScroll(api: RouterApi): void {
+  const state = routeRenderScrollStates.get(api);
+  if (!state) return;
+  state.commitAware = true;
+  if (!location.hash) return;
+  state.pending = {
+    generation: locationWriteGeneration,
+    location: currentRouteLocationKey(),
+    hash: location.hash,
+  };
+}
+
+/**
+ * Apply a pending fragment only after the destination page template has
+ * successfully committed. URL and write-generation fences discard stale
+ * lazy-route completions and browser history traversals.
+ *
+ * @internal
+ */
+export function _routeRenderCommitted(
+  api: RouterApi,
+  committedLocation: string,
+): void {
+  const state = routeRenderScrollStates.get(api);
+  const request = state?.pending;
+  if (!state || !request) return;
+  if (
+    request.generation !== locationWriteGeneration ||
+    request.location !== currentRouteLocationKey()
+  ) {
+    state.pending = null;
+    return;
+  }
+  // A previously committed template can still have its acknowledgement queued
+  // when a newer navigation installs a destination fragment intent. Only the
+  // template rendered for that exact browser location may consume it.
+  if (request.location !== committedLocation) return;
+  state.pending = null;
+  scrollToHashNow(request.hash);
+}
+
 function createRouter(
   routes: Routes,
   options: RouterOptions,
@@ -309,6 +411,10 @@ function createRouter(
   let observedLocation = currentRouterLocation();
   let pendingLocationWrite: number | null = null;
   let disposed = false;
+  const renderScroll: RouteRenderScrollState = {
+    commitAware: false,
+    pending: null,
+  };
 
   const syncLocation = () => {
     if (disposed) return;
@@ -340,6 +446,7 @@ function createRouter(
       ? () => restoreScroll(scrollPositions, currentScrollKey)
       : undefined,
     resetFocus: useFocusManagement ? scheduleFocusReset : undefined,
+    renderScroll,
   };
   activeLocationSyncs.add(activeLocationSync);
   cleanups.push(() => activeLocationSyncs.delete(activeLocationSync));
@@ -497,8 +604,15 @@ function createRouter(
         // An in-page #hash must scroll to its target even when the pathname is
         // unchanged (signal dedup would otherwise swallow the navigation and
         // leave anchor links dead). (FABLE_REPORT.md finding #9)
-        if (location.hash) scrollToHash(location.hash);
-        else if (useScrollRestoration) scrollToTop();
+        if (
+          location.hash &&
+          !sameRenderIdentity(previous, next) &&
+          requestFragmentAfterRouteCommit(location.hash)
+        ) {
+          // The manifest's concrete page-template commit owns the scroll.
+        } else if (location.hash) {
+          scrollToHash(location.hash);
+        } else if (useScrollRestoration) scrollToTop();
         if (useFocusManagement) scheduleFocusReset();
       };
 
@@ -536,6 +650,7 @@ function createRouter(
         pendingLocationWrite !== null &&
         pendingLocationWrite === locationWriteGeneration;
       pendingLocationWrite = null;
+      renderScroll.pending = null;
       activeLocationSyncs.delete(activeLocationSync);
       if (recoverCurrentAuthority) {
         locationWriteGeneration++;
@@ -550,6 +665,8 @@ function createRouter(
       }
     },
   };
+
+  routeRenderScrollStates.set(api, renderScroll);
 
   return api;
 }
@@ -618,6 +735,13 @@ export function navigate(to: string, opts?: { replace?: boolean }): void {
   // so we dispatch it manually — all active routers will hear and update.
   const event = new PopStateEvent("popstate");
   programmaticPopEvents.add(event);
+  if (
+    next.hash &&
+    !sameRenderIdentity(previous, next) &&
+    requestFragmentAfterRouteCommit(next.hash)
+  ) {
+    deferredProgrammaticFragmentEvents.add(event);
+  }
   window.dispatchEvent(event);
   // navigate() is also valid without a mounted router/queryParam listener.
   // In that case there was nobody to coordinate the synthetic event.
@@ -714,27 +838,27 @@ function scrollToTop(): void {
 }
 
 function scrollToHash(hash: string): void {
-  const scroll = () => {
-    const target = hashTarget(hash);
-    if (!target) return false;
-    try {
-      target.scrollIntoView({ block: "start", inline: "nearest" });
-    } catch {
-      try {
-        target.scrollIntoView();
-      } catch {
-        /* noop */
-      }
-    }
-    return true;
-  };
-
-  if (scroll()) return;
+  if (scrollToHashNow(hash)) return;
   // New-route hash targets are often rendered by the reactive route effect
   // after `path.set()`, so try once more on the next microtask.
   queueMicrotask(() => {
-    scroll();
+    scrollToHashNow(hash);
   });
+}
+
+function scrollToHashNow(hash: string): boolean {
+  const target = hashTarget(hash);
+  if (!target) return false;
+  try {
+    target.scrollIntoView({ block: "start", inline: "nearest" });
+  } catch {
+    try {
+      target.scrollIntoView();
+    } catch {
+      /* noop */
+    }
+  }
+  return true;
 }
 
 function hashTarget(hash: string): HTMLElement | null {
@@ -746,7 +870,10 @@ function hashTarget(hash: string): HTMLElement | null {
   } catch {
     /* keep raw hash text */
   }
-  return document.getElementById(id);
+  return (
+    document.getElementById(id) ??
+    (id === raw ? null : document.getElementById(raw))
+  );
 }
 
 function scrollTo(options: ScrollToOptions): void {

@@ -19,6 +19,7 @@ import { emitDevtools } from "../devtools-hook.js";
 import { html } from "../html/template.js";
 import {
   _setTemplateOwner,
+  _setTemplatePostCommit,
   type TemplateResult,
 } from "../html/template-types.js";
 import type { Guard, GuardResult, HeadMeta, Page, PageContext } from "../page.js";
@@ -39,6 +40,8 @@ import {
 } from "./match.js";
 import { routeUrl, stripBase } from "./base.js";
 import {
+  _enableRouteRenderScroll,
+  _routeRenderCommitted,
   _routerWithInitialFallback,
   navigate,
   type RouterApi,
@@ -99,6 +102,8 @@ export interface RoutesOptions {
  * routes() has its own context.
  */
 interface RoutesContext {
+  /** Concrete low-level router used to acknowledge live page commits. */
+  routerApi: RouterApi | null;
   moduleCache: Map<unknown, Page>;
   pathToFlat: Map<string, FlatEntry>;
   compiledForPrefetch: Array<{ regex: RegExp; entry: FlatEntry }>;
@@ -166,6 +171,7 @@ export function routes(
   }
 
   const ctx: RoutesContext = {
+    routerApi: null,
     moduleCache: new Map(),
     pathToFlat: new Map(),
     compiledForPrefetch: [],
@@ -275,6 +281,8 @@ export function routes(
     },
   );
   const rawView = api.view;
+  ctx.routerApi = api;
+  _enableRouteRenderScroll(api);
   api.view = () => {
     guardRevision();
     return rawView();
@@ -355,6 +363,10 @@ function renderInPageLifecycle(
   ctx: RoutesContext,
   render: () => TemplateResult,
 ): TemplateResult {
+  const committedLocation =
+    typeof location === "undefined"
+      ? ""
+      : `${location.pathname}${location.search}${location.hash}`;
   const lc = createLifecycle();
   try {
     // Page/load/layout evaluation is setup work, not a reactive binding.
@@ -366,6 +378,11 @@ function renderInPageLifecycle(
     _setTemplateOwner(value, () => {
       lc.dispose();
       if (ctx.activeLifecycle === lc) ctx.activeLifecycle = null;
+    });
+    _setTemplatePostCommit(value, () => {
+      if (ctx.routerApi) {
+        _routeRenderCommitted(ctx.routerApi, committedLocation);
+      }
     });
     ctx.activeLifecycle = lc;
     return value;

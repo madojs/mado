@@ -66,6 +66,25 @@ const { ref } = await import("../../dist/src/html/bindings.js");
 const { page } = await import("../../dist/src/page.js");
 const { effect, signal, flushSync } = await import("../../dist/src/signal.js");
 
+async function flushMicrotasks(turns = 16) {
+  for (let index = 0; index < turns; index++) await Promise.resolve();
+}
+
+function pageWithAnchor(id, onScroll) {
+  return page({
+    view: () => html`
+      <main>
+        <section
+          id=${id}
+          ref=${ref((element) => {
+            if (element) element.scrollIntoView = onScroll;
+          })}
+        >anchor</section>
+      </main>
+    `,
+  });
+}
+
 
 test("C8.1: onDispose after dispose() runs the callback immediately", () => {
   const lc = createLifecycle();
@@ -191,6 +210,267 @@ test("C8.3: navigating to the same path with a new #hash scrolls to the anchor",
   } finally {
     r.dispose();
     document.body.innerHTML = "";
+    loc.hash = "";
+  }
+});
+
+test("routes(): cold path+fragment waits for the destination commit", async () => {
+  loc.pathname = "/";
+  loc.search = "";
+  loc.hash = "";
+  let resolveDocs;
+  let scrolled = 0;
+  const docsLoader = () =>
+    new Promise((resolve) => {
+      resolveDocs = resolve;
+    });
+  const app = document.createElement("div");
+  document.body.append(app);
+  const r = routes(
+    {
+      "/": page({ view: () => html`<main>home</main>` }),
+      "/docs": docsLoader,
+    },
+    {
+      loadingDelay: 0,
+      viewTransitions: false,
+      scrollRestoration: false,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    render(html`${r.view}`, app);
+    await flushMicrotasks();
+    r.navigate("/docs#details%3Ainstall");
+    await flushMicrotasks(4);
+    assert.equal(scrolled, 0, "a loading shell cannot consume the fragment");
+
+    resolveDocs({
+      default: pageWithAnchor("details:install", () => scrolled++),
+    });
+    await flushMicrotasks();
+    assert.equal(scrolled, 1, "the committed decoded id is scrolled once");
+  } finally {
+    r.dispose();
+    unmount(app);
+    app.remove();
+    loc.pathname = "/";
+    loc.hash = "";
+  }
+});
+
+test("routes(): an older queued commit cannot consume a newer fragment intent", async () => {
+  loc.pathname = "/";
+  loc.search = "";
+  loc.hash = "";
+  let resolveDocs;
+  let scrolled = 0;
+  const app = document.createElement("div");
+  document.body.append(app);
+  const r = routes(
+    {
+      "/": page({ view: () => html`<main>home</main>` }),
+      "/docs": () =>
+        new Promise((resolve) => {
+          resolveDocs = resolve;
+        }),
+    },
+    {
+      loadingDelay: 0,
+      viewTransitions: false,
+      scrollRestoration: false,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    // Warm the initial page so the mounted render uses the synchronous path.
+    // Its post-commit acknowledgement is queued, but deliberately not flushed.
+    void r.view();
+    await flushMicrotasks();
+    render(html`${r.view}`, app);
+    r.navigate("/docs#target");
+
+    await flushMicrotasks(4);
+    resolveDocs({ default: pageWithAnchor("target", () => scrolled++) });
+    await flushMicrotasks();
+
+    assert.equal(scrolled, 1);
+  } finally {
+    r.dispose();
+    unmount(app);
+    app.remove();
+    loc.pathname = "/";
+    loc.hash = "";
+  }
+});
+
+test("routes(): initial fragment survives an asynchronous first commit", async () => {
+  loc.pathname = "/docs";
+  loc.search = "";
+  loc.hash = "#details%3Ainstall";
+  let resolveDocs;
+  let scrolled = 0;
+  const app = document.createElement("div");
+  document.body.append(app);
+  const r = routes(
+    {
+      "/docs": () =>
+        new Promise((resolve) => {
+          resolveDocs = resolve;
+        }),
+    },
+    {
+      loadingDelay: 0,
+      viewTransitions: false,
+      scrollRestoration: false,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    render(html`${r.view}`, app);
+    await flushMicrotasks(4);
+    resolveDocs({
+      default: pageWithAnchor("details:install", () => scrolled++),
+    });
+    await flushMicrotasks();
+    assert.equal(scrolled, 1);
+  } finally {
+    r.dispose();
+    unmount(app);
+    app.remove();
+    loc.pathname = "/";
+    loc.hash = "";
+  }
+});
+
+test("routes(): malformed percent fragments use the literal element id", async () => {
+  loc.pathname = "/docs";
+  loc.search = "";
+  loc.hash = "#broken%E0%A4%A";
+  let scrolled = 0;
+  const app = document.createElement("div");
+  document.body.append(app);
+  const r = routes(
+    { "/docs": pageWithAnchor("broken%E0%A4%A", () => scrolled++) },
+    {
+      loadingDelay: 0,
+      viewTransitions: false,
+      scrollRestoration: false,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    render(html`${r.view}`, app);
+    await flushMicrotasks();
+    assert.equal(scrolled, 1);
+  } finally {
+    r.dispose();
+    unmount(app);
+    app.remove();
+    loc.pathname = "/";
+    loc.hash = "";
+  }
+});
+
+test("routes(): an unrelated router commit cannot consume another router's fragment", async () => {
+  loc.pathname = "/docs";
+  loc.search = "";
+  loc.hash = "#shared";
+  let resolveTarget;
+  let scrolled = 0;
+  let staleScrolled = 0;
+  const staleTarget = document.createElement("section");
+  staleTarget.id = "shared";
+  staleTarget.scrollIntoView = () => staleScrolled++;
+  const firstRoot = document.createElement("div");
+  const targetRoot = document.createElement("div");
+  document.body.append(staleTarget, firstRoot, targetRoot);
+  const first = routes(
+    { "/docs": page({ view: () => html`<aside>unrelated</aside>` }) },
+    { loadingDelay: 0, viewTransitions: false, focusManagement: false },
+  );
+  const target = routes(
+    {
+      "/docs": () =>
+        new Promise((resolve) => {
+          resolveTarget = resolve;
+        }),
+    },
+    { loadingDelay: 0, viewTransitions: false, focusManagement: false },
+  );
+
+  try {
+    render(html`${first.view}`, firstRoot);
+    render(html`${target.view}`, targetRoot);
+    await flushMicrotasks();
+    assert.equal(scrolled, 0);
+    assert.equal(staleScrolled, 1, "the unrelated commit sees the stale target");
+
+    staleTarget.remove();
+    resolveTarget({ default: pageWithAnchor("shared", () => scrolled++) });
+    await flushMicrotasks();
+    assert.equal(scrolled, 1);
+  } finally {
+    first.dispose();
+    target.dispose();
+    unmount(firstRoot);
+    unmount(targetRoot);
+    staleTarget.remove();
+    firstRoot.remove();
+    targetRoot.remove();
+    loc.pathname = "/";
+    loc.hash = "";
+  }
+});
+
+test("routes(): superseding navigation and native popstate cancel a pending fragment", async () => {
+  loc.pathname = "/";
+  loc.search = "";
+  loc.hash = "";
+  let resolveSlow;
+  let scrolled = 0;
+  const app = document.createElement("div");
+  document.body.append(app);
+  const stable = page({ view: () => html`<main>stable</main>` });
+  const r = routes(
+    {
+      "/": stable,
+      "/slow": () =>
+        new Promise((resolve) => {
+          resolveSlow = resolve;
+        }),
+    },
+    {
+      loadingDelay: 0,
+      viewTransitions: false,
+      scrollRestoration: true,
+      focusManagement: false,
+    },
+  );
+
+  try {
+    render(html`${r.view}`, app);
+    await flushMicrotasks();
+    r.navigate("/slow#late");
+    await flushMicrotasks(4);
+
+    applyUrl("/");
+    w.dispatchEvent(new w.Event("popstate"));
+    await flushMicrotasks(4);
+    resolveSlow({ default: pageWithAnchor("late", () => scrolled++) });
+    await flushMicrotasks();
+
+    assert.equal(scrolled, 0, "history restoration wins over stale fragment work");
+    assert.match(app.textContent, /stable/);
+  } finally {
+    r.dispose();
+    unmount(app);
+    app.remove();
+    loc.pathname = "/";
     loc.hash = "";
   }
 });

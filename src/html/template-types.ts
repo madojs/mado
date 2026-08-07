@@ -17,6 +17,7 @@ export const isTemplateResult = (v: unknown): v is TemplateResult =>
   typeof v === "object" && v !== null && (v as TemplateResult)._mado === true;
 
 const owners = new WeakMap<TemplateResult, Disposer>();
+const postCommitCallbacks = new WeakMap<TemplateResult, () => void>();
 
 /**
  * Tie an internal lifecycle to the concrete template that represents it.
@@ -39,6 +40,32 @@ export function _getTemplateOwner(
   result: TemplateResult,
 ): Disposer | undefined {
   return owners.get(result);
+}
+
+/**
+ * Attach framework-owned work that must run only after this concrete template
+ * has committed to the live DOM. The renderer defers the callback to a
+ * microtask and cancels it when the candidate is replaced, rolled back or
+ * disposed before that point.
+ *
+ * This is intentionally internal metadata rather than part of TemplateResult:
+ * application mount work belongs in ref(), while the router needs a DOM commit
+ * fence without adding wrapper elements to arbitrary page templates.
+ *
+ * @internal
+ */
+export function _setTemplatePostCommit(
+  result: TemplateResult,
+  callback: () => void,
+): void {
+  postCommitCallbacks.set(result, callback);
+}
+
+/** @internal */
+export function _getTemplatePostCommit(
+  result: TemplateResult,
+): (() => void) | undefined {
+  return postCommitCallbacks.get(result);
 }
 
 /**
